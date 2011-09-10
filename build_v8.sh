@@ -14,7 +14,7 @@ usage()
 cat <<EOF
 Usage: $0 options
 
-This script builds v8 against the Android NDK. 
+This script builds v8 against the Android NDK.
 Options:
 	-h              Show this help message and exit
 	-n <ndk_dir>    The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
@@ -67,7 +67,7 @@ THIS_DIR=$(cd "$(dirname "$0")"; pwd)
 BUILD_DIR=$THIS_DIR/build
 
 if [ ! -d "$BUILD_DIR" ]; then
-	mkdir $BUILD_DIR
+	mkdir "$BUILD_DIR"
 fi
 
 V8_DIR=$THIS_DIR/v8
@@ -77,16 +77,16 @@ PLATFORM_VERSION=android-8
 buildToolchain()
 {
 	# remove the previous toolchain
-	rm -rf ${TOOLCHAIN_DIR}
+	rm -rf "$TOOLCHAIN_DIR"
 
 	# create stand alone toolchain
-	${NDK_DIR}/build/tools/make-standalone-toolchain.sh --platform=${PLATFORM_VERSION} --ndk-dir=${NDK_DIR} --install-dir=${TOOLCHAIN_DIR}
+	"$NDK_DIR/build/tools/make-standalone-toolchain.sh" --platform=$PLATFORM_VERSION --ndk-dir="$NDK_DIR" --install-dir="$TOOLCHAIN_DIR"
 }
 
 applyPatch()
 {
 	# we assume that errors are just an existing applied patch, so we remove rejects..
-	patch -p0 -N -i patches/ndk_v8.patch || find v8 -name '*.rej' -exec rm \{\} \;
+	patch -p0 -N -i "$THIS_DIR/patches/ndk_v8.patch" || find v8 -name '*.rej' -exec rm \{\} \;
 }
 
 buildV8()
@@ -95,9 +95,9 @@ buildV8()
 	CXX="${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-g++ -DANDROID=1 -D__STDC_INT64__=1"
 	RANLIB=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ranlib
 
-	cd ${V8_DIR}
-	AR=${AR} CXX=${CXX} RANLIB=${RANLIB} \
-	scons -j $NUM_CPUS mode=$MODE snapshot=off library=static arch=arm os=linux
+	cd "$V8_DIR"
+	AR=$AR CXX=$CXX RANLIB=$RANLIB \
+	scons -j $NUM_CPUS mode=$MODE snapshot=off library=static arch=arm os=linux || exit 1
 }
 
 buildThirdparty()
@@ -108,14 +108,14 @@ buildThirdparty()
   MINOR=$(grep "#define MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
   BUILD=$(grep "#define BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
 
+  cd "$V8_DIR"
   V8_VERSION="$MAJOR.$MINOR.$BUILD"
-  cd $V8_DIR
   V8_GIT_REVISION=$(git rev-parse HEAD)
   V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
   V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
 
   DATE=$(date '+%Y-%m-%d %H:%M:%S')
-cat <<EOF > $BUILD_DIR/libv8.json
+cat <<EOF > "$BUILD_DIR/libv8.json"
 {
 	"version": "$V8_VERSION",
 	"git_revision": "$V8_GIT_REVISION",
@@ -125,8 +125,8 @@ cat <<EOF > $BUILD_DIR/libv8.json
 }
 EOF
 
-  cp $V8_DIR/libv8.a $BUILD_DIR
-  cd $BUILD_DIR
+  cp "$V8_DIR/libv8.a" "$BUILD_DIR"
+  cd "$BUILD_DIR"
 
   echo "Building libv8-$V8_VERSION.tar.bz2..."
   tar -cvj -f libv8-$V8_VERSION.tar.bz2 libv8.json libv8.a
