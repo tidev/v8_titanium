@@ -7,8 +7,6 @@
 #
 # Build and bundling script for v8 / NDK toolchain
 
-# set this to the where the NDK is installed
-
 usage()
 {
 cat <<EOF
