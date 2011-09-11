@@ -12,7 +12,7 @@ $ ./build_v8.sh -n /path/to/android-ndk
 
 OR
 
-$ export ANDROID=NDK=/path/to/android-ndk
+$ export ANDROID_NDK=/path/to/android-ndk
 $ ./build_v8.sh
 ```
 
