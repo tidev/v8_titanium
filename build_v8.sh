@@ -123,11 +123,13 @@ cat <<EOF > "$BUILD_DIR/libv8.json"
 }
 EOF
 
-  cp "$V8_DIR/libv8.a" "$BUILD_DIR"
+  mkdir "$BUILD_DIR/lib" "$BUILD_DIR/include" 2>/dev/null
+  cp "$V8_DIR/libv8.a" "$BUILD_DIR/lib"
+  cp -R "$V8_DIR/include" "$BUILD_DIR"
   cd "$BUILD_DIR"
 
   echo "Building libv8-$V8_VERSION.tar.bz2..."
-  tar -cvj -f libv8-$V8_VERSION.tar.bz2 libv8.json libv8.a
+  tar -cvj -f libv8-$V8_VERSION.tar.bz2 libv8.json lib include
 }
 
 if [ ! -d "$TOOLCHAIN_DIR" ]; then
