@@ -14,16 +14,18 @@ Usage: $0 options
 
 This script builds v8 against the Android NDK.
 Options:
-	-h              Show this help message and exit
-	-n <ndk_dir>    The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
-	-j <num-cpus>   The number of processors to use in building (passed on to scons)
-	-m <mode>       The v8 build mode (release, debug. default: release)
-	-t              Build a thirdparty tarball for uploading
+	-h                Show this help message and exit
+	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
+	-j <num-cpus>     The number of processors to use in building (passed on to scons)
+	-m <mode>         The v8 build mode (release, debug, all. default: release)
+	-l <lib-version>  The "armeabi" versions of V8 to build for (emulator, device, all. default: device)
+	-t                Package a thirdparty tarball for uploading (don't build)
 EOF
 }
 
 NUM_CPUS=1
 MODE=release
+LIB_VERSION=device
 while getopts "htn:j:m:" OPTION; do
 	case $OPTION in
 		h)
@@ -41,6 +43,9 @@ while getopts "htn:j:m:" OPTION; do
 			;;
 		t)
 			THIRDPARTY=1
+			;;
+		l)
+			LIB_VERSION=$OPTARG
 			;;
 		?)
 			usage
@@ -88,31 +93,57 @@ applyPatch()
 }
 
 buildV8()
-{	
+{
+	BUILD_MODE=$1
+	BUILD_LIB_VERSION=$2
+
+	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION"
+
 	AR=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ar
 	CXX="${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-g++ -DANDROID=1 -D__STDC_INT64__=1"
 	RANLIB=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ranlib
 
+	if [ "$BUILD_LIB_VERSION" = "emulator" ]; then
+		# Build with software FPU for the Android emulator
+		ARMEABI="soft"
+	else
+		# Build with mixed software / hardware delegating FPU (for Android devices)
+		ARMEABI="softfp"
+	fi
+
 	cd "$V8_DIR"
+
 	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$MODE snapshot=off library=static arch=arm os=linux || exit 1
+	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=off library=static arch=arm os=linux armeabi=$ARMEABI || exit 1
+
+	LIB_SUFFIX=""
+	if [ "$BUILD_MODE" = "debug" ]; then
+		# Append _g for debug builds
+		LIB_SUFFIX="_g"
+	fi
+
+	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
+	mkdir -p "$DEST_DIR/lib" 2>/dev/null || echo
+	cp "$V8_DIR/libv8$LIB_SUFFIX.a" "$DEST_DIR/lib/libv8-$BUILD_LIB_VERSION$LIB_SUFFIX.a"
 }
 
 buildThirdparty()
 {
-  # Copied from v8/tools/push-to-trunk.sh
-  VERSION_FILE=$V8_DIR/src/version.cc
-  MAJOR=$(grep "#define MAJOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
-  MINOR=$(grep "#define MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
-  BUILD=$(grep "#define BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
+	BUILD_MODE=$1
 
-  cd "$V8_DIR"
-  V8_VERSION="$MAJOR.$MINOR.$BUILD"
-  V8_GIT_REVISION=$(git rev-parse HEAD)
-  V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
-  V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
+	# Copied from v8/tools/push-to-trunk.sh
+	VERSION_FILE=$V8_DIR/src/version.cc
+	MAJOR=$(grep "#define MAJOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
+	MINOR=$(grep "#define MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
+	BUILD=$(grep "#define BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
 
-  DATE=$(date '+%Y-%m-%d %H:%M:%S')
+	cd "$V8_DIR"
+	V8_VERSION="$MAJOR.$MINOR.$BUILD"
+	V8_GIT_REVISION=$(git rev-parse HEAD)
+	V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
+	V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
+
+	DATE=$(date '+%Y-%m-%d %H:%M:%S')
 cat <<EOF > "$BUILD_DIR/libv8.json"
 {
 	"version": "$V8_VERSION",
@@ -123,22 +154,36 @@ cat <<EOF > "$BUILD_DIR/libv8.json"
 }
 EOF
 
-  mkdir "$BUILD_DIR/lib" "$BUILD_DIR/include" 2>/dev/null
-  cp "$V8_DIR/libv8.a" "$BUILD_DIR/lib"
-  cp -R "$V8_DIR/include" "$BUILD_DIR"
-  cd "$BUILD_DIR"
+	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
+	mkdir -p "$DEST_DIR/lib" "$DEST_DIR/include" 2>/dev/null
+	cp -R "$V8_DIR/include" "$DEST_DIR"
 
-  echo "Building libv8-$V8_VERSION.tar.bz2..."
-  tar -cvj -f libv8-$V8_VERSION.tar.bz2 libv8.json lib include
+	cd "$DEST_DIR"
+	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
+	tar -cvj -f libv8-$V8_VERSION-$BUILD_MODE.tar.bz2 libv8.json lib include
 }
 
 if [ ! -d "$TOOLCHAIN_DIR" ]; then
 	buildToolchain
 fi
 
-applyPatch
-buildV8
+if [ "$LIB_VERSION" = "all" ]; then
+	LIB_VERSION="device emulator"
+fi
 
-if [ "$THIRDPARTY" = "1" ]; then
-	buildThirdparty
+if [ "$MODE" = "all" ]; then
+	MODE="release debug"
+fi
+
+if [ "$THIRDPARTY" = "0" ]; then
+	applyPatch
+	for build_lib_version in $LIB_VERSION; do
+		for build_mode in $MODE; do
+			buildV8 $build_mode $build_lib_version
+		done
+	done
+else
+	for build_mode in $MODE; do
+		buildThirdparty $build_mode
+	done
 fi
