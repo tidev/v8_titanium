@@ -18,15 +18,18 @@ Options:
 	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
 	-j <num-cpus>     The number of processors to use in building (passed on to scons)
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
-	-l <lib-version>  The "armeabi" versions of V8 to build for (emulator, device, all. default: device)
+	-l <lib-version>  The "armeabi" versions of V8 to build for (armeabi, armeabi-v7a, all. default: armeabi-v7a)
 	-t                Package a thirdparty tarball for uploading (don't build)
+	-c                Clean the V8 build
 EOF
 }
 
 NUM_CPUS=1
 MODE=release
-LIB_VERSION=device
-while getopts "htn:j:m:" OPTION; do
+LIB_VERSION=armeabi-v7a
+THIRDPARTY=0
+CLEAN=0
+while getopts "htcn:j:m:l:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -46,6 +49,9 @@ while getopts "htn:j:m:" OPTION; do
 			;;
 		l)
 			LIB_VERSION=$OPTARG
+			;;
+		c)
+			CLEAN=1
 			;;
 		?)
 			usage
@@ -97,24 +103,25 @@ buildV8()
 	BUILD_MODE=$1
 	BUILD_LIB_VERSION=$2
 
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION"
 
 	AR=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ar
-	CXX="${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-g++ -DANDROID=1 -D__STDC_INT64__=1"
+	CXX="${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-g++ -DANDROID=1 -D__STDC_INT64__=1 -DV8_SHARED=1"
 	RANLIB=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ranlib
 
-	if [ "$BUILD_LIB_VERSION" = "emulator" ]; then
-		# Build with software FPU for the Android emulator
+	if [ "$BUILD_LIB_VERSION" = "armeabi" ]; then
+		# Build with software FPU (armeabi)
 		ARMEABI="soft"
 	else
-		# Build with mixed software / hardware delegating FPU (for Android devices)
+		# Build with mixed software / hardware delegating FPU (armeabi-v7a)
 		ARMEABI="softfp"
 	fi
+
+	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, armeabi: $ARMEABI"
 
 	cd "$V8_DIR"
 
 	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=off library=static arch=arm os=linux armeabi=$ARMEABI || exit 1
+	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=off library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
 
 	LIB_SUFFIX=""
 	if [ "$BUILD_MODE" = "debug" ]; then
@@ -123,8 +130,8 @@ buildV8()
 	fi
 
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
-	mkdir -p "$DEST_DIR/lib" 2>/dev/null || echo
-	cp "$V8_DIR/libv8$LIB_SUFFIX.a" "$DEST_DIR/lib/libv8-$BUILD_LIB_VERSION$LIB_SUFFIX.a"
+	mkdir -p "$DEST_DIR/libs/$BUILD_LIB_VERSION" 2>/dev/null || echo
+	cp "$V8_DIR/libv8$LIB_SUFFIX.a" "$DEST_DIR/libs/$BUILD_LIB_VERSION/libv8$LIB_SUFFIX.a"
 }
 
 buildThirdparty()
@@ -155,20 +162,25 @@ cat <<EOF > "$BUILD_DIR/libv8.json"
 EOF
 
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
-	mkdir -p "$DEST_DIR/lib" "$DEST_DIR/include" 2>/dev/null
+	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" 2>/dev/null
 	cp -R "$V8_DIR/include" "$DEST_DIR"
 
 	cd "$DEST_DIR"
 	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
-	tar -cvj -f libv8-$V8_VERSION-$BUILD_MODE.tar.bz2 libv8.json lib include
+	tar -cvj -f libv8-$V8_VERSION-$BUILD_MODE.tar.bz2 libv8.json libs include
 }
+
+if [ "$CLEAN" = "1" ]; then
+	cd v8 && scons -c
+	exit;
+fi
 
 if [ ! -d "$TOOLCHAIN_DIR" ]; then
 	buildToolchain
 fi
 
 if [ "$LIB_VERSION" = "all" ]; then
-	LIB_VERSION="device emulator"
+	LIB_VERSION="armeabi armeabi-v7a"
 fi
 
 if [ "$MODE" = "all" ]; then
