@@ -20,6 +20,7 @@ Options:
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
 	-l <lib-version>  The "armeabi" versions of V8 to build for (armeabi, armeabi-v7a, all. default: armeabi-v7a)
 	-t                Package a thirdparty tarball for uploading (don't build)
+	-s                Enable V8 snapshot. Improves performance, but takes longer to compile. (default: off)
 	-c                Clean the V8 build
 EOF
 }
@@ -29,7 +30,8 @@ MODE=release
 LIB_VERSION=armeabi-v7a
 THIRDPARTY=0
 CLEAN=0
-while getopts "htcn:j:m:l:" OPTION; do
+USE_V8_SNAPSHOT=0
+while getopts "htscn:j:m:l:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -46,6 +48,9 @@ while getopts "htcn:j:m:l:" OPTION; do
 			;;
 		t)
 			THIRDPARTY=1
+			;;
+		s)
+			USE_V8_SNAPSHOT=1
 			;;
 		l)
 			LIB_VERSION=$OPTARG
@@ -120,8 +125,21 @@ buildV8()
 
 	cd "$V8_DIR"
 
+	if [ $USE_V8_SNAPSHOT = 1 ]; then
+		# Build Host VM to generate the snapshot.
+		scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=on armeabi=$ARMEABI || exit 1
+
+		# We need to move the snapshot now into the V8 src folder
+		# before we build the target VM.
+		mv obj/release/snapshot.cc src/
+
+		# Clean build before moving onto the target VM compile.
+		scons -c
+	fi
+
+	# Build the Target VM.
 	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=off library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
+	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=nobuild library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
 
 	LIB_SUFFIX=""
 	if [ "$BUILD_MODE" = "debug" ]; then
@@ -150,8 +168,10 @@ buildThirdparty()
 	V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
 	V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
 
+	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	DATE=$(date '+%Y-%m-%d %H:%M:%S')
-cat <<EOF > "$BUILD_DIR/libv8.json"
+
+cat <<EOF > "$DEST_DIR/libv8.json"
 {
 	"version": "$V8_VERSION",
 	"git_revision": "$V8_GIT_REVISION",
@@ -161,7 +181,6 @@ cat <<EOF > "$BUILD_DIR/libv8.json"
 }
 EOF
 
-	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" 2>/dev/null
 	cp -R "$V8_DIR/include" "$DEST_DIR"
 
