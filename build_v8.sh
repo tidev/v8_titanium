@@ -125,7 +125,11 @@ buildV8()
 
 	cd "$V8_DIR"
 
+	SNAPSHOT="off"
+
 	if [ $USE_V8_SNAPSHOT = 1 ]; then
+		SNAPSHOT="nobuild"
+
 		# Build Host VM to generate the snapshot.
 		scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=on armeabi=$ARMEABI || exit 1
 
@@ -139,7 +143,7 @@ buildV8()
 
 	# Build the Target VM.
 	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=nobuild library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
+	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=$SNAPSHOT library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
 
 	LIB_SUFFIX=""
 	if [ "$BUILD_MODE" = "debug" ]; then
