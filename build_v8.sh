@@ -131,7 +131,7 @@ buildV8()
 		SNAPSHOT="nobuild"
 
 		# Build Host VM to generate the snapshot.
-		scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=on armeabi=$ARMEABI || exit 1
+		scons -j $NUM_CPUS mode=$BUILD_MODE simulator=arm snapshot=on armeabi=$ARMEABI || exit 1
 
 		# We need to move the snapshot now into the V8 src folder
 		# before we build the target VM.
