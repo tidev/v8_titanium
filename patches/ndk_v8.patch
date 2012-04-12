@@ -1,26 +1,21 @@
-unchanged:
---- v8_orig/src/platform-linux.cc	2011-09-09 19:48:25.536842403 -0500
-+++ v8/src/platform-linux.cc	2011-09-09 14:05:42.845135548 -0500
-@@ -1085,7 +1085,7 @@
-     if (result != 0 && errno != EINTR) {
-       fprintf(stderr,
-               "SignalSender usleep error; interval = %u, errno = %d\n",
--              interval,
-+              (unsigned int)interval,
-               errno);
-       ASSERT(result == 0 || errno == EINTR);
-     }
-only in patch2:
-unchanged:
---- v8_orig/src/platform-posix.cc	2011-09-09 19:48:25.540842403 -0500
-+++ v8/src/platform-posix.cc	2011-09-09 19:55:02.772842683 -0500
-@@ -48,7 +48,8 @@
- 
- #if defined(ANDROID)
- #define LOG_TAG "v8"
--#include <utils/Log.h>  // LOG_PRI_VA
-+#include <android/log.h>
-+#define LOG_PRI_VA __android_log_print
- #endif
- 
- #include "v8.h"
+--- v8/SConstruct_origin	2012-04-10 11:21:39.000000000 -0500
++++ v8/SConstruct	2012-04-10 11:21:42.000000000 -0500
+@@ -302,7 +302,7 @@
+   'gcc': {
+     'all': {
+       'WARNINGFLAGS': ['-Wall',
+-                       '-Werror',
++                       #'-Werror',
+                        '-W',
+                        '-Wno-unused-parameter',
+                        '-Woverloaded-virtual',
+@@ -366,7 +366,8 @@
+ MKSNAPSHOT_EXTRA_FLAGS = {
+   'gcc': {
+     'os:linux': {
+-      'LIBS': ['pthread'],
++      'LIBS': ['log']
++      #'LIBS': ['pthread'],
+     },
+     'os:macos': {
+       'LIBS': ['pthread'],
