@@ -18,7 +18,7 @@ Options:
 	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
 	-j <num-cpus>     The number of processors to use in building (passed on to scons)
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
-	-l <lib-version>  The "armeabi" versions of V8 to build for (armeabi, armeabi-v7a, all. default: armeabi-v7a)
+	-l <lib-version>  Architectures to build for (armeabi, armeabi-v7a, x86, all. default: armeabi-v7a)
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-s                Enable V8 snapshot. Improves performance, but takes longer to compile. (default: off)
 	-c                Clean the V8 build
@@ -31,7 +31,9 @@ LIB_VERSION=armeabi-v7a
 THIRDPARTY=0
 CLEAN=0
 USE_V8_SNAPSHOT=0
-while getopts "htscn:j:m:l:" OPTION; do
+PLATFORM_VERSION=android-8
+
+while getopts "htscn:j:m:l:p:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -57,6 +59,9 @@ while getopts "htscn:j:m:l:" OPTION; do
 			;;
 		c)
 			CLEAN=1
+			;;
+		p)
+			PLATFORM_VERSION=$OPTARG
 			;;
 		?)
 			usage
@@ -86,7 +91,7 @@ fi
 
 V8_DIR=$THIS_DIR/v8
 TOOLCHAIN_DIR=$BUILD_DIR/ndk_toolchain
-PLATFORM_VERSION=android-8
+
 
 buildToolchain()
 {
@@ -94,7 +99,7 @@ buildToolchain()
 	rm -rf "$TOOLCHAIN_DIR"
 
 	# create stand alone toolchain
-	"$NDK_DIR/build/tools/make-standalone-toolchain.sh" --platform=$PLATFORM_VERSION --ndk-dir="$NDK_DIR" --install-dir="$TOOLCHAIN_DIR"
+	"$NDK_DIR/build/tools/make-standalone-toolchain.sh" --platform=$PLATFORM_VERSION --ndk-dir="$NDK_DIR" --install-dir="$TOOLCHAIN_DIR" --arch="$ARCH"	
 }
 
 applyPatch()
@@ -108,10 +113,15 @@ buildV8()
 	BUILD_MODE=$1
 	BUILD_LIB_VERSION=$2
 
+	if [ $IS_ARM -eq 0 ]; then
+		TOOLCHAIN_PREFIX="arm-linux-androideabi"
+	else
+		TOOLCHAIN_PREFIX="i686-android-linux"
+	fi
 
-	AR=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ar
-	CXX="${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-g++ -DANDROID=1 -D__STDC_INT64__=1 -DV8_SHARED=1"
-	RANLIB=${TOOLCHAIN_DIR}/bin/arm-linux-androideabi-ranlib
+	AR=${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-ar
+	CXX="${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-g++ -DANDROID=1 -D__STDC_INT64__=1 -DV8_SHARED=1"
+	RANLIB=${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-ranlib
 
 	if [ "$BUILD_LIB_VERSION" = "armeabi" ]; then
 		# Build with software FPU (armeabi)
@@ -121,7 +131,7 @@ buildV8()
 		ARMEABI="softfp"
 	fi
 
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, armeabi: $ARMEABI"
+	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH, armeabi: $ARMEABI"
 
 	cd "$V8_DIR"
 
@@ -131,7 +141,7 @@ buildV8()
 		SNAPSHOT="nobuild"
 
 		# Build Host VM to generate the snapshot.
-		scons -j $NUM_CPUS mode=$BUILD_MODE simulator=arm snapshot=on armeabi=$ARMEABI || exit 1
+		scons -j $NUM_CPUS mode=$BUILD_MODE simulator=$ARCH snapshot=on armeabi=$ARMEABI || exit 1
 
 		# We need to move the snapshot now into the V8 src folder
 		# before we build the target VM.
@@ -143,7 +153,7 @@ buildV8()
 
 	# Build the Target VM.
 	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=$SNAPSHOT library=static arch=arm os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
+	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=$SNAPSHOT library=static arch=$BUILD_ARCH os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
 
 	LIB_SUFFIX=""
 	if [ "$BUILD_MODE" = "debug" ]; then
@@ -198,12 +208,8 @@ if [ "$CLEAN" = "1" ]; then
 	exit;
 fi
 
-if [ ! -d "$TOOLCHAIN_DIR" ]; then
-	buildToolchain
-fi
-
 if [ "$LIB_VERSION" = "all" ]; then
-	LIB_VERSION="armeabi armeabi-v7a"
+	LIB_VERSION="armeabi armeabi-v7a x86"
 fi
 
 if [ "$MODE" = "all" ]; then
@@ -213,6 +219,25 @@ fi
 if [ "$THIRDPARTY" = "0" ]; then
 	applyPatch
 	for build_lib_version in $LIB_VERSION; do
+		# Switch between arm and x86/ia32 arch
+		echo $build_lib_version | grep '^arm' 1>/dev/null 2>/dev/null
+		IS_ARM=$?
+		
+		if [ $IS_ARM -eq 0 ]; then
+			ARCH='arm'
+			BUILD_ARCH='arm'
+		else
+			REV=`echo ${PLATFORM_VERSION} | sed s/android-//`
+			if [ $REV -lt 9 ]; then
+				echo "Cannot build x86 with android rev lower than SDK 9; use -p option to specify a different SDK"
+				exit 1
+			fi;
+			ARCH='x86'
+			BUILD_ARCH='ia32'
+		fi
+		
+		buildToolchain
+		
 		for build_mode in $MODE; do
 			buildV8 $build_mode $build_lib_version
 		done
