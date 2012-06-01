@@ -100,6 +100,9 @@ buildToolchain()
 
 	# create stand alone toolchain
 	"$NDK_DIR/build/tools/make-standalone-toolchain.sh" --platform=$PLATFORM_VERSION --ndk-dir="$NDK_DIR" --install-dir="$TOOLCHAIN_DIR" --arch="$ARCH"	
+	if [ $? -ne 0 ]; then
+		exit 1
+	fi
 }
 
 applyPatch()
@@ -140,8 +143,14 @@ buildV8()
 	if [ $USE_V8_SNAPSHOT = 1 ]; then
 		SNAPSHOT="nobuild"
 
+		if [ $IS_ARM -eq 0 ]; then
+			BUILD_SIMULATOR="simulator=$ARCH"
+		else
+			BUILD_SIMULATOR=""
+		fi
+
 		# Build Host VM to generate the snapshot.
-		scons -j $NUM_CPUS mode=$BUILD_MODE simulator=$ARCH snapshot=on armeabi=$ARMEABI || exit 1
+		scons -j $NUM_CPUS mode=$BUILD_MODE $BUILD_SIMULATOR snapshot=on armeabi=$ARMEABI || exit 1
 
 		# We need to move the snapshot now into the V8 src folder
 		# before we build the target VM.
