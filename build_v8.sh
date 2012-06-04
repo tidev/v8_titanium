@@ -22,6 +22,7 @@ Options:
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-s                Enable V8 snapshot. Improves performance, but takes longer to compile. (default: off)
 	-c                Clean the V8 build
+	-p				  The Android SDK version to support (android-8, android-9, etc.)
 EOF
 }
 
