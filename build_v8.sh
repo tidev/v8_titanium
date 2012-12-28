@@ -120,7 +120,7 @@ buildV8()
 	if [ $IS_ARM -eq 0 ]; then
 		TOOLCHAIN_PREFIX="arm-linux-androideabi"
 	else
-		TOOLCHAIN_PREFIX="i686-android-linux"
+		TOOLCHAIN_PREFIX="i686-linux-android"
 	fi
 
 	AR=${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-ar
