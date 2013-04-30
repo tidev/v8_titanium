@@ -16,7 +16,7 @@ This script builds v8 against the Android NDK.
 Options:
 	-h                Show this help message and exit
 	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
-	-j <num-cpus>     The number of processors to use in building (passed on to scons)
+	-j <num-cpus>     The number of processors to use in building (passed on to make)
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
 	-l <lib-version>  Architectures to build for (armeabi, armeabi-v7a, x86, all. default: armeabi-v7a)
 	-t                Package a thirdparty tarball for uploading (don't build)
@@ -104,12 +104,12 @@ buildToolchain()
 	if [ $? -ne 0 ]; then
 		exit 1
 	fi
-}
 
-applyPatch()
-{
-	# we assume that errors are just an existing applied patch, so we remove rejects..
-	patch -p0 -N -i "$THIS_DIR/patches/ndk_v8.patch" || find v8 -name '*.rej' -exec rm \{\} \;
+	# Copy the sources from NDK which the V8 build expects
+	# to be located in the NDK toolchain directory.
+	echo "Copying NDK sources..."
+	rm $TOOLCHAIN_DIR/SOURCES
+	cp -R $NDK_DIR/sources $TOOLCHAIN_DIR/
 }
 
 buildV8()
@@ -117,63 +117,35 @@ buildV8()
 	BUILD_MODE=$1
 	BUILD_LIB_VERSION=$2
 
-	if [ $IS_ARM -eq 0 ]; then
-		TOOLCHAIN_PREFIX="arm-linux-androideabi"
-	else
-		TOOLCHAIN_PREFIX="i686-linux-android"
+	# Build for ARM v7 if requested, otherwise target v5.
+	ARMV7="false"
+	if [ "$BUILD_LIB_VERSION" = "armeabi-v7a" ]; then
+		ARMV7="true"
 	fi
 
-	AR=${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-ar
-	CXX="${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-g++ -DANDROID=1 -D__STDC_INT64__=1 -DV8_SHARED=1"
-	RANLIB=${TOOLCHAIN_DIR}/bin/${TOOLCHAIN_PREFIX}-ranlib
-
-	if [ "$BUILD_LIB_VERSION" = "armeabi" ]; then
-		# Build with software FPU (armeabi)
-		ARMEABI="soft"
-	else
-		# Build with mixed software / hardware delegating FPU (armeabi-v7a)
-		ARMEABI="softfp"
-	fi
-
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH, armeabi: $ARMEABI"
+	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH, armv7: $ARMV7"
 
 	cd "$V8_DIR"
 
-	SNAPSHOT="off"
+	# Setup for building V8.
+	make dependencies
 
-	if [ $USE_V8_SNAPSHOT = 1 ]; then
-		SNAPSHOT="nobuild"
-
-		if [ $IS_ARM -eq 0 ]; then
-			BUILD_SIMULATOR="simulator=$ARCH"
-		else
-			BUILD_SIMULATOR=""
-		fi
-
-		# Build Host VM to generate the snapshot.
-		scons -j $NUM_CPUS mode=$BUILD_MODE $BUILD_SIMULATOR snapshot=on armeabi=$ARMEABI || exit 1
-
-		# We need to move the snapshot now into the V8 src folder
-		# before we build the target VM.
-		mv obj/release/snapshot.cc src/
-
-		# Clean build before moving onto the target VM compile.
-		scons -c
+	# Disable snapshots if requested.
+	SNAPSHOT="on"
+	if [ $USE_V8_SNAPSHOT = 0 ]; then
+		SNAPSHOT="off"
 	fi
 
-	# Build the Target VM.
-	AR=$AR CXX=$CXX RANLIB=$RANLIB \
-	scons -j $NUM_CPUS mode=$BUILD_MODE snapshot=$SNAPSHOT library=static arch=$BUILD_ARCH os=linux usepthread=off android=on armeabi=$ARMEABI || exit 1
+	# Build V8
+	MAKE_TARGET="android_$BUILD_ARCH.$BUILD_MODE"
+	ANDROID_TOOLCHAIN=$TOOLCHAIN_DIR \
+	make -j$NUM_CPUS $MAKE_TARGET snapshot=$SNAPSHOT armv7=$ARMV7
 
-	LIB_SUFFIX=""
-	if [ "$BUILD_MODE" = "debug" ]; then
-		# Append _g for debug builds
-		LIB_SUFFIX="_g"
-	fi
-
+	# Copy the static library to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$BUILD_LIB_VERSION" 2>/dev/null || echo
-	cp "$V8_DIR/libv8$LIB_SUFFIX.a" "$DEST_DIR/libs/$BUILD_LIB_VERSION/libv8$LIB_SUFFIX.a"
+	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." \
+	      "$DEST_DIR/libs/$BUILD_LIB_VERSION/"
 }
 
 buildThirdparty()
@@ -214,7 +186,7 @@ EOF
 }
 
 if [ "$CLEAN" = "1" ]; then
-	cd v8 && scons -c
+	cd v8 && make clean
 	exit;
 fi
 
@@ -227,7 +199,6 @@ if [ "$MODE" = "all" ]; then
 fi
 
 if [ "$THIRDPARTY" = "0" ]; then
-	applyPatch
 	for build_lib_version in $LIB_VERSION; do
 		# Switch between arm and x86/ia32 arch
 		echo $build_lib_version | grep '^arm' 1>/dev/null 2>/dev/null
