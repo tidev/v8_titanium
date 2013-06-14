@@ -2,8 +2,7 @@ This is where we store the patches and revision of the v8 repository that we use
 
 To build V8, you'll need:
 
-- Android NDK r6b
-- A recent version of SCons
+- Android NDK r8d
 
 Build V8 for Android against the NDK:
 
