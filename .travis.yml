@@ -1,0 +1,13 @@
+language: c++
+
+env:
+ global:
+
+before_install:
+
+install:
+
+script: 
+    - ./build_v8.sh
+
+after_success:
