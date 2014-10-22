@@ -1,4 +1,4 @@
-This is where we store the patches and revision of the v8 repository that we use in the Android port of Titanium Mobile.
+This is where we store the patches and revision of the v8 repository that we use in the Android port of Titanium Mobile. [![Build Status](https://travis-ci.org/appcelerator/v8_titanium.svg?branch=master)](https://travis-ci.org/appcelerator/v8_titanium)
 
 To build V8, you'll need:
 
