@@ -29,3 +29,7 @@ Options:
 	-m <mode>       The v8 build mode (release, debug. default: release)
 	-t              Build a thirdparty tarball for uploading
 ```
+
+Note: This build is designed to work on a 32-bit Linux. If you wish to install it on a 64-bit version, you would need to install 32-bit libraries:
+
+sudo apt-get -y install gcc-multilib g++-multilib
