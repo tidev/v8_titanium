@@ -137,9 +137,9 @@ buildV8()
 	fi
 
 	# Build V8
-	MAKE_TARGET="android_$BUILD_ARCH.$BUILD_MODE"
+	MAKE_TARGET="$BUILD_ARCH.$BUILD_MODE"
 	ANDROID_TOOLCHAIN=$TOOLCHAIN_DIR \
-	make -j$NUM_CPUS $MAKE_TARGET snapshot=$SNAPSHOT armv7=$ARMV7
+	make -j$NUM_CPUS $MAKE_TARGET snapshot=$SNAPSHOT armv7=$ARMV7 --debug=v
 
 	# Copy the static library to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
