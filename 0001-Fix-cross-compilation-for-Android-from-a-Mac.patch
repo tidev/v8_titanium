@@ -1,0 +1,207 @@
+From 7c9847d2cb542dc7d5402914ecdd9ccaaed0eda8 Mon Sep 17 00:00:00 2001
+From: sgtcoolguy <chris.a.williams@gmail.com>
+Date: Fri, 23 Oct 2015 10:14:46 -0400
+Subject: [PATCH 1/2] Fix cross-compilation for Android from a Mac
+
+---
+ AUTHORS               |  1 +
+ Makefile.android      | 10 ++++++++++
+ build/standalone.gypi | 26 ++++++++++++++++++++------
+ tools/gyp/v8.gyp      |  6 ++++++
+ 4 files changed, 37 insertions(+), 6 deletions(-)
+
+diff --git a/v8/AUTHORS b/v8/AUTHORS
+index b588084..d8c711c 100644
+--- a/v8/AUTHORS
++++ b/v8/AUTHORS
+@@ -46,6 +46,7 @@ Caitlin Potter <caitpotter88@gmail.com>
+ Craig Schlenter <craig.schlenter@gmail.com>
+ Chris Nardi <hichris123@gmail.com>
+ Christopher A. Taylor <chris@gameclosure.com>
++Christopher Williams <chris.a.williams@gmail.com>
+ Daniel Andersson <kodandersson@gmail.com>
+ Daniel James <dnljms@gmail.com>
+ Douglas Crosher <dtc-v8@scieneer.com>
+diff --git a/v8/Makefile.android b/v8/Makefile.android
+index c49cb85..51e4570 100644
+--- a/v8/Makefile.android
++++ b/v8/Makefile.android
+@@ -35,18 +35,27 @@ MODES = release debug
+ ANDROID_BUILDS = $(foreach mode,$(MODES), \
+                    $(addsuffix .$(mode),$(ANDROID_ARCHES)))
+ 
++HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
++HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
++
+ ifeq ($(ARCH), android_arm)
+   DEFINES  = target_arch=arm v8_target_arch=arm
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/arm-linux-androideabi/bin
+ else ifeq ($(ARCH), android_arm64)
+   DEFINES  = target_arch=arm64 v8_target_arch=arm64
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/aarch64-linux-android-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/aarch64-linux-android/bin
+ else ifeq ($(ARCH), android_mipsel)
+   DEFINES  = target_arch=mipsel v8_target_arch=mipsel
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/mipsel-linux-android-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/mipsel-linux-android/bin
+ else ifeq ($(ARCH), android_ia32)
+   DEFINES = target_arch=ia32 v8_target_arch=ia32
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/i686-linux-android/bin
+ else ifeq ($(ARCH), android_x64)
+   DEFINES = target_arch=x64 v8_target_arch=x64
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86_64-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/x86_64-linux-android/bin
+ else ifeq ($(ARCH), android_x87)
+   DEFINES = target_arch=ia32 v8_target_arch=x87
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/i686-linux-android/bin
+ else
+   $(error Target architecture "${ARCH}" is not supported)
+ endif
+@@ -57,6 +66,7 @@ DEFINES += OS=android
+ .SECONDEXPANSION:
+ $(ANDROID_BUILDS): $(OUTDIR)/Makefile.$$@
+ 	@$(MAKE) -C "$(OUTDIR)" -f Makefile.$@ \
++	          AR="$(ANDROID_TOOLCHAIN)/ar" \
+ 	          BUILDTYPE=$(shell echo $(subst .,,$(suffix $@)) | \
+ 	                      python -c "print raw_input().capitalize()") \
+ 	          builddir="$(shell pwd)/$(OUTDIR)/$@"
+diff --git a/v8/build/standalone.gypi b/v8/build/standalone.gypi
+index 4006944..55a7f0c 100644
+--- a/v8/build/standalone.gypi
++++ b/v8/build/standalone.gypi
+@@ -253,44 +253,50 @@
+             'android_ndk_root%': '<(base_dir)/third_party/android_tools/ndk/',
+             'android_host_arch%': "<!(uname -m | sed -e 's/i[3456]86/x86/')",
+             'host_os%': "<!(uname -s | sed -e 's/Linux/linux/;s/Darwin/mac/')",
++            'os_folder_name%': "<!(uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')",
+           },
+ 
+           # Copy conditionally-set variables out one scope.
+           'android_ndk_root%': '<(android_ndk_root)',
+           'host_os%': '<(host_os)',
++          'os_folder_name%': '<(os_folder_name)',
+ 
+           'conditions': [
+             ['target_arch == "ia32"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/x86-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/x86-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'x86',
+               'android_target_platform%': '16',
++              'arm_version%': 'default',
+             }],
+             ['target_arch == "x64"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'x86_64',
+               'android_target_platform%': '21',
++              'arm_version%': 'default',
+             }],
+             ['target_arch=="arm"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/arm-linux-androideabi-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/arm-linux-androideabi-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'arm',
+               'android_target_platform%': '16',
+               'arm_version%': 7,
+             }],
+             ['target_arch == "arm64"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/aarch64-linux-android-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/aarch64-linux-android-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'arm64',
+               'android_target_platform%': '21',
+               'arm_version%': 'default',
+             }],
+             ['target_arch == "mipsel"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/mipsel-linux-android-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/mipsel-linux-android-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'mips',
+               'android_target_platform%': '16',
++              'arm_version%': 'default',
+             }],
+             ['target_arch == "mips64el"', {
+-              'android_toolchain%': '<(android_ndk_root)/toolchains/mips64el-linux-android-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
++              'android_toolchain%': '<(android_ndk_root)/toolchains/mips64el-linux-android-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
+               'android_target_arch%': 'mips64',
+               'android_target_platform%': '21',
++              'arm_version%': 'default',
+             }],
+           ],
+         },
+@@ -338,9 +344,13 @@
+         'android_stlport_library': 'stlport_static',
+       }],  # OS=="android"
+       ['host_clang==1', {
++        'host_ld': '<!(which ld)',
++        'host_ranlib': '<!(which ranlib)',
+         'host_cc': '<(clang_dir)/bin/clang',
+         'host_cxx': '<(clang_dir)/bin/clang++',
+       }, {
++        'host_ld': '<!(which ld)',
++        'host_ranlib': '<!(which ranlib)',
+         'host_cc': '<!(which gcc)',
+         'host_cxx': '<!(which g++)',
+       }],
+@@ -1142,8 +1152,12 @@
+       # Hardcode the compiler names in the Makefile so that
+       # it won't depend on the environment at make time.
+       'make_global_settings': [
++        ['LD', '<!(/bin/echo -n <(android_toolchain)/../*/bin/ld)'],
++        ['RANLIB', '<!(/bin/echo -n <(android_toolchain)/../*/bin/ranlib)'],
+         ['CC', '<!(/bin/echo -n <(android_toolchain)/*-gcc)'],
+         ['CXX', '<!(/bin/echo -n <(android_toolchain)/*-g++)'],
++        ['LD.host', '<(host_ld)'],
++        ['RANLIB.host', '<(host_ranlib)'],
+         ['CC.host', '<(host_cc)'],
+         ['CXX.host', '<(host_cxx)'],
+       ],
+diff --git a/v8/tools/gyp/v8.gyp b/v8/tools/gyp/v8.gyp
+index 3937737..e001684 100644
+--- a/v8/tools/gyp/v8.gyp
++++ b/v8/tools/gyp/v8.gyp
+@@ -146,6 +146,7 @@
+     {
+       'target_name': 'v8_snapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'conditions': [
+         ['want_separate_host_toolset==1', {
+           'toolsets': ['host', 'target'],
+@@ -223,6 +224,7 @@
+     {
+       'target_name': 'v8_nosnapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_base',
+       ],
+@@ -256,6 +258,7 @@
+     {
+       'target_name': 'v8_external_snapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'conditions': [
+         [ 'v8_use_external_startup_data==1', {
+           'conditions': [
+@@ -361,6 +364,7 @@
+     {
+       'target_name': 'v8_base',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_libbase',
+       ],
+@@ -1448,6 +1452,7 @@
+     {
+       'target_name': 'v8_libbase',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -1712,6 +1717,7 @@
+     {
+       'target_name': 'v8_libplatform',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+-- 
+2.6.2
+

@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Appcelerator Titanium Mobile
-# Copyright (c) 2011 by Appcelerator, Inc. All Rights Reserved.
+# Copyright (c) 2011-2015 by Appcelerator, Inc. All Rights Reserved.
 # Licensed under the terms of the Apache Public License
 # Please see the LICENSE included with this distribution for details.
 #
@@ -18,7 +18,7 @@ Options:
 	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
 	-j <num-cpus>     The number of processors to use in building (passed on to make)
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
-	-l <lib-version>  Architectures to build for (armeabi, armeabi-v7a, x86, all. default: armeabi-v7a)
+	-l <lib-version>  Architectures to build for (arm, x64, ia32, arm64, mipsel, x87, all. default: arm)
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-s                Enable V8 snapshot. Improves performance, but takes longer to compile. (default: off)
 	-c                Clean the V8 build
@@ -28,11 +28,11 @@ EOF
 
 NUM_CPUS=1
 MODE=release
-LIB_VERSION=armeabi-v7a
+LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
 USE_V8_SNAPSHOT=0
-PLATFORM_VERSION=android-8
+PLATFORM_VERSION=android-9
 
 while getopts "htscn:j:m:l:p:" OPTION; do
 	case $OPTION in
@@ -91,61 +91,37 @@ if [ ! -d "$BUILD_DIR" ]; then
 fi
 
 V8_DIR=$THIS_DIR/v8
-TOOLCHAIN_DIR=$BUILD_DIR/ndk_toolchain
-
-
-buildToolchain()
-{
-	# remove the previous toolchain
-	rm -rf "$TOOLCHAIN_DIR"
-
-	# create stand alone toolchain
-	"$NDK_DIR/build/tools/make-standalone-toolchain.sh" --platform=$PLATFORM_VERSION --ndk-dir="$NDK_DIR" --install-dir="$TOOLCHAIN_DIR" --arch="$ARCH"	
-	if [ $? -ne 0 ]; then
-		exit 1
-	fi
-
-	# Copy the sources from NDK which the V8 build expects
-	# to be located in the NDK toolchain directory.
-	echo "Copying NDK sources..."
-	rm $TOOLCHAIN_DIR/SOURCES
-	cp -R $NDK_DIR/sources $TOOLCHAIN_DIR/
-}
 
 buildV8()
 {
 	BUILD_MODE=$1
 	BUILD_LIB_VERSION=$2
 
-	# Build for ARM v7 if requested, otherwise target v5.
-	ARMV7="false"
-	if [ "$BUILD_LIB_VERSION" = "armeabi-v7a" ]; then
-		ARMV7="true"
-	fi
-
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH, armv7: $ARMV7"
+	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
 
 	# Setup for building V8.
-	make dependencies
+	# FIXME This is supposed to run gclient sync from depot_tools!
+	#make dependencies
 
 	# Disable snapshots if requested.
 	SNAPSHOT="on"
+	SNAPSHOT_TRUTHY="true"
 	if [ $USE_V8_SNAPSHOT = 0 ]; then
 		SNAPSHOT="off"
+		SNAPSHOT_TRUTHY="false"
 	fi
 
 	# Build V8
-	MAKE_TARGET="$BUILD_ARCH.$BUILD_MODE"
-	ANDROID_TOOLCHAIN=$TOOLCHAIN_DIR \
-	make -j$NUM_CPUS $MAKE_TARGET snapshot=$SNAPSHOT armv7=$ARMV7
+	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
+	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT GYPFLAGS="-Dandroid_ndk_root=$NDK_DIR -Dv8_use_snapshot='$SNAPSHOT_TRUTHY'" ANDROID_NDK_ROOT=$NDK_DIR
 
 	# Copy the static library to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
-	mkdir -p "$DEST_DIR/libs/$BUILD_LIB_VERSION" 2>/dev/null || echo
+	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
 	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." \
-	      "$DEST_DIR/libs/$BUILD_LIB_VERSION/"
+	      "$DEST_DIR/libs/$ARCH/"
 }
 
 buildThirdparty()
@@ -153,10 +129,10 @@ buildThirdparty()
 	BUILD_MODE=$1
 
 	# Copied from v8/tools/push-to-trunk.sh
-	VERSION_FILE=$V8_DIR/src/version.cc
-	MAJOR=$(grep "#define MAJOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
-	MINOR=$(grep "#define MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
-	BUILD=$(grep "#define BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
+	VERSION_FILE=$V8_DIR/include/v8-version.h
+	MAJOR=$(grep "#define V8_MAJOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
+	MINOR=$(grep "#define V8_MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
+	BUILD=$(grep "#define V8_BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
 
 	cd "$V8_DIR"
 	V8_VERSION="$MAJOR.$MINOR.$BUILD"
@@ -191,7 +167,7 @@ if [ "$CLEAN" = "1" ]; then
 fi
 
 if [ "$LIB_VERSION" = "all" ]; then
-	LIB_VERSION="armeabi armeabi-v7a x86"
+	LIB_VERSION="ia32 x64 arm arm64 mipsel x87"
 fi
 
 if [ "$MODE" = "all" ]; then
@@ -200,24 +176,58 @@ fi
 
 if [ "$THIRDPARTY" = "0" ]; then
 	for build_lib_version in $LIB_VERSION; do
-		# Switch between arm and x86/ia32 arch
-		echo $build_lib_version | grep '^arm' 1>/dev/null 2>/dev/null
-		IS_ARM=$?
 		
-		if [ $IS_ARM -eq 0 ]; then
-			ARCH='arm'
-			BUILD_ARCH='arm'
-		else
-			REV=`echo ${PLATFORM_VERSION} | sed s/android-//`
-			if [ $REV -lt 9 ]; then
+		# Set ARCH for buildToolchain
+	    case $build_lib_version in
+	        arm)
+	            ARCH=arm
+	            ;;
+	        ia32)
+	            ARCH=x86
+	            ;;
+	        mipsel)
+	            ARCH=mips
+	            ;;
+	        arm64)
+	            ARCH=arm64
+	            ;;
+	        x64)
+	            ARCH=x86_64
+	            ;;
+	        x87)
+	            ARCH=x86
+	            ;;
+	        *)
+	            echo "Invalid -l"
+	            echo "Please use one of ia32, x64, arm, arm64, mipsel, or x87"
+	            ARCH=null
+	            exit 1
+	            ;;
+	    esac
+
+	    # Verify we have a target platform that works with the selected arch
+	    # TODO Do we need to do this? I think Android NDK scripts do this for us!
+	    REV=`echo ${PLATFORM_VERSION} | sed s/android-//`
+	    case $ARCH in
+        arm)
+            if [ $REV -lt 3 ]; then
+				echo "Cannot build arm with android rev lower than SDK 3; use -p option to specify a different SDK"
+				exit 1
+			fi;
+			;;
+        x86|mips)
+            if [ $REV -lt 9 ]; then
 				echo "Cannot build x86 with android rev lower than SDK 9; use -p option to specify a different SDK"
 				exit 1
 			fi;
-			ARCH='x86'
-			BUILD_ARCH='ia32'
-		fi
-		
-		buildToolchain
+            ;;
+        arm64|x86_64|mips64)
+            if [ $REV -lt 21 ]; then
+				echo "Cannot build 64-bit with android rev lower than SDK 21; use -p option to specify a different SDK"
+				exit 1
+			fi;
+            ;;
+        esac
 		
 		for build_mode in $MODE; do
 			buildV8 $build_mode $build_lib_version

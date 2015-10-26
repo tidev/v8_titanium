@@ -1,0 +1,21 @@
+From 6b96be3c9d18a1691c2d8ec1e28833ffdf643b67 Mon Sep 17 00:00:00 2001
+From: sgtcoolguy <chris.a.williams@gmail.com>
+Date: Tue, 27 Oct 2015 13:18:09 -0400
+Subject: [PATCH 1/1] blah
+
+---
+ .gclient | 1 -
+ 1 file changed, 1 deletion(-)
+
+diff --git a/.gclient b/.gclient
+index aac18a7..97f6529 100644
+--- a/.gclient
++++ b/.gclient
+@@ -8,4 +8,3 @@ solutions = [
+     "safesync_url": "",
+   },
+ ]
+-target_os = ['android']
+-- 
+2.6.2
+
