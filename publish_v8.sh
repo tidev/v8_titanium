@@ -7,6 +7,9 @@
 #
 # Uploads a libv8 tarball to S3.
 # Requires s3cmd, which must be setup using s3cmd --configure
+# http://s3tools.org/s3cmd
+# http://tcpdiag.dl.sourceforge.net/project/s3tools/s3cmd/1.6.0/s3cmd-1.6.0.tar.gz
+# Requires python2, ugh
 
 LIBV8=$1
 
