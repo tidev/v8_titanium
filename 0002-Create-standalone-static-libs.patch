@@ -24,7 +24,7 @@ index ee206fe..6231e82 100644
            'target_name': 'icui18n',
            'type': '<(component)',
 +          'conditions': [
-+            [ 'componen!="shared_library"', {
++            [ 'component!="shared_library"', {
 +                'standalone_static_library': 1,
 +            }],
 +          ],
@@ -43,6 +43,5 @@ index ee206fe..6231e82 100644
            'sources': [
              '<@(icuuc_sources)',
            ],
--- 
+--
 2.6.2
-
