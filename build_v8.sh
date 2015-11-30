@@ -117,11 +117,11 @@ buildV8()
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
 	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT GYPFLAGS="-Dandroid_ndk_root=$NDK_DIR -Dv8_use_snapshot='$SNAPSHOT_TRUTHY'" ANDROID_NDK_ROOT=$NDK_DIR
 
-	# Copy the static library to our staging area.
+	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." \
-	      "$DEST_DIR/libs/$ARCH/"
+	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." "$DEST_DIR/libs/$ARCH/"
+	cp "$V8_DIR/out/$MAKE_TARGET/libicudata.a" "$DEST_DIR/libs/$ARCH/libicudata.a"
 }
 
 buildThirdparty()
@@ -176,7 +176,7 @@ fi
 
 if [ "$THIRDPARTY" = "0" ]; then
 	for build_lib_version in $LIB_VERSION; do
-		
+
 		# Set ARCH for buildToolchain
 	    case $build_lib_version in
 	        arm)
@@ -228,7 +228,7 @@ if [ "$THIRDPARTY" = "0" ]; then
 			fi;
             ;;
         esac
-		
+
 		for build_mode in $MODE; do
 			buildV8 $build_mode $build_lib_version
 		done
