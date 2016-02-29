@@ -133,9 +133,10 @@ buildThirdparty()
 	MAJOR=$(grep "#define V8_MAJOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
 	MINOR=$(grep "#define V8_MINOR_VERSION" "$VERSION_FILE" | awk '{print $NF}')
 	BUILD=$(grep "#define V8_BUILD_NUMBER" "$VERSION_FILE" | awk '{print $NF}')
+	PATCH=$(grep "#define V8_PATCH_LEVEL" "$VERSION_FILE" | awk '{print $NF}')
 
 	cd "$V8_DIR"
-	V8_VERSION="$MAJOR.$MINOR.$BUILD"
+	V8_VERSION="$MAJOR.$MINOR.$BUILD.$PATCH"
 	V8_GIT_REVISION=$(git rev-parse HEAD)
 	V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
 	V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
