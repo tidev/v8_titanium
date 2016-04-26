@@ -1,20 +1,8 @@
-From 7c9847d2cb542dc7d5402914ecdd9ccaaed0eda8 Mon Sep 17 00:00:00 2001
-From: sgtcoolguy <chris.a.williams@gmail.com>
-Date: Fri, 23 Oct 2015 10:14:46 -0400
-Subject: [PATCH 1/2] Fix cross-compilation for Android from a Mac
-
----
- AUTHORS               |  1 +
- Makefile.android      | 10 ++++++++++
- build/standalone.gypi | 26 ++++++++++++++++++++------
- tools/gyp/v8.gyp      |  6 ++++++
- 4 files changed, 37 insertions(+), 6 deletions(-)
-
 diff --git a/v8/AUTHORS b/v8/AUTHORS
-index b588084..d8c711c 100644
+index ceffb49..1348c04 100644
 --- a/v8/AUTHORS
 +++ b/v8/AUTHORS
-@@ -46,6 +46,7 @@ Caitlin Potter <caitpotter88@gmail.com>
+@@ -49,6 +49,7 @@ Caitlin Potter <caitpotter88@gmail.com>
  Craig Schlenter <craig.schlenter@gmail.com>
  Chris Nardi <hichris123@gmail.com>
  Christopher A. Taylor <chris@gameclosure.com>
@@ -23,16 +11,11 @@ index b588084..d8c711c 100644
  Daniel James <dnljms@gmail.com>
  Douglas Crosher <dtc-v8@scieneer.com>
 diff --git a/v8/Makefile.android b/v8/Makefile.android
-index c49cb85..51e4570 100644
+index c49cb85..a2b76c9 100644
 --- a/v8/Makefile.android
 +++ b/v8/Makefile.android
-@@ -35,18 +35,27 @@ MODES = release debug
- ANDROID_BUILDS = $(foreach mode,$(MODES), \
-                    $(addsuffix .$(mode),$(ANDROID_ARCHES)))
- 
-+HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
-+HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
-+
+@@ -37,16 +37,22 @@ ANDROID_BUILDS = $(foreach mode,$(MODES), \
+
  ifeq ($(ARCH), android_arm)
    DEFINES  = target_arch=arm v8_target_arch=arm
 +  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/arm-linux-androideabi/bin
@@ -54,7 +37,7 @@ index c49cb85..51e4570 100644
  else
    $(error Target architecture "${ARCH}" is not supported)
  endif
-@@ -57,6 +66,7 @@ DEFINES += OS=android
+@@ -57,6 +63,7 @@ DEFINES += OS=android
  .SECONDEXPANSION:
  $(ANDROID_BUILDS): $(OUTDIR)/Makefile.$$@
  	@$(MAKE) -C "$(OUTDIR)" -f Makefile.$@ \
@@ -63,35 +46,33 @@ index c49cb85..51e4570 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/v8/build/standalone.gypi b/v8/build/standalone.gypi
-index 4006944..55a7f0c 100644
+index 5269b95..8e85b4b 100644
 --- a/v8/build/standalone.gypi
 +++ b/v8/build/standalone.gypi
-@@ -253,44 +253,50 @@
+@@ -267,44 +267,48 @@
              'android_ndk_root%': '<(base_dir)/third_party/android_tools/ndk/',
              'android_host_arch%': "<!(uname -m | sed -e 's/i[3456]86/x86/')",
              'host_os%': "<!(uname -s | sed -e 's/Linux/linux/;s/Darwin/mac/')",
 +            'os_folder_name%': "<!(uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')",
            },
- 
+
            # Copy conditionally-set variables out one scope.
            'android_ndk_root%': '<(android_ndk_root)',
            'host_os%': '<(host_os)',
 +          'os_folder_name%': '<(os_folder_name)',
- 
+
            'conditions': [
              ['target_arch == "ia32"', {
 -              'android_toolchain%': '<(android_ndk_root)/toolchains/x86-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
 +              'android_toolchain%': '<(android_ndk_root)/toolchains/x86-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
                'android_target_arch%': 'x86',
                'android_target_platform%': '16',
-+              'arm_version%': 'default',
              }],
              ['target_arch == "x64"', {
 -              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
 +              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
                'android_target_arch%': 'x86_64',
                'android_target_platform%': '21',
-+              'arm_version%': 'default',
              }],
              ['target_arch=="arm"', {
 -              'android_toolchain%': '<(android_ndk_root)/toolchains/arm-linux-androideabi-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
@@ -123,8 +104,8 @@ index 4006944..55a7f0c 100644
              }],
            ],
          },
-@@ -338,9 +344,13 @@
-         'android_stlport_library': 'stlport_static',
+@@ -356,9 +360,13 @@
+         'android_libcpp_library': 'c++_static',
        }],  # OS=="android"
        ['host_clang==1', {
 +        'host_ld': '<!(which ld)',
@@ -137,7 +118,7 @@ index 4006944..55a7f0c 100644
          'host_cc': '<!(which gcc)',
          'host_cxx': '<!(which g++)',
        }],
-@@ -1142,8 +1152,12 @@
+@@ -1193,8 +1201,12 @@
        # Hardcode the compiler names in the Makefile so that
        # it won't depend on the environment at make time.
        'make_global_settings': [
@@ -151,10 +132,10 @@ index 4006944..55a7f0c 100644
          ['CXX.host', '<(host_cxx)'],
        ],
 diff --git a/v8/tools/gyp/v8.gyp b/v8/tools/gyp/v8.gyp
-index 3937737..e001684 100644
+index 66f579d..2535289 100644
 --- a/v8/tools/gyp/v8.gyp
 +++ b/v8/tools/gyp/v8.gyp
-@@ -146,6 +146,7 @@
+@@ -158,6 +158,7 @@
      {
        'target_name': 'v8_snapshot',
        'type': 'static_library',
@@ -162,7 +143,7 @@ index 3937737..e001684 100644
        'conditions': [
          ['want_separate_host_toolset==1', {
            'toolsets': ['host', 'target'],
-@@ -223,6 +224,7 @@
+@@ -234,6 +235,7 @@
      {
        'target_name': 'v8_nosnapshot',
        'type': 'static_library',
@@ -170,7 +151,7 @@ index 3937737..e001684 100644
        'dependencies': [
          'v8_base',
        ],
-@@ -256,6 +258,7 @@
+@@ -266,6 +268,7 @@
      {
        'target_name': 'v8_external_snapshot',
        'type': 'static_library',
@@ -178,7 +159,7 @@ index 3937737..e001684 100644
        'conditions': [
          [ 'v8_use_external_startup_data==1', {
            'conditions': [
-@@ -361,6 +364,7 @@
+@@ -422,6 +425,7 @@
      {
        'target_name': 'v8_base',
        'type': 'static_library',
@@ -186,7 +167,7 @@ index 3937737..e001684 100644
        'dependencies': [
          'v8_libbase',
        ],
-@@ -1448,6 +1452,7 @@
+@@ -1600,6 +1604,7 @@
      {
        'target_name': 'v8_libbase',
        'type': 'static_library',
@@ -194,7 +175,7 @@ index 3937737..e001684 100644
        'variables': {
          'optimize': 'max',
        },
-@@ -1712,6 +1717,7 @@
+@@ -1865,6 +1870,7 @@
      {
        'target_name': 'v8_libplatform',
        'type': 'static_library',
@@ -202,6 +183,3 @@ index 3937737..e001684 100644
        'variables': {
          'optimize': 'max',
        },
--- 
-2.6.2
-
