@@ -14,8 +14,13 @@ diff --git a/v8/Makefile.android b/v8/Makefile.android
 index c49cb85..a2b76c9 100644
 --- a/v8/Makefile.android
 +++ b/v8/Makefile.android
-@@ -37,16 +37,22 @@ ANDROID_BUILDS = $(foreach mode,$(MODES), \
+@@ -35,18 +35,27 @@ MODES = release debug
+ ANDROID_BUILDS = $(foreach mode,$(MODES), \
+                    $(addsuffix .$(mode),$(ANDROID_ARCHES)))
 
++HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
++HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
++
  ifeq ($(ARCH), android_arm)
    DEFINES  = target_arch=arm v8_target_arch=arm
 +  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/arm-linux-androideabi/bin
@@ -37,7 +42,7 @@ index c49cb85..a2b76c9 100644
  else
    $(error Target architecture "${ARCH}" is not supported)
  endif
-@@ -57,6 +63,7 @@ DEFINES += OS=android
+@@ -57,6 +66,7 @@ DEFINES += OS=android
  .SECONDEXPANSION:
  $(ANDROID_BUILDS): $(OUTDIR)/Makefile.$$@
  	@$(MAKE) -C "$(OUTDIR)" -f Makefile.$@ \
