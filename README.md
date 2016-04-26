@@ -39,14 +39,14 @@ export PATH=${PWD}/android-ndk-r10e
 s3cmd --configure
 
 # build v8 for ARM, and then x86
-./build_v8.sh -n /path/to/android-ndk-r10e -j16 
+./build_v8.sh -n /path/to/android-ndk-r10e -j16
 ./build_v8.sh -n /path/to/android-ndk-r10e -j16 -l ia32
 
 # Generate a tarball to publish
 ./build_v8.sh -t
 
 # Publish
-./publish_v8.sh build/release/libv8-4.8.154-release.tar.bz2
+./publish_v8.sh build/release/libv8-5.0.71.33-release.tar.bz2
 ```
 
 Full build_v8.sh usage:
@@ -55,7 +55,7 @@ Full build_v8.sh usage:
 $ ./build_v8.sh -h
 Usage: ./build_v8.sh options
 
-This script builds v8 against the Android NDK. 
+This script builds v8 against the Android NDK.
 Options:
 	-h              Show this help message and exit
 	-n <ndk_dir>    The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
