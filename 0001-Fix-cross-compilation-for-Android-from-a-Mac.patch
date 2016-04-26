@@ -51,10 +51,10 @@ index c49cb85..51e4570 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/v8/build/standalone.gypi b/v8/build/standalone.gypi
-index 5269b95..8e85b4b 100644
+index 5269b95..91758a2 100644
 --- a/v8/build/standalone.gypi
 +++ b/v8/build/standalone.gypi
-@@ -267,44 +267,48 @@
+@@ -267,44 +267,50 @@
              'android_ndk_root%': '<(base_dir)/third_party/android_tools/ndk/',
              'android_host_arch%': "<!(uname -m | sed -e 's/i[3456]86/x86/')",
              'host_os%': "<!(uname -s | sed -e 's/Linux/linux/;s/Darwin/mac/')",
@@ -72,12 +72,14 @@ index 5269b95..8e85b4b 100644
 +              'android_toolchain%': '<(android_ndk_root)/toolchains/x86-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
                'android_target_arch%': 'x86',
                'android_target_platform%': '16',
++              'arm_version%': 'default',
              }],
              ['target_arch == "x64"', {
 -              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
 +              'android_toolchain%': '<(android_ndk_root)/toolchains/x86_64-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
                'android_target_arch%': 'x86_64',
                'android_target_platform%': '21',
++              'arm_version%': 'default',
              }],
              ['target_arch=="arm"', {
 -              'android_toolchain%': '<(android_ndk_root)/toolchains/arm-linux-androideabi-4.9/prebuilt/<(host_os)-<(android_host_arch)/bin',
@@ -109,7 +111,7 @@ index 5269b95..8e85b4b 100644
              }],
            ],
          },
-@@ -356,9 +360,13 @@
+@@ -356,9 +362,13 @@
          'android_libcpp_library': 'c++_static',
        }],  # OS=="android"
        ['host_clang==1', {
@@ -123,7 +125,7 @@ index 5269b95..8e85b4b 100644
          'host_cc': '<!(which gcc)',
          'host_cxx': '<!(which g++)',
        }],
-@@ -1193,8 +1201,12 @@
+@@ -1193,8 +1203,12 @@
        # Hardcode the compiler names in the Makefile so that
        # it won't depend on the environment at make time.
        'make_global_settings': [
@@ -136,6 +138,37 @@ index 5269b95..8e85b4b 100644
          ['CC.host', '<(host_cc)'],
          ['CXX.host', '<(host_cxx)'],
        ],
+diff --git a/v8/src/wasm/module-decoder.cc b/v8/src/wasm/module-decoder.cc
+index 62b000d..4b8d634 100644
+--- a/v8/src/wasm/module-decoder.cc
++++ b/v8/src/wasm/module-decoder.cc
+@@ -112,7 +112,7 @@ class ModuleDecoder : public Decoder {
+                   static_cast<int>(pc_ - start_));
+
+             module->functions->push_back(
+-                {nullptr, i, 0, 0, 0, 0, 0, 0, false, false});
++                {nullptr, i, 0, 0, 0, 0, 0, 0, 0, 0, false, false});
+             WasmFunction* function = &module->functions->back();
+             DecodeFunctionInModule(module, function, false);
+           }
+@@ -154,7 +154,7 @@ class ModuleDecoder : public Decoder {
+             if (failed()) break;
+             TRACE("DecodeDataSegment[%d] module+%d\n", i,
+                   static_cast<int>(pc_ - start_));
+-            module->data_segments->push_back({0, 0, 0});
++            module->data_segments->push_back({0, 0, 0, false});
+             WasmDataSegment* segment = &module->data_segments->back();
+             DecodeDataSegmentInModule(module, segment);
+           }
+@@ -217,7 +217,7 @@ class ModuleDecoder : public Decoder {
+             TRACE("DecodeImportTable[%d] module+%d\n", i,
+                   static_cast<int>(pc_ - start_));
+
+-            module->import_table->push_back({nullptr, 0, 0});
++            module->import_table->push_back({nullptr, 0, 0, 0});
+             WasmImport* import = &module->import_table->back();
+
+             const byte* sigpos = pc_;
 diff --git a/v8/test/unittests/wasm/ast-decoder-unittest.cc b/v8/test/unittests/wasm/ast-decoder-unittest.cc
 index 6721587..8189844 100644
 --- a/v8/test/unittests/wasm/ast-decoder-unittest.cc
