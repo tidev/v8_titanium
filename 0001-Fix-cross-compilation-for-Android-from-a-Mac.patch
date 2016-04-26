@@ -1,5 +1,5 @@
 diff --git a/v8/AUTHORS b/v8/AUTHORS
-index ceffb49..1348c04 100644
+index ceffb49..62a2e65 100644
 --- a/v8/AUTHORS
 +++ b/v8/AUTHORS
 @@ -49,6 +49,7 @@ Caitlin Potter <caitpotter88@gmail.com>
@@ -11,7 +11,7 @@ index ceffb49..1348c04 100644
  Daniel James <dnljms@gmail.com>
  Douglas Crosher <dtc-v8@scieneer.com>
 diff --git a/v8/Makefile.android b/v8/Makefile.android
-index c49cb85..a2b76c9 100644
+index c49cb85..51e4570 100644
 --- a/v8/Makefile.android
 +++ b/v8/Makefile.android
 @@ -35,18 +35,27 @@ MODES = release debug
@@ -136,6 +136,25 @@ index 5269b95..8e85b4b 100644
          ['CC.host', '<(host_cc)'],
          ['CXX.host', '<(host_cxx)'],
        ],
+diff --git a/v8/test/unittests/wasm/ast-decoder-unittest.cc b/v8/test/unittests/wasm/ast-decoder-unittest.cc
+index 6721587..8189844 100644
+--- a/v8/test/unittests/wasm/ast-decoder-unittest.cc
++++ b/v8/test/unittests/wasm/ast-decoder-unittest.cc
+@@ -1205,12 +1205,12 @@ class TestModuleEnv : public ModuleEnv {
+     return static_cast<byte>(mod.signatures->size() - 1);
+   }
+   byte AddFunction(FunctionSig* sig) {
+-    mod.functions->push_back({sig, 0, 0, 0, 0, 0, 0, 0, false, false});
++    mod.functions->push_back({sig, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false});
+     CHECK(mod.functions->size() <= 127);
+     return static_cast<byte>(mod.functions->size() - 1);
+   }
+   byte AddImport(FunctionSig* sig) {
+-    mod.import_table->push_back({sig, 0, 0});
++    mod.import_table->push_back({sig, 0, 0, 0});
+     CHECK(mod.import_table->size() <= 127);
+     return static_cast<byte>(mod.import_table->size() - 1);
+   }
 diff --git a/v8/tools/gyp/v8.gyp b/v8/tools/gyp/v8.gyp
 index 66f579d..2535289 100644
 --- a/v8/tools/gyp/v8.gyp
