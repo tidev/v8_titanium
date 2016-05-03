@@ -6,8 +6,7 @@ gclient sync
 cd ..
 git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch
 git apply 0002-Create-standalone-static-libs.patch
-wget http://dl.google.com/android/ndk/android-ndk-r10e-darwin-x86_64.bin
-chmod a+x android-ndk-r10e-darwin-x86_64.bin
-./android-ndk-r10e-darwin-x86_64.bin -y | grep -v Extracting
-export ANDROID_NDK=${PWD}/android-ndk-r10e
+wget http://dl.google.com/android/repository/android-ndk-r11c-darwin-x86_64.zip
+unzip android-ndk-r11c-darwin-x86_64.zip
+export ANDROID_NDK=${PWD}/android-ndk-r11c
 ./build_v8.sh -j4
