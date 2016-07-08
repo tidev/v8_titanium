@@ -138,56 +138,6 @@ index 5269b95..91758a2 100644
          ['CC.host', '<(host_cc)'],
          ['CXX.host', '<(host_cxx)'],
        ],
-diff --git a/v8/src/wasm/module-decoder.cc b/v8/src/wasm/module-decoder.cc
-index 62b000d..4b8d634 100644
---- a/v8/src/wasm/module-decoder.cc
-+++ b/v8/src/wasm/module-decoder.cc
-@@ -112,7 +112,7 @@ class ModuleDecoder : public Decoder {
-                   static_cast<int>(pc_ - start_));
-
-             module->functions->push_back(
--                {nullptr, i, 0, 0, 0, 0, 0, 0, false, false});
-+                {nullptr, i, 0, 0, 0, 0, 0, 0, 0, 0, false, false});
-             WasmFunction* function = &module->functions->back();
-             DecodeFunctionInModule(module, function, false);
-           }
-@@ -154,7 +154,7 @@ class ModuleDecoder : public Decoder {
-             if (failed()) break;
-             TRACE("DecodeDataSegment[%d] module+%d\n", i,
-                   static_cast<int>(pc_ - start_));
--            module->data_segments->push_back({0, 0, 0});
-+            module->data_segments->push_back({0, 0, 0, false});
-             WasmDataSegment* segment = &module->data_segments->back();
-             DecodeDataSegmentInModule(module, segment);
-           }
-@@ -217,7 +217,7 @@ class ModuleDecoder : public Decoder {
-             TRACE("DecodeImportTable[%d] module+%d\n", i,
-                   static_cast<int>(pc_ - start_));
-
--            module->import_table->push_back({nullptr, 0, 0});
-+            module->import_table->push_back({nullptr, 0, 0, 0});
-             WasmImport* import = &module->import_table->back();
-
-             const byte* sigpos = pc_;
-diff --git a/v8/test/unittests/wasm/ast-decoder-unittest.cc b/v8/test/unittests/wasm/ast-decoder-unittest.cc
-index 6721587..8189844 100644
---- a/v8/test/unittests/wasm/ast-decoder-unittest.cc
-+++ b/v8/test/unittests/wasm/ast-decoder-unittest.cc
-@@ -1205,12 +1205,12 @@ class TestModuleEnv : public ModuleEnv {
-     return static_cast<byte>(mod.signatures->size() - 1);
-   }
-   byte AddFunction(FunctionSig* sig) {
--    mod.functions->push_back({sig, 0, 0, 0, 0, 0, 0, 0, false, false});
-+    mod.functions->push_back({sig, 0, 0, 0, 0, 0, 0, 0, 0, 0, false, false});
-     CHECK(mod.functions->size() <= 127);
-     return static_cast<byte>(mod.functions->size() - 1);
-   }
-   byte AddImport(FunctionSig* sig) {
--    mod.import_table->push_back({sig, 0, 0});
-+    mod.import_table->push_back({sig, 0, 0, 0});
-     CHECK(mod.import_table->size() <= 127);
-     return static_cast<byte>(mod.import_table->size() - 1);
-   }
 diff --git a/v8/tools/gyp/v8.gyp b/v8/tools/gyp/v8.gyp
 index 66f579d..2535289 100644
 --- a/v8/tools/gyp/v8.gyp
