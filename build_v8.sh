@@ -115,13 +115,13 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT GYPFLAGS="-Dandroid_ndk_root=$NDK_DIR -Dv8_use_snapshot='$SNAPSHOT_TRUTHY'" ANDROID_NDK_ROOT=$NDK_DIR
+	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT GYPFLAGS="-Dandroid_ndk_root=$NDK_DIR -Dv8_use_snapshot='$SNAPSHOT_TRUTHY' -Dv8_enable_i18n_support=0" ANDROID_NDK_ROOT=$NDK_DIR
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
 	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." "$DEST_DIR/libs/$ARCH/"
-	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/third_party/icu/." "$DEST_DIR/libs/$ARCH/"
+	#cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/third_party/icu/." "$DEST_DIR/libs/$ARCH/"
 }
 
 buildThirdparty()
