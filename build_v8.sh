@@ -120,8 +120,7 @@ buildV8()
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/tools/gyp/." "$DEST_DIR/libs/$ARCH/"
-	#cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/third_party/icu/." "$DEST_DIR/libs/$ARCH/"
+	cp -R "$V8_DIR/out/$MAKE_TARGET/obj.target/src/." "$DEST_DIR/libs/$ARCH/"
 }
 
 buildThirdparty()
