@@ -33,11 +33,11 @@ timestamps {
     }
 
     stage('ARM') {
-      sh './build_v8.sh -j8 -l arm'
+      sh './build_v8.sh -n /opt/android-ndk-r11c -j8 -l arm'
     }
 
     stage('x86') {
-      sh './build_v8.sh -j8 -l ia32'
+      sh './build_v8.sh -n /opt/android-ndk-r11c -j8 -l ia32'
     }
 
     stage('Package') {
