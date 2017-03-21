@@ -13,6 +13,8 @@ timestamps {
         ],
         userRemoteConfigs: scm.userRemoteConfigs
       ])
+      sh 'git submodule foreach --recursive git reset --hard'
+
       if (!fileExists('depot_tools')) {
         sh 'mkdir depot_tools'
         dir('depot_tools') {
