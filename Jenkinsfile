@@ -8,7 +8,7 @@ timestamps {
         branches: scm.branches,
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
-          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', trackingSubmodules: false],
+          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', timeout: 60, trackingSubmodules: false],
           [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
@@ -23,9 +23,11 @@ timestamps {
 
     stage('Setup') {
       sh 'git apply 0000-hack-gclient-for-travis.patch'
-      dir('v8') {
-        sh '../depot_tools/gclient sync' // needs python
-      }
+      withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
+        dir('v8') {
+          sh '../depot_tools/gclient sync' // needs python
+        } // dir
+      } // withEnv
       sh 'git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch'
       sh 'git apply 0002-Create-standalone-static-libs.patch'
     }
