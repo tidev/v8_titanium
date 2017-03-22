@@ -78,7 +78,7 @@ timestamps {
         entries: [[
           bucket: 'timobile.appcelerator.com/libv8',
           gzipFiles: false,
-          selectedRegion: 'us-west-2',
+          selectedRegion: 'us-east-1',
           sourceFile: filename,
           uploadFromSlave: true,
           userMetadata: []
