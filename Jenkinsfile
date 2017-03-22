@@ -71,7 +71,7 @@ timestamps {
     } // stage
 
     stage('Publish') {
-      def filename = sh(returnStdout: true, script: 'build/*/libv8-*.tar.bz2').trim()
+      def filename = sh(returnStdout: true, script: 'ls build/*/libv8-*.tar.bz2').trim()
       step([
         $class: 'S3BucketPublisher',
         consoleLogLevel: 'INFO',
