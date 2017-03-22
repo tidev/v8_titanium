@@ -71,21 +71,23 @@ timestamps {
     } // stage
 
     stage('Publish') {
-      def filename = sh(returnStdout: true, script: 'ls build/*/libv8-*.tar.bz2').trim()
-      step([
-        $class: 'S3BucketPublisher',
-        consoleLogLevel: 'INFO',
-        entries: [[
-          bucket: 'timobile.appcelerator.com/libv8',
-          gzipFiles: false,
-          selectedRegion: 'us-east-1',
-          sourceFile: filename,
-          uploadFromSlave: true,
-          userMetadata: []
-        ]],
-        profileName: 'Jenkins',
-        pluginFailureResultConstraint: 'FAILURE',
-        userMetadata: []])
+      if (!env.BRANCH_NAME.startsWith('PR-')) {
+        def filename = sh(returnStdout: true, script: 'ls build/*/libv8-*.tar.bz2').trim()
+        step([
+          $class: 'S3BucketPublisher',
+          consoleLogLevel: 'INFO',
+          entries: [[
+            bucket: 'timobile.appcelerator.com/libv8',
+            gzipFiles: false,
+            selectedRegion: 'us-east-1',
+            sourceFile: filename,
+            uploadFromSlave: true,
+            userMetadata: []
+          ]],
+          profileName: 'Jenkins',
+          pluginFailureResultConstraint: 'FAILURE',
+          userMetadata: []])
+      }
     } // stage
   } // node
 } // timestamps
