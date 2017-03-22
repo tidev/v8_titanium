@@ -13,7 +13,6 @@ timestamps {
         ],
         userRemoteConfigs: scm.userRemoteConfigs
       ])
-      sh 'git submodule foreach --recursive git reset --hard'
 
       if (!fileExists('depot_tools')) {
         sh 'mkdir depot_tools'
@@ -27,7 +26,7 @@ timestamps {
       sh 'git apply 0000-hack-gclient-for-travis.patch'
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh '../depot_tools/gclient sync' // needs python
+          sh '../depot_tools/gclient sync --shallow --no-history --reset' // needs python
         } // dir
       } // withEnv
       sh 'git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch'
