@@ -80,7 +80,7 @@ timestamps {
   def modes = ['release', 'debug']
   def arches = ['arm', 'x86']
 
-  node('osx && git && android-ndk && python') {
+  node('(osx || linux) && git && python') {
     stage('Checkout') {
       // checkout scm
       // Hack for JENKINS-37658 - see https://support.cloudbees.com/hc/en-us/articles/226122247-How-to-Customize-Checkout-for-Pipeline-Multibranch
