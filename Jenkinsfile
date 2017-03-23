@@ -7,7 +7,7 @@
  */
 def build(arch, mode) {
   return {
-    node('(osx || linux) && git && android-ndk && android-sdk && python && ninja') {
+    node('linux && git && android-ndk && android-sdk && python && ninja') {
       unstash 'sources'
 
       dir('v8') {
@@ -84,7 +84,7 @@ timestamps {
   def modes = ['release', 'debug']
   def arches = ['arm', 'x86']
 
-  node('(osx || linux) && git && python') {
+  node('linux && git && python') {
     stage('Checkout') {
       // checkout scm
       // Hack for JENKINS-37658 - see https://support.cloudbees.com/hc/en-us/articles/226122247-How-to-Customize-Checkout-for-Pipeline-Multibranch
