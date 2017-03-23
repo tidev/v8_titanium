@@ -1,17 +1,5 @@
-diff --git a/v8/AUTHORS b/v8/AUTHORS
-index 0618c69..93beb54 100644
---- a/v8/AUTHORS
-+++ b/v8/AUTHORS
-@@ -50,6 +50,7 @@ Caitlin Potter <caitpotter88@gmail.com>
- Craig Schlenter <craig.schlenter@gmail.com>
- Chris Nardi <hichris123@gmail.com>
- Christopher A. Taylor <chris@gameclosure.com>
-+Christopher Williams <chris.a.williams@gmail.com>
- Daniel Andersson <kodandersson@gmail.com>
- Daniel James <dnljms@gmail.com>
- Douglas Crosher <dtc-v8@scieneer.com>
 diff --git a/v8/Makefile.android b/v8/Makefile.android
-index 4171521..e129be6 100644
+index 417152177d..e129be63e3 100644
 --- a/v8/Makefile.android
 +++ b/v8/Makefile.android
 @@ -35,18 +35,27 @@ MODES = release debug
@@ -51,10 +39,10 @@ index 4171521..e129be6 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/v8/src/v8.gyp b/v8/src/v8.gyp
-index 84c361e..0f9d248 100644
+index 0a76944e50..8aebd6e5ed 100644
 --- a/v8/src/v8.gyp
 +++ b/v8/src/v8.gyp
-@@ -146,6 +146,7 @@
+@@ -137,6 +137,7 @@
      {
        'target_name': 'v8_snapshot',
        'type': 'static_library',
@@ -62,7 +50,7 @@ index 84c361e..0f9d248 100644
        'conditions': [
          ['want_separate_host_toolset==1', {
            'toolsets': ['host', 'target'],
-@@ -231,6 +232,7 @@
+@@ -221,6 +222,7 @@
      {
        'target_name': 'v8_nosnapshot',
        'type': 'static_library',
@@ -70,7 +58,7 @@ index 84c361e..0f9d248 100644
        'dependencies': [
          'v8_base',
        ],
-@@ -263,6 +265,7 @@
+@@ -253,6 +255,7 @@
      {
        'target_name': 'v8_external_snapshot',
        'type': 'static_library',
@@ -78,7 +66,7 @@ index 84c361e..0f9d248 100644
        'conditions': [
          [ 'v8_use_external_startup_data==1', {
            'conditions': [
-@@ -378,6 +381,7 @@
+@@ -370,6 +373,7 @@
      {
        'target_name': 'v8_base',
        'type': 'static_library',
@@ -86,23 +74,25 @@ index 84c361e..0f9d248 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
-@@ -1649,6 +1653,7 @@
-     {
-       'target_name': 'v8_libbase',
-       'type': 'static_library',
-+      'standalone_static_library': 1,
-       'variables': {
-         'optimize': 'max',
-       },
-@@ -1924,6 +1929,7 @@
-     {
-       'target_name': 'v8_libplatform',
-       'type': 'static_library',
-+      'standalone_static_library': 1,
-       'variables': {
-         'optimize': 'max',
-       },
-@@ -1959,6 +1965,7 @@
+@@ -1885,6 +1889,8 @@
+               'USING_V8_BASE_SHARED',
+             ],
+           },
++        }, {
++          'standalone_static_library': 1,
+         }],
+         ['OS=="linux"', {
+             'link_settings': {
+@@ -2134,6 +2140,8 @@
+             'defines': [ 'USING_V8_PLATFORM_SHARED' ],
+           },
+           'defines': [ 'BUILDING_V8_PLATFORM_SHARED' ],
++        }, {
++          'standalone_static_library': 1,
+         }]
+       ],
+       'direct_dependent_settings': {
+@@ -2145,6 +2153,7 @@
      {
        'target_name': 'v8_libsampler',
        'type': 'static_library',

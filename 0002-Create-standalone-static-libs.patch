@@ -1,8 +1,8 @@
 diff --git a/v8/third_party/icu/icu.gyp b/v8/third_party/icu/icu.gyp
-index ee206fe..d47fdaa 100644
+index 86b457e8..33de02a2 100644
 --- a/v8/third_party/icu/icu.gyp
 +++ b/v8/third_party/icu/icu.gyp
-@@ -103,6 +103,7 @@
+@@ -177,6 +177,7 @@
          {
            'target_name': 'icudata',
            'type': 'static_library',
@@ -10,7 +10,7 @@ index ee206fe..d47fdaa 100644
            'defines': [
              'U_HIDE_DATA_SYMBOL',
            ],
-@@ -220,6 +221,9 @@
+@@ -304,6 +305,9 @@
              },
            },
            'conditions': [
@@ -20,7 +20,7 @@ index ee206fe..d47fdaa 100644
              [ 'use_system_icu==1 and want_separate_host_toolset==1', {
                'toolsets': ['host'],
              }],
-@@ -332,6 +336,9 @@
+@@ -417,6 +421,9 @@
              },
            },
            'conditions': [
