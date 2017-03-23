@@ -1,0 +1,23 @@
+diff --git a/v8/infra/mb/mb_config.pyl b/v8/infra/mb/mb_config.pyl
+index 2ac80d00f5..9b8ca3fd81 100644
+--- a/v8/infra/mb/mb_config.pyl
++++ b/v8/infra/mb/mb_config.pyl
+@@ -106,6 +106,8 @@
+       'V8 Linux - arm64 - sim - nosnap - debug':
+           'gn_debug_simulate_arm64_no_snap',
+       'V8 Linux - arm64 - sim - gc stress': 'gn_debug_simulate_arm64',
++      # x86.
++      'V8 Android x86 - builder': 'gn_release_android_x86',
+       # Mips.
+       'V8 Mips - builder': 'gyp_release_mips_no_snap_no_i18n',
+       'V8 Linux - mipsel - sim - builder': 'gn_release_simulate_mipsel',
+@@ -335,6 +337,9 @@
+     # GN release configs for x86.
+     'gn_release_x86': [
+       'gn', 'release_bot', 'x86', 'swarming'],
++    'gn_release_android_x86': [
++      'gn', 'release_bot', 'x86', 'android', 'crosscompile',
++      'minimal_symbols', 'swarming'],
+     'gn_release_x86_gcc': [
+       'gn', 'release_bot', 'x86', 'gcc'],
+     'gn_release_x86_gcc_minimal_symbols': [

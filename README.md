@@ -66,3 +66,26 @@ Options:
 Note: This build is designed to work on a 32-bit Linux. If you wish to install it on a 64-bit version, you would need to install 32-bit libraries:
 
 sudo apt-get -y install gcc-multilib g++-multilib
+
+
+# Notes
+
+- https://github.com/v8/v8/wiki/Building-with-GN
+- https://medium.com/@hyperandroid/compile-v8-for-arm-7-df45372f9d4e#.q9to6evr0
+- https://chromium.googlesource.com/chromium/src/+/master/tools/gn/docs/quick_start.md
+- https://chromium.googlesource.com/chromium/src/+/master/docs/android_build_instructions.md
+
+
+Uses Android NDK r12b with a couple patches
+- cd v8
+- # On Mac, we need to hack the NDK/SDK used, since it uses linux version. So create symbolic link to pre-installed versions we have
+- mkdir third_party/android_tools
+- ln -s /opt/android-ndk-r12b third_party/android_tools/ndk
+- ln -s /opt/android-sdk third_party/android_tools/sdk
+- tools/dev/v8gen.py gen --no-goma -b "V8 Android Arm - builder" -m client.v8.ports android_arm.release -- v8_enable_i18n_support=false symbol_level=0
+- ninja -C out.gn/android_arm.release -j 8 v8_nosnapshot
+- third_party/android_tools/ndk/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar -rcsD libv8_base.a out.gn/android_arm.release/obj/v8_base/*.o
+- third_party/android_tools/ndk/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar -rcsD libv8_libbase.a out.gn/android_arm.release/obj/v8_libbase/*.o
+- third_party/android_tools/ndk/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar -rcsD libv8_libsampler.a out.gn/android_arm.release/obj/v8_libsampler/*.o
+- third_party/android_tools/ndk/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar -rcsD libv8_libplatform.a out.gn/android_arm.release/obj/v8_libplatform/*.o
+- third_party/android_tools/ndk/toolchains/arm-linux-androideabi-4.9/prebuilt/darwin-x86_64/arm-linux-androideabi/bin/ar -rcsD libv8_nosnapshot.a out.gn/android_arm.release/obj/v8_nosnapshot/*.o
