@@ -116,15 +116,15 @@ timestamps {
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
       }
 
-      // Don't grab android ndk/sdk...
-      sh 'git apply 0000-hack-gclient-for-travis.patch'
+      // Add build configs for non-ARM Android, and don't grab Android SDK/NDK
+      sh 'git apply android-x86.patch'
+
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
+          sh 'gclient sync --shallow --no-history --reset --force' // needs python
         } // dir
       } // withEnv
-      // Add build configs for non-ARM Android
-      sh 'git apply android-x86.patch'
+
       // stash everything but depot_tools in 'sources'
       stash excludes: 'depot_tools/**', name: 'sources'
       stash includes: 'v8/include/**', name: 'include'
