@@ -20,7 +20,8 @@ def build(arch, mode) {
         // FIXME On linux, we could just add target_os = ['android'] back into .gclient and run gclient sync?
         def os = sh(returnStdout: true, script: 'uname').trim()
         if ('Darwin'.equals(os)) {
-          sh 'mkdir third_party/android_tools'
+          sh 'rm -rf third_party/android_tools'
+          sh 'mkdir -p third_party/android_tools'
           sh 'ln -s /opt/android-ndk-r12b third_party/android_tools/ndk'
           sh 'ln -s /opt/android-sdk third_party/android_tools/sdk'
         // } else {
