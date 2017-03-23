@@ -11,6 +11,10 @@ def build(arch, mode) {
       unstash 'sources'
 
       dir('v8') {
+        // Rerun gclient since OS may have changed from first segment of the build!
+        withEnv(["PATH+DEPOT_TOOLS=${pwd()}/../depot_tools"]) {
+          sh 'gclient sync --shallow --no-history --reset' // needs python
+        }
         // On Mac, we need to hack the NDK/SDK used, since it uses linux version. So create symbolic link to pre-installed versions we have
         // FIXME On linux, we could just add target_os = ['android'] back into .gclient and run gclient sync?
         def os = sh(returnStdout: true, script: 'uname').trim()
@@ -125,8 +129,7 @@ timestamps {
         } // dir
       } // withEnv
 
-      // stash everything but depot_tools in 'sources'
-      stash excludes: 'depot_tools/**', name: 'sources'
+      stash name: 'sources'
       stash includes: 'v8/include/**', name: 'include'
     } // stage
   } // node
