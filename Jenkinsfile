@@ -7,24 +7,25 @@
  */
 def build(arch, mode) {
   return {
-    node('linux && git && android-ndk && android-sdk && python && ninja') {
+    // FIXME Get linux/ubuntu working!
+    node('osx && git && android-ndk && android-sdk && python && ninja') {
       unstash 'sources'
 
       dir('v8') {
-        // Rerun gclient since OS may have changed from first segment of the build!
-        withEnv(["PATH+DEPOT_TOOLS=${pwd()}/../depot_tools"]) {
-          sh 'gclient sync --shallow --no-history --reset' // needs python
-        }
+        // // Rerun gclient since OS may have changed from first segment of the build!
+        // withEnv(["PATH+DEPOT_TOOLS=${pwd()}/../depot_tools"]) {
+        //   sh 'gclient sync --shallow --no-history --reset' // needs python
+        // }
         // On Mac, we need to hack the NDK/SDK used, since it uses linux version. So create symbolic link to pre-installed versions we have
         // FIXME On linux, we could just add target_os = ['android'] back into .gclient and run gclient sync?
         def os = sh(returnStdout: true, script: 'uname').trim()
-        // if ('Darwin'.equals(os)) {
+        if ('Darwin'.equals(os)) {
           sh 'mkdir third_party/android_tools'
           sh 'ln -s /opt/android-ndk-r12b third_party/android_tools/ndk'
           sh 'ln -s /opt/android-sdk third_party/android_tools/sdk'
         // } else {
           // TODO hack .gclient to add back android os as target and do gclient sync?
-        // }
+        }
 
         def builderName = 'V8 Android Arm - builder'
         if ('x86' == arch) {
@@ -36,7 +37,7 @@ def build(arch, mode) {
         }
 
         // Generate the build scripts for the target
-        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- v8_enable_i18n_support=false symbol_level=0"
+        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- v8_enable_i18n_support=false symbol_level=0 use_goma=false"
 
         // Build!
         sh "ninja -C out.gn/android_${arch}.${mode} -j 8 v8_nosnapshot v8_libplatform"
@@ -84,7 +85,7 @@ timestamps {
   def modes = ['release', 'debug']
   def arches = ['arm', 'x86']
 
-  node('linux && git && python') {
+  node('osx && git && python') {
     stage('Checkout') {
       // checkout scm
       // Hack for JENKINS-37658 - see https://support.cloudbees.com/hc/en-us/articles/226122247-How-to-Customize-Checkout-for-Pipeline-Multibranch
@@ -129,7 +130,7 @@ timestamps {
         } // dir
       } // withEnv
 
-      stash name: 'sources'
+      stash excludes: 'depot_tools/**', name: 'sources'
       stash includes: 'v8/include/**', name: 'include'
     } // stage
   } // node
