@@ -16,7 +16,7 @@ timestamps {
   def gitBranch = '5.3-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
-  def mode = 'release' // can change to 'debug'
+  def mode = 'debug' // can change to 'debug'
 
   node('osx && git && android-ndk && python') {
     stage('Checkout') {
