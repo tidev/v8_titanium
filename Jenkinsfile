@@ -72,9 +72,9 @@ timestamps {
 
   stage('Build') {
     def branches = [failFast: true]
-    for (int m = 0; m < modes.length(); m++) {
+    for (int m = 0; m < modes.size(); m++) {
       def mode = modes[m];
-      for (int a = 0; a < arches.length(); a++) {
+      for (int a = 0; a < arches.size(); a++) {
         def arch = arches[a];
         branches["${arch} ${mode}"] = build(arch, mode);
       }
@@ -87,16 +87,16 @@ timestamps {
       // unstash v8/include/**
       unstash 'include'
       // Unstash the build artifacts for each arch/mode combination
-      for (int m = 0; m < modes.length(); m++) {
+      for (int m = 0; m < modes.size(); m++) {
         def mode = modes[m];
-        for (int a = 0; a < arches.length(); a++) {
+        for (int a = 0; a < arches.size(); a++) {
           def arch = arches[a];
           unstash "results-${arch}-${mode}"
         }
       }
 
       // Package each mode
-      for (int m = 0; m < modes.length(); m++) {
+      for (int m = 0; m < modes.size(); m++) {
         def mode = modes[m];
 
         // write out a JSON file with some metadata about the build
@@ -121,7 +121,7 @@ timestamps {
     stage('Publish') {
       if (!env.BRANCH_NAME.startsWith('PR-')) {
         // Publish each mode to S3
-        for (int m = 0; m < modes.length(); m++) {
+        for (int m = 0; m < modes.size(); m++) {
           def mode = modes[m];
           def filename = "build/${mode}/libv8-${v8Version}-${mode}.tar.bz2"
           step([
