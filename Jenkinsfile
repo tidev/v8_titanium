@@ -72,10 +72,10 @@ timestamps {
 
   stage('Build') {
     def branches = [failFast: true]
-    for (int i = 0; i < modes.length(); i++) {
-      def mode = modes[i];
-      for (int i = 0; i < arches.length(); i++) {
-        def arch = arches[i];
+    for (int m = 0; m < modes.length(); m++) {
+      def mode = modes[m];
+      for (int a = 0; a < arches.length(); a++) {
+        def arch = arches[a];
         branches["${arch} ${mode}"] = build(arch, mode);
       }
     }
@@ -86,18 +86,18 @@ timestamps {
     stage('Package') {
       // unstash v8/include/**
       unstash 'include'
-      // Unstash the build artifacts for ech arch/mode combination
-      for (int i = 0; i < modes.length(); i++) {
-        def mode = modes[i];
-        for (int i = 0; i < arches.length(); i++) {
-          def arch = arches[i];
+      // Unstash the build artifacts for each arch/mode combination
+      for (int m = 0; m < modes.length(); m++) {
+        def mode = modes[m];
+        for (int a = 0; a < arches.length(); a++) {
+          def arch = arches[a];
           unstash "results-${arch}-${mode}"
         }
       }
 
       // Package each mode
-      for (int i = 0; i < modes.length(); i++) {
-        def mode = modes[i];
+      for (int m = 0; m < modes.length(); m++) {
+        def mode = modes[m];
 
         // write out a JSON file with some metadata about the build
         writeFile file: "build/${mode}/libv8.json", text: """{
@@ -121,8 +121,8 @@ timestamps {
     stage('Publish') {
       if (!env.BRANCH_NAME.startsWith('PR-')) {
         // Publish each mode to S3
-        for (int i = 0; i < modes.length(); i++) {
-          def mode = modes[i];
+        for (int m = 0; m < modes.length(); m++) {
+          def mode = modes[m];
           def filename = "build/${mode}/libv8-${v8Version}-${mode}.tar.bz2"
           step([
             $class: 'S3BucketPublisher',
