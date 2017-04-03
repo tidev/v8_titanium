@@ -28,17 +28,10 @@ def build(arch, mode) {
           // TODO hack .gclient to add back android os as target and do gclient sync?
         }
 
-        def builderName = 'V8 Android Arm - builder'
-        if ('x86' == arch) {
-          builderName = 'V8 Android x86 - builder'
-        } else if ('x64' == arch) {
-          builderName = 'V8 Android x64 - builder'
-        } else if ('arm64' == arch) {
-          builderName = 'V8 Android Arm64 - builder'
-        }
+        def builderName = "V8 Android ${arch} - ${mode}"
 
         // Generate the build scripts for the target
-        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- v8_enable_i18n_support=false symbol_level=0 use_goma=false"
+        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false"
 
         // Build!
         sh "ninja -C out.gn/android_${arch}.${mode} -j 8 v8_nosnapshot v8_libplatform"
