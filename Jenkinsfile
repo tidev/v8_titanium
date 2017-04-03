@@ -16,7 +16,8 @@ timestamps {
   def gitBranch = '5.7-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
-  def mode = 'release' // can change to 'debug'
+  def modes = ['release', 'debug']
+  def arches = ['arm', 'ia32']
 
   node('osx && git && android-ndk && python') {
     stage('Checkout') {
@@ -69,25 +70,37 @@ timestamps {
     } // stage
   } // node
 
-  // TODO Use a list of arches to build and iterate here and in package step
   stage('Build') {
-    parallel(
-      'ARM': build('arm', mode),
-      'x86': build('ia32', mode),
-      failFast: true
-    )
+    def branches = [failFast: true]
+    for (int m = 0; m < modes.size(); m++) {
+      def mode = modes[m];
+      for (int a = 0; a < arches.size(); a++) {
+        def arch = arches[a];
+        branches["${arch} ${mode}"] = build(arch, mode);
+      }
+    }
+    parallel(branches)
   } // stage
 
   node('osx || linux') {
     stage('Package') {
       // unstash v8/include/**
       unstash 'include'
-      // unstash the built parts
-      unstash "results-arm-${mode}"
-      unstash "results-ia32-${mode}"
+      // Unstash the build artifacts for each arch/mode combination
+      for (int m = 0; m < modes.size(); m++) {
+        def mode = modes[m];
+        for (int a = 0; a < arches.size(); a++) {
+          def arch = arches[a];
+          unstash "results-${arch}-${mode}"
+        }
+      }
 
-      // write out a JSON file with some metadata about the build
-      writeFile file: "build/${mode}/libv8.json", text: """{
+      // Package each mode
+      for (int m = 0; m < modes.size(); m++) {
+        def mode = modes[m];
+
+        // write out a JSON file with some metadata about the build
+        writeFile file: "build/${mode}/libv8.json", text: """{
 	"version": "${v8Version}",
 	"git_revision": "${gitRevision}",
 	"git_branch": "${gitBranch}",
@@ -95,32 +108,37 @@ timestamps {
 	"timestamp": "${timestamp}"
 }
 """
-      sh "mkdir -p 'build/${mode}/libs' 'build/${mode}/include' 2>/dev/null"
-      sh "cp -R 'v8/include' 'build/${mode}'"
-      dir("build/${mode}") {
-        echo "Building libv8-${v8Version}-${mode}.tar.bz2..."
-        sh "tar -cvj -f libv8-${v8Version}-${mode}.tar.bz2 libv8.json libs include"
-        archiveArtifacts "libv8-${v8Version}-${mode}.tar.bz2"
+        sh "mkdir -p 'build/${mode}/libs' 'build/${mode}/include' 2>/dev/null"
+        sh "cp -R 'v8/include' 'build/${mode}'"
+        dir("build/${mode}") {
+          echo "Building libv8-${v8Version}-${mode}.tar.bz2..."
+          sh "tar -cvj -f libv8-${v8Version}-${mode}.tar.bz2 libv8.json libs include"
+          archiveArtifacts "libv8-${v8Version}-${mode}.tar.bz2"
+        }
       }
     } // stage
 
     stage('Publish') {
       if (!env.BRANCH_NAME.startsWith('PR-')) {
-        def filename = "build/${mode}/libv8-${v8Version}-${mode}.tar.bz2"
-        step([
-          $class: 'S3BucketPublisher',
-          consoleLogLevel: 'INFO',
-          entries: [[
-            bucket: 'timobile.appcelerator.com/libv8',
-            gzipFiles: false,
-            selectedRegion: 'us-east-1',
-            sourceFile: filename,
-            uploadFromSlave: true,
-            userMetadata: []
-          ]],
-          profileName: 'Jenkins',
-          pluginFailureResultConstraint: 'FAILURE',
-          userMetadata: []])
+        // Publish each mode to S3
+        for (int m = 0; m < modes.size(); m++) {
+          def mode = modes[m];
+          def filename = "build/${mode}/libv8-${v8Version}-${mode}.tar.bz2"
+          step([
+            $class: 'S3BucketPublisher',
+            consoleLogLevel: 'INFO',
+            entries: [[
+              bucket: 'timobile.appcelerator.com/libv8',
+              gzipFiles: false,
+              selectedRegion: 'us-east-1',
+              sourceFile: filename,
+              uploadFromSlave: true,
+              userMetadata: []
+            ]],
+            profileName: 'Jenkins',
+            pluginFailureResultConstraint: 'FAILURE',
+            userMetadata: []])
+        }
       }
     } // stage
   } // node
