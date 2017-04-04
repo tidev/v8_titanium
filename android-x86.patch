@@ -3,7 +3,7 @@ index 6f66ac36f7..4bc669d185 100644
 --- a/v8/DEPS
 +++ b/v8/DEPS
 @@ -44,8 +44,6 @@ deps = {
-
+ 
  deps_os = {
    "android": {
 -    "v8/third_party/android_tools":
@@ -12,7 +12,7 @@ index 6f66ac36f7..4bc669d185 100644
        Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "143ba4ddeb05e6165fb8413c5f3f47d342922d24",
    },
 diff --git a/v8/infra/mb/mb_config.pyl b/v8/infra/mb/mb_config.pyl
-index 2ac80d00f5..9b70cb6763 100644
+index 2ac80d00f5..91d02b2735 100644
 --- a/v8/infra/mb/mb_config.pyl
 +++ b/v8/infra/mb/mb_config.pyl
 @@ -96,16 +96,21 @@
@@ -44,10 +44,10 @@ index 2ac80d00f5..9b70cb6763 100644
      'gn_debug_arm': [
        'gn', 'debug_bot', 'arm', 'crosscompile', 'hard_float', 'swarming'],
 +    'gn_debug_android_arm': [
-+        'gn', 'debug_bot', 'arm', 'android', 'crosscompile', 'v8_no_i18n'],
++      'gn', 'debug_bot', 'arm', 'android', 'crosscompile', 'v8_no_i18n'],
 +    'gn_debug_android_arm64': [
-+        'gn', 'debug_bot', 'arm64', 'android', 'crosscompile', 'v8_no_i18n'],
-
++      'gn', 'debug_bot', 'arm64', 'android', 'crosscompile', 'v8_no_i18n'],
+ 
      # GN release configs for arm.
      'gn_release_arm': [
        'gn', 'release_bot', 'arm', 'crosscompile', 'hard_float', 'swarming'],
@@ -59,7 +59,7 @@ index 2ac80d00f5..9b70cb6763 100644
        'gn', 'release_bot', 'arm64', 'android', 'crosscompile',
 -      'minimal_symbols', 'swarming'],
 +      'minimal_symbols', 'v8_no_i18n'],
-
+ 
      # GN release configs for x64.
      'gn_release_x64': [
 @@ -320,6 +329,8 @@
@@ -82,9 +82,10 @@ index 2ac80d00f5..9b70cb6763 100644
      'gn_release_x86_gcc_minimal_symbols': [
 @@ -516,7 +529,7 @@
      },
-
+ 
      'minimal_symbols': {
 -      'gn_args': 'symbol_level=1',
 +      'gn_args': 'symbol_level=0',
        'gyp_defines': 'fastbuild=1',
      },
+ 
