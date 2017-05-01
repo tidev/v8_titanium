@@ -1,7 +1,7 @@
 #!/bin/sh
 #
 # Appcelerator Titanium Mobile
-# Copyright (c) 2011-2015 by Appcelerator, Inc. All Rights Reserved.
+# Copyright (c) 2011-2017 by Appcelerator, Inc. All Rights Reserved.
 # Licensed under the terms of the Apache Public License
 # Please see the LICENSE included with this distribution for details.
 #
@@ -115,7 +115,7 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT GYPFLAGS="-Dandroid_ndk_root=$NDK_DIR -Dv8_use_snapshot='$SNAPSHOT_TRUTHY' -Dv8_enable_i18n_support=0" ANDROID_NDK_ROOT=$NDK_DIR
+	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT i18nsupport=off inspector=off android_ndk_root=$NDK_DIR
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"

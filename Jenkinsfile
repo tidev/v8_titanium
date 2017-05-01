@@ -4,7 +4,9 @@ def build(arch, mode) {
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
-      sh "./build_v8.sh -n /opt/android-ndk-r11c -j8 -l ${arch} -m ${mode}"
+      sh 'curl -O https://dl.google.com/android/repository/android-ndk-r14b-darwin-x86_64.zip'
+      sh 'unzip -q android-ndk-r14b-darwin-x86_64.zip'
+      sh "./build_v8.sh -n `pwd`/android-ndk-r14b -j8 -l ${arch} -m ${mode}"
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
@@ -13,7 +15,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '5.7-lkgr'
+  def gitBranch = '5.7.54'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release', 'debug']
@@ -62,8 +64,12 @@ timestamps {
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         } // dir
       } // withEnv
-      sh 'git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch'
-      sh 'git apply 0002-Create-standalone-static-libs.patch'
+
+      // patch v8
+      dir('v8') {
+        sh 'git apply ../ndk14_5.7.patch'
+      }
+
       // stash everything but depot_tools in 'sources'
       stash excludes: 'depot_tools/**', name: 'sources'
       stash includes: 'v8/include/**', name: 'include'
