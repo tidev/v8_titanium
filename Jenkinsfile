@@ -4,9 +4,7 @@ def build(arch, mode) {
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
-      sh 'curl -O https://dl.google.com/android/repository/android-ndk-r14b-darwin-x86_64.zip'
-      sh 'unzip -q android-ndk-r14b-darwin-x86_64.zip'
-      sh "./build_v8.sh -n `pwd`/android-ndk-r14b -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R14B} -j8 -l ${arch} -m ${mode}"
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
@@ -45,6 +43,7 @@ timestamps {
     } // stage
 
     stage('Setup') {
+
       // Grab some values we need for the libv8.json file when we package at the end
       dir('v8') {
         gitRevision = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
@@ -57,17 +56,12 @@ timestamps {
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
       }
 
-      // FIXME Don't hack this and let it grab the Android SDK/NDK it's configured to be built with, then pass that along!
-      sh 'git apply 0000-hack-gclient-for-travis.patch'
+      // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
+          sh 'git apply ../ndk14_5.7.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
-        } // dir
-      } // withEnv
-
-      // patch v8
-      dir('v8') {
-        sh 'git apply ../ndk14_5.7.patch'
+        }
       }
 
       // stash everything but depot_tools in 'sources'
