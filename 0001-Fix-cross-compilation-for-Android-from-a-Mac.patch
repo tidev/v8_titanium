@@ -39,7 +39,7 @@ index 417152177d..e129be63e3 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/v8/src/v8.gyp b/v8/src/v8.gyp
-index 0a76944e50..8aebd6e5ed 100644
+index 0a76944e50..c2918edf36 100644
 --- a/v8/src/v8.gyp
 +++ b/v8/src/v8.gyp
 @@ -137,6 +137,7 @@
@@ -74,6 +74,19 @@ index 0a76944e50..8aebd6e5ed 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
+@@ -1782,9 +1786,9 @@
+             '<@(inspector_all_sources)'
+           ],
+           'dependencies': [
+-            'inspector/inspector.gyp:protocol_generated_sources',
+-            'inspector/inspector.gyp:inspector_injected_script',
+-            'inspector/inspector.gyp:inspector_debugger_script',
++            'inspector/inspector.gyp:protocol_generated_sources#target',
++            'inspector/inspector.gyp:inspector_injected_script#target',
++            'inspector/inspector.gyp:inspector_debugger_script#target',
+           ],
+         }],
+         ['OS=="win" and v8_enable_i18n_support==1', {
 @@ -1885,6 +1889,8 @@
                'USING_V8_BASE_SHARED',
              ],
