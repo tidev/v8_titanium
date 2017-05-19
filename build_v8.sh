@@ -115,7 +115,7 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT i18nsupport=off inspector=off android_ndk_root=$NDK_DIR
+	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT i18nsupport=off inspector=on android_ndk_root=$NDK_DIR
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
