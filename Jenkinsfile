@@ -28,7 +28,7 @@ timestamps {
         branches: scm.branches,
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
-          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', timeout: 60, trackingSubmodules: false],
+          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
           [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
