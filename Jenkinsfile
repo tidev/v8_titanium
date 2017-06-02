@@ -13,7 +13,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '5.8.283'
+  def gitBranch = '5.9-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release', 'debug']
@@ -28,7 +28,7 @@ timestamps {
         branches: scm.branches,
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
-          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', timeout: 60, trackingSubmodules: false],
+          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
           [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
@@ -59,7 +59,7 @@ timestamps {
       // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh 'git apply ../ndk14_5.8.patch'
+          sh 'git apply ../ndk14_5.9.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
