@@ -2,11 +2,10 @@
 git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 export PATH=`pwd`/depot_tools:"$PATH"
 
+cd v8
 # Apply our patch
 git apply android-x86.patch
-
 # Grab dependencies
-cd v8
 gclient sync
 
 cd ..

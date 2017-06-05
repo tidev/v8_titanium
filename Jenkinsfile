@@ -17,15 +17,14 @@ def build(arch, mode) {
         //   sh 'gclient sync --shallow --no-history --reset' // needs python
         // }
         // On Mac, we need to hack the NDK/SDK used, since it uses linux version. So create symbolic link to pre-installed versions we have
-        // FIXME On linux, we could just add target_os = ['android'] back into .gclient and run gclient sync?
         def os = sh(returnStdout: true, script: 'uname').trim()
         if ('Darwin'.equals(os)) {
           sh 'rm -rf third_party/android_tools'
           sh 'mkdir -p third_party/android_tools'
-          sh 'ln -s /opt/android-ndk-r12b third_party/android_tools/ndk'
-          sh 'ln -s /opt/android-sdk third_party/android_tools/sdk'
+          sh "ln -s ${env.ANDROID_NDK_R12B} third_party/android_tools/ndk"
+          sh "ln -s ${env.ANDROID_SDK} third_party/android_tools/sdk"
         // } else {
-          // TODO hack .gclient to add back android os as target and do gclient sync?
+          // FIXME On linux, we could just add target_os = ['android'] back into .gclient and run gclient sync?
         }
 
         def builderName = "V8 Android ${arch} - ${mode}"
@@ -56,11 +55,10 @@ def build(arch, mode) {
 
         def arPath = "third_party/android_tools/ndk/toolchains/${toolchain}/prebuilt/${hostOS}/${parentDir}/bin/ar"
         // Now make the 'fat' libraries
-        sh "${arPath} -rcsD libv8_base.a out.gn/android_${arch}.${mode}/obj/v8_base/*.o"
-        sh "${arPath} -rcsD libv8_libbase.a out.gn/android_${arch}.${mode}/obj/v8_libbase/*.o"
-        sh "${arPath} -rcsD libv8_libsampler.a out.gn/android_${arch}.${mode}/obj/v8_libsampler/*.o"
-        sh "${arPath} -rcsD libv8_libplatform.a out.gn/android_${arch}.${mode}/obj/v8_libplatform/*.o"
-        sh "${arPath} -rcsD libv8_nosnapshot.a out.gn/android_${arch}.${mode}/obj/v8_nosnapshot/*.o"
+        def libs = ['base', 'libbase', 'libsampler', 'libplatform', 'nosnapshot']
+        for (int l = 0; l < libs.size(); l++) {
+          sh "${arPath} -rcsD libv8_${libs[l]}.a out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o"
+        }
       }
       // Copy 'fat' libs to final dir structure
       sh "mkdir -p build/${mode}/libs/${arch}"
@@ -88,7 +86,7 @@ timestamps {
         branches: scm.branches,
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
-          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: true, reference: '', timeout: 60, trackingSubmodules: false],
+          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
           [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
@@ -115,11 +113,10 @@ timestamps {
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
       }
 
-      // Add build configs for non-ARM Android, and don't grab Android SDK/NDK
-      sh 'git apply android-x86.patch'
-
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
+          // Add build configs for non-ARM Android, and don't grab Android SDK/NDK
+          sh 'git apply android-x86.patch'
           sh 'gclient sync --shallow --no-history --reset --force' // needs python
         } // dir
       } // withEnv
