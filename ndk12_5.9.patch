@@ -3,7 +3,7 @@ index aeeb0e5911..6401434fbc 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -45,8 +45,6 @@ deps = {
-
+ 
  deps_os = {
    "android": {
 -    "v8/third_party/android_tools":
@@ -16,9 +16,9 @@ index 299d4aa09c..3065c77712 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -36,6 +36,13 @@ ANDROID_V8 ?= /data/local/tmp/v8
-
+ 
  # Special build flags. Use them like this: "make library=shared"
-
+ 
 +# inspector=on/off
 +ifeq ($(inspector), on)
 +  GYPFLAGS += -Dv8_enable_inspector=1
@@ -36,7 +36,7 @@ index 417152177d..e129be63e3 100644
 @@ -35,18 +35,27 @@ MODES = release debug
  ANDROID_BUILDS = $(foreach mode,$(MODES), \
                     $(addsuffix .$(mode),$(ANDROID_ARCHES)))
-
+ 
 +HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
 +HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
 +
@@ -69,40 +69,8 @@ index 417152177d..e129be63e3 100644
  	          BUILDTYPE=$(shell echo $(subst .,,$(suffix $@)) | \
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
-diff --git a/gypfiles/standalone.gypi b/gypfiles/standalone.gypi
-index 986aaaaebb..1ef68d3291 100644
---- a/gypfiles/standalone.gypi
-+++ b/gypfiles/standalone.gypi
-@@ -1114,13 +1114,13 @@
-         'configurations': {
-           'Release': {
-             'cflags': [
--              '-fomit-frame-pointer',
-+              '-fomit-frame-pointer', '-O2'
-             ],
-           },  # Release
-         },  # configurations
-         'cflags': [ '-Wno-abi', '-Wall', '-W', '-Wno-unused-parameter'],
-         'cflags_cc': [ '-Wnon-virtual-dtor', '-fno-rtti', '-fno-exceptions',
--                       '-std=gnu++11' ],
-+                       '-std=c++11' ],
-         'target_conditions': [
-           ['_toolset=="target"', {
-             'cflags!': [
-@@ -1232,10 +1232,7 @@
-               }],
-               ['(target_arch=="arm" or target_arch=="arm64" or target_arch=="x64" or target_arch=="ia32") and component!="shared_library"', {
-                 'cflags': [
--                  '-fPIE',
--                ],
--                'ldflags': [
--                  '-pie',
-+                  '-fPIC',
-                 ],
-               }],
-             ],
 diff --git a/src/v8.gyp b/src/v8.gyp
-index 1f94a0680a..bc65af2704 100644
+index 1f94a0680a..8e3488cd00 100644
 --- a/src/v8.gyp
 +++ b/src/v8.gyp
 @@ -135,6 +135,7 @@
@@ -137,15 +105,6 @@ index 1f94a0680a..bc65af2704 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
-@@ -1837,7 +1841,7 @@
-     },
-     {
-       'target_name': 'v8_libbase',
--      'type': '<(component)',
-+      'type': 'static_library',
-       'variables': {
-         'optimize': 'max',
-       },
 @@ -1926,6 +1930,8 @@
                'USING_V8_BASE_SHARED',
              ],
@@ -155,17 +114,16 @@ index 1f94a0680a..bc65af2704 100644
          }],
          ['OS=="linux"', {
              'link_settings': {
-@@ -2144,7 +2150,8 @@
-     },
-     {
-       'target_name': 'v8_libplatform',
--      'type': '<(component)',
-+      'type': 'static_library',
-+      'standalone_static_library': 1,
-       'variables': {
-         'optimize': 'max',
-       },
-@@ -2196,6 +2203,7 @@
+@@ -2185,6 +2191,8 @@
+             'defines': [ 'USING_V8_PLATFORM_SHARED' ],
+           },
+           'defines': [ 'BUILDING_V8_PLATFORM_SHARED' ],
++          }, {
++          'standalone_static_library': 1,
+         }]
+       ],
+       'direct_dependent_settings': {
+@@ -2196,6 +2204,7 @@
      {
        'target_name': 'v8_libsampler',
        'type': 'static_library',
