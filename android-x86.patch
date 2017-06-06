@@ -12,7 +12,7 @@ index aeeb0e5911..6401434fbc 100644
        Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "9a55abab029cb9ae94f5160ded11b09a4638a955",
    },
 diff --git a/infra/mb/mb_config.pyl b/infra/mb/mb_config.pyl
-index 0df30d4571..1e237fa8d7 100644
+index 0df30d4571..babc72a474 100644
 --- a/infra/mb/mb_config.pyl
 +++ b/infra/mb/mb_config.pyl
 @@ -116,16 +116,21 @@
@@ -80,12 +80,3 @@ index 0df30d4571..1e237fa8d7 100644
      'gn_release_x86_gcc': [
        'gn', 'release_bot', 'x86', 'gcc'],
      'gn_release_x86_gcc_minimal_symbols': [
-@@ -584,7 +597,7 @@
-     },
- 
-     'minimal_symbols': {
--      'gn_args': 'symbol_level=1',
-+      'gn_args': 'symbol_level=0',
-       'gyp_defines': 'fastbuild=1',
-     },
- 
