@@ -30,7 +30,7 @@ def build(arch, mode) {
         def builderName = "V8 Android ${arch} - ${mode}"
 
         // Generate the build scripts for the target
-        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false"
+        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false v8_enable_inspector=true"
 
         // Build!
         sh "ninja -C out.gn/android_${arch}.${mode} -j 8 v8_nosnapshot v8_libplatform"
