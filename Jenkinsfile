@@ -31,7 +31,7 @@ def build(arch, mode) {
 
         // Generate the build scripts for the target
         // TODO Instead of symlinking use args to point to ndk/sdk: android_ndk_root=${env.ANDROID_NDK_R12B} android_sdk_root=${env.ANDROID_SDK} android_sdk_version=25 android_sdk_build_tools_version=25.0.2
-        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false v8_use_snapshot=false v8_static_library=true"
+        sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false v8_use_snapshot=false v8_static_library=true" // is_component_build=false doesn't seem to change anything
 
         // Build!
         sh "ninja -C out.gn/android_${arch}.${mode} -j 8 v8 v8_libbase v8_libplatform"
@@ -141,7 +141,10 @@ timestamps {
     parallel(branches)
   } // stage
 
-  node('osx || linux') {
+   // FIXME Use 'osx || linux' label when we co-locate master and build agents.
+   // Otherwise if this runs off master it has to download all the stashed files
+   // from master first which will take a long time.
+  node('master') {
     stage('Package') {
       // unstash v8/include/**
       unstash 'include'
