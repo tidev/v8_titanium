@@ -1,11 +1,29 @@
-diff --git a/v8/Makefile.android b/v8/Makefile.android
+diff --git a/Makefile b/Makefile
+index 6eeac09a14..9f1bf59b44 100644
+--- a/Makefile
++++ b/Makefile
+@@ -47,6 +47,13 @@ endif
+ ifeq ($(disassembler), on)
+   GYPFLAGS += -Dv8_enable_disassembler=1
+ endif
++# inspector=on/off
++ifeq ($(inspector), on)
++  GYPFLAGS += -Dv8_enable_inspector=1
++endif
++ifeq ($(inspector), off)
++  GYPFLAGS += -Dv8_enable_inspector=0
++endif
+ # objectprint=on
+ ifeq ($(objectprint), on)
+   GYPFLAGS += -Dv8_object_print=1
+diff --git a/Makefile.android b/Makefile.android
 index 417152177d..e129be63e3 100644
---- a/v8/Makefile.android
-+++ b/v8/Makefile.android
+--- a/Makefile.android
++++ b/Makefile.android
 @@ -35,18 +35,27 @@ MODES = release debug
  ANDROID_BUILDS = $(foreach mode,$(MODES), \
                     $(addsuffix .$(mode),$(ANDROID_ARCHES)))
-
+ 
 +HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
 +HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
 +
@@ -38,10 +56,10 @@ index 417152177d..e129be63e3 100644
  	          BUILDTYPE=$(shell echo $(subst .,,$(suffix $@)) | \
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
-diff --git a/v8/src/v8.gyp b/v8/src/v8.gyp
+diff --git a/src/v8.gyp b/src/v8.gyp
 index 0a76944e50..8aebd6e5ed 100644
---- a/v8/src/v8.gyp
-+++ b/v8/src/v8.gyp
+--- a/src/v8.gyp
++++ b/src/v8.gyp
 @@ -137,6 +137,7 @@
      {
        'target_name': 'v8_snapshot',
