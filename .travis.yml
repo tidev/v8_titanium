@@ -23,9 +23,9 @@ install:
  - export PATH=`pwd`/depot_tools:"$PATH"
  - git apply 0000-hack-gclient-for-travis.patch
  - cd v8
+ - git apply ../ndk11c_5.7.patch
  - gclient sync
  - cd ..
- - git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch
  - wget http://dl.google.com/android/repository/android-ndk-r11c-linux-x86_64.zip
  - unzip -q android-ndk-r11c-linux-x86_64.zip
  - export ANDROID_NDK=${PWD}/android-ndk-r11c
