@@ -4,7 +4,7 @@ def build(arch, mode) {
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R14B} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R11c} -j8 -l ${arch} -m ${mode}"
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
@@ -13,7 +13,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '5.9-lkgr'
+  def gitBranch = '5.7-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release', 'debug']
@@ -57,12 +57,14 @@ timestamps {
       }
 
       // patch v8 and sync dependencies
+      // FIXME Don't hack this and let it grab the Android SDK/NDK it's configured to be built with, then pass that along!
+      sh 'git apply 0000-hack-gclient-for-travis.patch'
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh 'git apply ../ndk14_5.9.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
+      sh 'git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch'
 
       // stash everything but depot_tools in 'sources'
       stash excludes: 'depot_tools/**', name: 'sources'
