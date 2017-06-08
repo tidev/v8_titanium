@@ -4,7 +4,7 @@ def build(arch, mode) {
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R11C} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -j8 -l ${arch} -m ${mode}"
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
