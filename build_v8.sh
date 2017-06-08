@@ -120,7 +120,7 @@ buildV8()
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp "$V8_DIR/out/$MAKE_TARGET/obj.target/src/*.a" "$DEST_DIR/libs/$ARCH/"
+	find "$V8_DIR/out/$MAKE_TARGET/obj.target/src" -name '*.a' -exec cp -pv '{}' "$DEST_DIR/libs/$ARCH/" ';'
 }
 
 buildThirdparty()
@@ -154,8 +154,8 @@ cat <<EOF > "$DEST_DIR/libv8.json"
 EOF
 
 	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" 2>/dev/null
-	cp "$V8_DIR/include/*.h" "$DEST_DIR/include"
-	cp "$V8_DIR/include/libplatform/*.h" "$DEST_DIR/include/libplatform"
+	find "$V8_DIR/include" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
+	find "$V8_DIR/include/libplatform" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/libplatform" ';'
 
 	cd "$DEST_DIR"
 	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
