@@ -59,6 +59,7 @@ timestamps {
       // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
+          sh 'rm -rf out/'
           sh 'git apply ../ndk11c_5.9.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
