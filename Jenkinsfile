@@ -34,7 +34,7 @@ def build(arch, mode) {
         sh "tools/dev/v8gen.py gen --no-goma -b '${builderName}' -m client.v8.ports android_${arch}.${mode} -- use_goma=false v8_use_snapshot=false v8_static_library=true" // is_component_build=false doesn't seem to change anything
 
         // Build!
-        sh "ninja -C out.gn/android_${arch}.${mode} -j 8 v8 v8_libbase v8_libplatform"
+        sh "ninja -C out.gn/android_${arch}.${mode} -j8 d8 v8_libbase v8_libplatform"
 
         // See v8/build/config/android/config.gni
         def hostOS = 'linux-x86_64'
@@ -74,10 +74,10 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '5.7-lkgr'
+  def gitBranch = '5.9-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
-  def modes = ['release', 'debug']
+  def modes = ['release']
   def arches = ['arm', 'x86']
 
   node('osx && git && python') {
