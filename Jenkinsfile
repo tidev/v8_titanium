@@ -58,8 +58,7 @@ def build(arch, mode) {
         // Now make the "components" into 'fat' static libraries
         def libs = ['libbase', 'libplatform'] // for whatever reason, libbase and libplatform are components that don't get turned into static libraries by the build
         for (int l = 0; l < libs.size(); l++) {
-          // sh "${arPath} -rcsD libv8_${libs[l]}.a out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o"
-          sh "libtool -static out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o -o libv8_${libs[l]}.a"
+          sh "${arPath} -rcsD libv8_${libs[l]}.a out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o"
         }
       }
       // Copy 'fat' libs to final dir structure
