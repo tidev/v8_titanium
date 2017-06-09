@@ -1,0 +1,48 @@
+From c7c175617bc06e1ed430214d20ab6c05480ee554 Mon Sep 17 00:00:00 2001
+From: Gary Mathews <gmathews@appcelerator.com>
+Date: Fri, 9 Jun 2017 11:20:20 +0100
+Subject: [PATCH] position independent code
+
+---
+ BUILD.gn | 4 ++++
+ 1 file changed, 4 insertions(+)
+
+diff --git a/BUILD.gn b/BUILD.gn
+index f0bc76c877..a7a9e48723 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -277,6 +277,7 @@ config("toolchain") {
+ 
+   if (v8_current_cpu == "arm") {
+     defines += [ "V8_TARGET_ARCH_ARM" ]
++    cflags += [ "-fPIC" ]
+     if (arm_version >= 7) {
+       defines += [ "CAN_USE_ARMV7_INSTRUCTIONS" ]
+     }
+@@ -308,6 +309,7 @@ config("toolchain") {
+   }
+   if (v8_current_cpu == "arm64") {
+     defines += [ "V8_TARGET_ARCH_ARM64" ]
++    cflags += [ "-fPIC" ]
+   }
+ 
+   # Mips64el/mipsel simulators.
+@@ -408,6 +410,7 @@ config("toolchain") {
+   }
+   if (v8_current_cpu == "x86") {
+     defines += [ "V8_TARGET_ARCH_IA32" ]
++    cflags += [ "-fPIC" ]
+     if (is_win) {
+       # Ensure no surprising artifacts from 80bit double math with x86.
+       cflags += [ "/arch:SSE2" ]
+@@ -415,6 +418,7 @@ config("toolchain") {
+   }
+   if (v8_current_cpu == "x64") {
+     defines += [ "V8_TARGET_ARCH_X64" ]
++    cflags += [ "-fPIC" ]
+     if (is_win) {
+       # Increase the initial stack size. The default is 1MB, this is 2MB. This
+       # applies only to executables and shared libraries produced by V8 since
+-- 
+2.12.2.windows.2
+

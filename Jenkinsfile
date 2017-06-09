@@ -120,6 +120,7 @@ timestamps {
         dir('v8') {
           // Add build configs for non-ARM Android, and don't grab Android SDK/NDK
           sh 'git apply ../android-x86.patch'
+          sh 'git apply ../PIC.patch'
           sh 'gclient sync --shallow --no-history --reset --force' // needs python
         } // dir
       } // withEnv
