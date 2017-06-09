@@ -1,0 +1,82 @@
+diff --git a/DEPS b/DEPS
+index aeeb0e5911..6401434fbc 100644
+--- a/DEPS
++++ b/DEPS
+@@ -45,8 +45,6 @@ deps = {
+ 
+ deps_os = {
+   "android": {
+-    "v8/third_party/android_tools":
+-      Var("chromium_url") + "/android_tools.git" + "@" + "b65c4776dac2cf1b80e969b3b2d4e081b9c84f29",
+     "v8/third_party/catapult":
+       Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "9a55abab029cb9ae94f5160ded11b09a4638a955",
+   },
+diff --git a/infra/mb/mb_config.pyl b/infra/mb/mb_config.pyl
+index 0df30d4571..babc72a474 100644
+--- a/infra/mb/mb_config.pyl
++++ b/infra/mb/mb_config.pyl
+@@ -116,16 +116,21 @@
+       # Arm.
+       'V8 Arm - builder': 'gn_release_arm',
+       'V8 Arm - debug builder': 'gn_debug_arm',
+-      'V8 Android Arm - builder': 'gn_release_android_arm',
++      'V8 Android arm - release': 'gn_release_android_arm',
++      'V8 Android arm - debug': 'gn_debug_android_arm',
+       'V8 Linux - arm - sim': 'gn_release_simulate_arm',
+       'V8 Linux - arm - sim - debug': 'gn_debug_simulate_arm',
+       # Arm64.
+-      'V8 Android Arm64 - builder': 'gn_release_android_arm64',
++      'V8 Android arm64 - release': 'gn_release_android_arm64',
++      'V8 Android arm64 - debug': 'gn_debug_android_arm64',
+       'V8 Linux - arm64 - sim': 'gn_release_simulate_arm64',
+       'V8 Linux - arm64 - sim - debug': 'gn_debug_simulate_arm64',
+       'V8 Linux - arm64 - sim - nosnap - debug':
+           'gn_debug_simulate_arm64_no_snap',
+       'V8 Linux - arm64 - sim - gc stress': 'gn_debug_simulate_arm64',
++      # x86.
++      'V8 Android x86 - release': 'gn_release_android_x86',
++      'V8 Android x86 - debug': 'gn_debug_android_x86',
+       # Mips.
+       'V8 Mips - builder': 'gyp_release_mips_no_snap_no_i18n',
+       'V8 Linux - mipsel - sim - builder': 'gn_release_simulate_mipsel',
+@@ -324,16 +329,20 @@
+     # GN debug configs for arm.
+     'gn_debug_arm': [
+       'gn', 'debug_bot', 'arm', 'crosscompile', 'hard_float', 'swarming'],
++    'gn_debug_android_arm': [
++      'gn', 'debug_bot', 'arm', 'android', 'crosscompile', 'v8_no_i18n'],
++    'gn_debug_android_arm64': [
++      'gn', 'debug_bot', 'arm64', 'android', 'crosscompile', 'v8_no_i18n'],
+ 
+     # GN release configs for arm.
+     'gn_release_arm': [
+       'gn', 'release_bot', 'arm', 'crosscompile', 'hard_float', 'swarming'],
+     'gn_release_android_arm': [
+       'gn', 'release_bot', 'arm', 'android', 'crosscompile',
+-      'minimal_symbols', 'swarming'],
++      'minimal_symbols', 'v8_no_i18n'],
+     'gn_release_android_arm64': [
+       'gn', 'release_bot', 'arm64', 'android', 'crosscompile',
+-      'minimal_symbols', 'swarming'],
++      'minimal_symbols', 'v8_no_i18n'],
+ 
+     # GN release configs for x64.
+     'gn_release_x64': [
+@@ -387,6 +396,8 @@
+     # GN debug configs for x86.
+     'gn_debug_x86': [
+       'gn', 'debug_bot', 'x86', 'swarming'],
++    'gn_debug_android_x86': [
++      'gn', 'debug_bot', 'x86', 'android', 'v8_no_i18n'],
+     'gn_debug_x86_minimal_symbols': [
+       'gn', 'debug_bot', 'x86', 'minimal_symbols', 'swarming'],
+     'gn_debug_x86_no_i18n': [
+@@ -403,6 +414,8 @@
+     # GN release configs for x86.
+     'gn_release_x86': [
+       'gn', 'release_bot', 'x86', 'swarming'],
++    'gn_release_android_x86': [
++      'gn', 'release_bot', 'x86', 'android', 'minimal_symbols', 'v8_no_i18n'],
+     'gn_release_x86_gcc': [
+       'gn', 'release_bot', 'x86', 'gcc'],
+     'gn_release_x86_gcc_minimal_symbols': [
