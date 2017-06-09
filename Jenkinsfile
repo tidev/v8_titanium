@@ -58,7 +58,8 @@ def build(arch, mode) {
         // Now make the "components" into 'fat' static libraries
         def libs = ['libbase', 'libplatform'] // for whatever reason, libbase and libplatform are components that don't get turned into static libraries by the build
         for (int l = 0; l < libs.size(); l++) {
-          sh "${arPath} -rcsD libv8_${libs[l]}.a out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o"
+          // sh "${arPath} -rcsD libv8_${libs[l]}.a out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o"
+          sh "libtool -static out.gn/android_${arch}.${mode}/obj/v8_${libs[l]}/*.o -o libv8_${libs[l]}.a"
         }
       }
       // Copy 'fat' libs to final dir structure
@@ -74,7 +75,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '5.9-lkgr'
+  def gitBranch = '5.8-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release']
