@@ -4,7 +4,7 @@ def build(arch, mode) {
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R14B} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -j8 -l ${arch} -m ${mode}"
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
@@ -59,7 +59,8 @@ timestamps {
       // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh 'git apply ../ndk14_5.9.patch'
+          sh 'rm -rf out/'
+          sh 'git apply ../ndk11c_5.9.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
