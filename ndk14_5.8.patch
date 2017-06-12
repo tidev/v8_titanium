@@ -117,8 +117,7 @@ index d438a5a..e2e169f 100644
          },  # configurations
          'cflags': [ '-Wno-abi', '-Wall', '-W', '-Wno-unused-parameter'],
          'cflags_cc': [ '-Wnon-virtual-dtor', '-fno-rtti', '-fno-exceptions',
--                       '-std=gnu++11' ],
-+                       '-std=c++11' ],
+                        '-std=gnu++11' ],
          'target_conditions': [
            ['_toolset=="target"', {
              'cflags!': [
