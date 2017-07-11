@@ -1,18 +1,29 @@
+From 741ca9de535aa921f154ee5fc34115e514728d91 Mon Sep 17 00:00:00 2001
+From: Gary Mathews <gmathews@appcelerator.com>
+Date: Mon, 12 Jun 2017 14:03:19 +0100
+Subject: [PATCH] patch
+
+---
+ DEPS                     |  2 --
+ Makefile                 |  7 +++++++
+ Makefile.android         | 10 ++++++++++
+ gypfiles/standalone.gypi |  7 ++-----
+ src/v8.gyp               |  9 +++++++++
+ 5 files changed, 28 insertions(+), 7 deletions(-)
+
 diff --git a/DEPS b/DEPS
-index aeeb0e5911..6401434fbc 100644
+index aeeb0e5..6401434 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -45,8 +45,6 @@ deps = {
+@@ -45,6 +45,4 @@ deps = {
  
  deps_os = {
    "android": {
 -    "v8/third_party/android_tools":
 -      Var("chromium_url") + "/android_tools.git" + "@" + "b65c4776dac2cf1b80e969b3b2d4e081b9c84f29",
      "v8/third_party/catapult":
-       Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "9a55abab029cb9ae94f5160ded11b09a4638a955",
-   },
 diff --git a/Makefile b/Makefile
-index 299d4aa09c..cd1f08a8b8 100644
+index 299d4aa..cd1f08a 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -47,6 +47,13 @@ endif
@@ -30,7 +41,7 @@ index 299d4aa09c..cd1f08a8b8 100644
  ifeq ($(objectprint), on)
    GYPFLAGS += -Dv8_object_print=1
 diff --git a/Makefile.android b/Makefile.android
-index 417152177d..e129be63e3 100644
+index 4171521..e129be6 100644
 --- a/Makefile.android
 +++ b/Makefile.android
 @@ -35,18 +35,27 @@ MODES = release debug
@@ -69,8 +80,33 @@ index 417152177d..e129be63e3 100644
  	          BUILDTYPE=$(shell echo $(subst .,,$(suffix $@)) | \
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
+diff --git a/gypfiles/standalone.gypi b/gypfiles/standalone.gypi
+index 986aaaa..902d80a 100644
+--- a/gypfiles/standalone.gypi
++++ b/gypfiles/standalone.gypi
+@@ -1114,7 +1114,7 @@
+         'configurations': {
+           'Release': {
+             'cflags': [
+-              '-fomit-frame-pointer',
++              '-fomit-frame-pointer', '-O2'
+             ],
+           },  # Release
+         },  # configurations
+@@ -1232,10 +1232,7 @@
+               }],
+               ['(target_arch=="arm" or target_arch=="arm64" or target_arch=="x64" or target_arch=="ia32") and component!="shared_library"', {
+                 'cflags': [
+-                  '-fPIE',
+-                ],
+-                'ldflags': [
+-                  '-pie',
++                  '-fPIC',
+                 ],
+               }],
+             ],
 diff --git a/src/v8.gyp b/src/v8.gyp
-index 1f94a0680a..fd672b8190 100644
+index 1f94a06..fd672b8 100644
 --- a/src/v8.gyp
 +++ b/src/v8.gyp
 @@ -135,6 +135,7 @@
@@ -131,3 +167,6 @@ index 1f94a0680a..fd672b8190 100644
        'variables': {
          'optimize': 'max',
        },
+-- 
+2.9.3 (Apple Git-75)
+
