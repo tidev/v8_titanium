@@ -83,7 +83,7 @@ timestamps {
     parallel(branches)
   } // stage
 
-  node('osx || linux') {
+  node('master') { // can be 'osx || linux', but for build time/network perf, using master means we don't need to download the pieces to the node across the network again
     stage('Package') {
       // unstash v8/include/**
       unstash 'include'
