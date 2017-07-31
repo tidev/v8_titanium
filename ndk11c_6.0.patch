@@ -1,29 +1,18 @@
-From 741ca9de535aa921f154ee5fc34115e514728d91 Mon Sep 17 00:00:00 2001
-From: Gary Mathews <gmathews@appcelerator.com>
-Date: Mon, 12 Jun 2017 14:03:19 +0100
-Subject: [PATCH] patch
-
----
- DEPS                     |  2 --
- Makefile                 |  7 +++++++
- Makefile.android         | 10 ++++++++++
- gypfiles/standalone.gypi |  7 ++-----
- src/v8.gyp               |  9 +++++++++
- 5 files changed, 28 insertions(+), 7 deletions(-)
-
 diff --git a/DEPS b/DEPS
-index aeeb0e5..6401434 100644
+index 1a55e663c6..d57e322941 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -45,6 +45,4 @@ deps = {
- 
+@@ -45,8 +45,6 @@ deps = {
+
  deps_os = {
    "android": {
 -    "v8/third_party/android_tools":
--      Var("chromium_url") + "/android_tools.git" + "@" + "b65c4776dac2cf1b80e969b3b2d4e081b9c84f29",
+-      Var("chromium_url") + "/android_tools.git" + "@" + "cb6bc21107001e2f2eeee2707b482b2b755baf51",
      "v8/third_party/catapult":
+       Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "08a6e0ac161db7309d8f9cad0ccd38e0b1fd41e0",
+   },
 diff --git a/Makefile b/Makefile
-index 299d4aa..cd1f08a 100644
+index ed5b3a7fab..8c6bd81032 100644
 --- a/Makefile
 +++ b/Makefile
 @@ -47,6 +47,13 @@ endif
@@ -41,13 +30,13 @@ index 299d4aa..cd1f08a 100644
  ifeq ($(objectprint), on)
    GYPFLAGS += -Dv8_object_print=1
 diff --git a/Makefile.android b/Makefile.android
-index 4171521..e129be6 100644
+index 417152177d..e129be63e3 100644
 --- a/Makefile.android
 +++ b/Makefile.android
 @@ -35,18 +35,27 @@ MODES = release debug
  ANDROID_BUILDS = $(foreach mode,$(MODES), \
                     $(addsuffix .$(mode),$(ANDROID_ARCHES)))
- 
+
 +HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
 +HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
 +
@@ -81,10 +70,10 @@ index 4171521..e129be6 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/gypfiles/standalone.gypi b/gypfiles/standalone.gypi
-index 986aaaa..902d80a 100644
+index 4c805bf643..c56804d06b 100644
 --- a/gypfiles/standalone.gypi
 +++ b/gypfiles/standalone.gypi
-@@ -1114,7 +1114,7 @@
+@@ -1119,7 +1119,7 @@
          'configurations': {
            'Release': {
              'cflags': [
@@ -93,7 +82,7 @@ index 986aaaa..902d80a 100644
              ],
            },  # Release
          },  # configurations
-@@ -1232,10 +1232,7 @@
+@@ -1237,10 +1237,7 @@
                }],
                ['(target_arch=="arm" or target_arch=="arm64" or target_arch=="x64" or target_arch=="ia32") and component!="shared_library"', {
                  'cflags': [
@@ -106,10 +95,26 @@ index 986aaaa..902d80a 100644
                }],
              ],
 diff --git a/src/v8.gyp b/src/v8.gyp
-index 1f94a06..fd672b8 100644
+index 34fccc19dc..5d773db146 100644
 --- a/src/v8.gyp
 +++ b/src/v8.gyp
 @@ -135,6 +135,7 @@
+     {
+       'target_name': 'v8_builtins_setup',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_builtins_generators',
+       ],
+@@ -159,6 +160,7 @@
+     {
+       'target_name': 'v8_builtins_generators',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_base',
+       ],
+@@ -287,6 +289,7 @@
      {
        'target_name': 'v8_snapshot',
        'type': 'static_library',
@@ -117,7 +122,7 @@ index 1f94a06..fd672b8 100644
        'conditions': [
          ['want_separate_host_toolset==1', {
            'toolsets': ['host', 'target'],
-@@ -218,6 +219,7 @@
+@@ -371,6 +374,7 @@
      {
        'target_name': 'v8_nosnapshot',
        'type': 'static_library',
@@ -125,7 +130,7 @@ index 1f94a06..fd672b8 100644
        'dependencies': [
          'v8_base',
        ],
-@@ -249,6 +251,7 @@
+@@ -402,6 +406,7 @@
      {
        'target_name': 'v8_external_snapshot',
        'type': 'static_library',
@@ -133,7 +138,7 @@ index 1f94a06..fd672b8 100644
        'conditions': [
          [ 'v8_use_external_startup_data==1', {
            'conditions': [
-@@ -366,6 +369,7 @@
+@@ -520,6 +525,7 @@
      {
        'target_name': 'v8_base',
        'type': 'static_library',
@@ -141,25 +146,7 @@ index 1f94a06..fd672b8 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
-@@ -1926,6 +1930,8 @@
-               'USING_V8_BASE_SHARED',
-             ],
-           },
-+        }, {
-+          'standalone_static_library': 1,
-         }],
-         ['OS=="linux"', {
-             'link_settings': {
-@@ -2185,6 +2191,8 @@
-             'defines': [ 'USING_V8_PLATFORM_SHARED' ],
-           },
-           'defines': [ 'BUILDING_V8_PLATFORM_SHARED' ],
-+        }, {
-+          'standalone_static_library': 1,
-         }]
-       ],
-       'direct_dependent_settings': {
-@@ -2196,6 +2204,7 @@
+@@ -2312,6 +2318,7 @@
      {
        'target_name': 'v8_libsampler',
        'type': 'static_library',
@@ -167,6 +154,3 @@ index 1f94a06..fd672b8 100644
        'variables': {
          'optimize': 'max',
        },
--- 
-2.9.3 (Apple Git-75)
-
