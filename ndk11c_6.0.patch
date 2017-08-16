@@ -95,7 +95,7 @@ index 4c805bf643..c56804d06b 100644
                }],
              ],
 diff --git a/src/v8.gyp b/src/v8.gyp
-index 34fccc19dc..5d773db146 100644
+index 34fccc19dc..8c696cfeea 100644
 --- a/src/v8.gyp
 +++ b/src/v8.gyp
 @@ -135,6 +135,7 @@
@@ -146,7 +146,27 @@ index 34fccc19dc..5d773db146 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
-@@ -2312,6 +2318,7 @@
+@@ -1952,7 +1958,8 @@
+     },
+     {
+       'target_name': 'v8_libbase',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2260,7 +2267,8 @@
+     },
+     {
+       'target_name': 'v8_libplatform',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2312,6 +2320,7 @@
      {
        'target_name': 'v8_libsampler',
        'type': 'static_library',

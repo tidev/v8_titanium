@@ -3,7 +3,7 @@ index 1a55e663c6..d57e322941 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -45,8 +45,6 @@ deps = {
- 
+
  deps_os = {
    "android": {
 -    "v8/third_party/android_tools":
@@ -36,7 +36,7 @@ index 417152177d..e129be63e3 100644
 @@ -35,18 +35,27 @@ MODES = release debug
  ANDROID_BUILDS = $(foreach mode,$(MODES), \
                     $(addsuffix .$(mode),$(ANDROID_ARCHES)))
- 
+
 +HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
 +HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
 +
@@ -117,7 +117,7 @@ index 4c805bf643..72bf378d41 100644
                }],
              ],
 diff --git a/src/v8.gyp b/src/v8.gyp
-index 34fccc19dc..5d773db146 100644
+index 34fccc19dc..8c696cfeea 100644
 --- a/src/v8.gyp
 +++ b/src/v8.gyp
 @@ -135,6 +135,7 @@
@@ -168,7 +168,27 @@ index 34fccc19dc..5d773db146 100644
        'dependencies': [
          'v8_libbase',
          'v8_libsampler',
-@@ -2312,6 +2318,7 @@
+@@ -1952,7 +1958,8 @@
+     },
+     {
+       'target_name': 'v8_libbase',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2260,7 +2267,8 @@
+     },
+     {
+       'target_name': 'v8_libplatform',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2312,6 +2320,7 @@
      {
        'target_name': 'v8_libsampler',
        'type': 'static_library',
