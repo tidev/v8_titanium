@@ -1,0 +1,206 @@
+diff --git a/DEPS b/DEPS
+index 7752da2f40..cb90ea11db 100644
+--- a/DEPS
++++ b/DEPS
+@@ -45,8 +45,6 @@ deps = {
+ 
+ deps_os = {
+   "android": {
+-    "v8/third_party/android_tools":
+-      Var("chromium_url") + "/android_tools.git" + "@" + "e9d4018e149d50172ed462a7c21137aa915940ec",
+     "v8/third_party/catapult":
+       Var('chromium_url') + "/external/github.com/catapult-project/catapult.git" + "@" + "44b022b2a09508ec025ae76a26308e89deb2cf69",
+   },
+@@ -54,7 +52,6 @@ deps_os = {
+ 
+ recursedeps = [
+   "v8/buildtools",
+-  "v8/third_party/android_tools",
+ ]
+ 
+ include_rules = [
+diff --git a/Makefile b/Makefile
+index b381918355..17ae3856c6 100644
+--- a/Makefile
++++ b/Makefile
+@@ -47,6 +47,13 @@ endif
+ ifeq ($(disassembler), on)
+   GYPFLAGS += -Dv8_enable_disassembler=1
+ endif
++# inspector=on/off
++ifeq ($(inspector), on)
++  GYPFLAGS += -Dv8_enable_inspector=1
++endif
++ifeq ($(inspector), off)
++  GYPFLAGS += -Dv8_enable_inspector=0
++endif
+ # objectprint=on
+ ifeq ($(objectprint), on)
+   GYPFLAGS += -Dv8_object_print=1
+diff --git a/Makefile.android b/Makefile.android
+index 417152177d..e129be63e3 100644
+--- a/Makefile.android
++++ b/Makefile.android
+@@ -35,18 +35,27 @@ MODES = release debug
+ ANDROID_BUILDS = $(foreach mode,$(MODES), \
+                    $(addsuffix .$(mode),$(ANDROID_ARCHES)))
+ 
++HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
++HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
++
+ ifeq ($(ARCH), android_arm)
+   DEFINES  = target_arch=arm v8_target_arch=arm
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/arm-linux-androideabi-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/arm-linux-androideabi/bin
+ else ifeq ($(ARCH), android_arm64)
+   DEFINES  = target_arch=arm64 v8_target_arch=arm64
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/aarch64-linux-android-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/aarch64-linux-android/bin
+ else ifeq ($(ARCH), android_mipsel)
+   DEFINES  = target_arch=mipsel v8_target_arch=mipsel
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/mipsel-linux-android-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/mipsel-linux-android/bin
+ else ifeq ($(ARCH), android_ia32)
+   DEFINES = target_arch=ia32 v8_target_arch=ia32
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/i686-linux-android/bin
+ else ifeq ($(ARCH), android_x64)
+   DEFINES = target_arch=x64 v8_target_arch=x64
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86_64-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/x86_64-linux-android/bin
+ else ifeq ($(ARCH), android_x87)
+   DEFINES = target_arch=ia32 v8_target_arch=x87
++  ANDROID_TOOLCHAIN = $(ANDROID_NDK_ROOT)/toolchains/x86-4.9/prebuilt/$(HOST_OS)-$(HOST_ARCH)/i686-linux-android/bin
+ else
+   $(error Target architecture "${ARCH}" is not supported)
+ endif
+@@ -57,6 +66,7 @@ DEFINES += OS=android
+ .SECONDEXPANSION:
+ $(ANDROID_BUILDS): $(OUTDIR)/Makefile.$$@
+ 	@$(MAKE) -C "$(OUTDIR)" -f Makefile.$@ \
++	          AR="$(ANDROID_TOOLCHAIN)/ar" \
+ 	          BUILDTYPE=$(shell echo $(subst .,,$(suffix $@)) | \
+ 	                      python -c "print raw_input().capitalize()") \
+ 	          builddir="$(shell pwd)/$(OUTDIR)/$@"
+diff --git a/gypfiles/standalone.gypi b/gypfiles/standalone.gypi
+index a30373be61..ddd09f1c45 100644
+--- a/gypfiles/standalone.gypi
++++ b/gypfiles/standalone.gypi
+@@ -374,8 +374,8 @@
+                 'android_lib': '<(android_sysroot)/usr/lib',
+               }],
+             ],
+-            'android_libcpp_include': '<(android_stl)/llvm-libc++/libcxx/include',
+-            'android_libcpp_abi_include': '<(android_stl)/llvm-libc++abi/libcxxabi/include',
++            'android_libcpp_include': '<(android_stl)/llvm-libc++/include',
++            'android_libcpp_abi_include': '<(android_stl)/llvm-libc++abi/include',
+             'android_libcpp_libs': '<(android_stl)/llvm-libc++/libs',
+             'android_support_include': '<(android_toolchain)/sources/android/support/include',
+             'android_sysroot': '<(android_sysroot)',
+@@ -391,8 +391,8 @@
+                 'android_lib': '<(android_sysroot)/usr/lib',
+               }],
+             ],
+-            'android_libcpp_include': '<(android_stl)/llvm-libc++/libcxx/include',
+-            'android_libcpp_abi_include': '<(android_stl)/llvm-libc++abi/libcxxabi/include',
++            'android_libcpp_include': '<(android_stl)/llvm-libc++/include',
++            'android_libcpp_abi_include': '<(android_stl)/llvm-libc++abi/include',
+             'android_libcpp_libs': '<(android_stl)/llvm-libc++/libs',
+             'android_support_include': '<(android_ndk_root)/sources/android/support/include',
+             'android_sysroot': '<(android_sysroot)',
+@@ -1116,7 +1116,7 @@
+         'configurations': {
+           'Release': {
+             'cflags': [
+-              '-fomit-frame-pointer',
++              '-fomit-frame-pointer', '-O2'
+             ],
+           },  # Release
+         },  # configurations
+@@ -1234,10 +1234,7 @@
+               }],
+               ['(target_arch=="arm" or target_arch=="arm64" or target_arch=="x64" or target_arch=="ia32") and component!="shared_library"', {
+                 'cflags': [
+-                  '-fPIE',
+-                ],
+-                'ldflags': [
+-                  '-pie',
++                  '-fPIC',
+                 ],
+               }],
+             ],
+diff --git a/src/v8.gyp b/src/v8.gyp
+index e6e4567880..a1246f8b72 100644
+--- a/src/v8.gyp
++++ b/src/v8.gyp
+@@ -135,6 +135,7 @@
+     {
+       'target_name': 'v8_builtins_setup',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_builtins_generators',
+       ],
+@@ -159,6 +160,7 @@
+     {
+       'target_name': 'v8_builtins_generators',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_base',
+       ],
+@@ -289,6 +291,7 @@
+     {
+       'target_name': 'v8_snapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'conditions': [
+         ['want_separate_host_toolset==1', {
+           'toolsets': ['host', 'target'],
+@@ -373,6 +376,7 @@
+     {
+       'target_name': 'v8_nosnapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_base',
+       ],
+@@ -404,6 +408,7 @@
+     {
+       'target_name': 'v8_external_snapshot',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'conditions': [
+         [ 'v8_use_external_startup_data==1', {
+           'conditions': [
+@@ -522,6 +527,7 @@
+     {
+       'target_name': 'v8_base',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'dependencies': [
+         'v8_libbase',
+         'v8_libsampler',
+@@ -1829,7 +1835,8 @@
+     },
+     {
+       'target_name': 'v8_libbase',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2159,7 +2166,8 @@
+     },
+     {
+       'target_name': 'v8_libplatform',
+-      'type': '<(component)',
++      'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
+@@ -2211,6 +2219,7 @@
+     {
+       'target_name': 'v8_libsampler',
+       'type': 'static_library',
++      'standalone_static_library': 1,
+       'variables': {
+         'optimize': 'max',
+       },
