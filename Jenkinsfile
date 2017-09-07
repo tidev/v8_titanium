@@ -1,10 +1,33 @@
-
+#! groovy
 def build(arch, mode) {
   return {
+    def expectedLibraries = ['base', 'builtins_generators', 'builtins_setup', 'libbase', 'libplatform', 'libsampler', 'nosnapshot']
+
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
       unstash 'sources'
+      // clean, but be ok with non-zero exit code
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -c"
+      // Now manually clean since that usually fails trying to clean non-existant tags dir
+      sh 'rm -rf v8/out/' // clean output dir of v8 gyp-build
+      sh 'rm -rf v8/out.gn/' // clean output dir of v8 ninja/gn-build
+      sh 'rm -rf v8/xcodebuild/'
+      sh 'rm -rf build/' // wipe any previously built libraries
+      // Now build
       sh "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -j8 -l ${arch} -m ${mode}"
+      // Now run a sanity check to make sure we built the static libraries we expect
+      // We want to fail the build overall if we didn't
+      for (int l = 0; l < expectedLibraries.size(); l++) {
+        def lib = expectedLibraries[l]
+        def modifiedArch = arch
+        if (arch.equals('ia32')) {
+          modifiedArch = 'x86'
+        }
+        def libraryName = "build/${mode}/libs/${modifiedArch}/libv8_${lib}.a"
+        if (!fileExists(libraryName)) {
+          error "Failed to build expected static library: ${libraryName}"
+        }
+      }
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
     }
   }
@@ -40,6 +63,7 @@ timestamps {
           git 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
         }
       }
+      sh 'rm -rf build/' // Don't include old pre-built libraries/includes that may have been left around
     } // stage
 
     stage('Setup') {
