@@ -1,4 +1,8 @@
 #! groovy
+// Keep logs/reports/etc of last 10 builds, only keep build artifacts of last build
+// (We upload to S3 on any successful build, so we really only need artifacts when testing PR builds)
+properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '1'))])
+
 def build(arch, mode) {
   return {
     def expectedLibraries = ['base', 'builtins_generators', 'builtins_setup', 'libbase', 'libplatform', 'libsampler', 'nosnapshot']
@@ -90,6 +94,7 @@ timestamps {
       }
 
       // stash everything but depot_tools in 'sources'
+      // FIXME They *really* don't reccomend stashing > 5Mb, and this is several Gbs. How can we fix this?
       stash excludes: 'depot_tools/**', name: 'sources'
       stash includes: 'v8/include/**', name: 'include'
     } // stage
