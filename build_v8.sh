@@ -32,7 +32,7 @@ LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
 USE_V8_SNAPSHOT=0
-PLATFORM_VERSION=android-9
+PLATFORM_VERSION=android-23
 
 while getopts "htscn:j:m:l:p:" OPTION; do
 	case $OPTION in
