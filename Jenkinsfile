@@ -40,7 +40,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '6.2-lkgr'
+  def gitBranch = '6.4-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release'] // 'debug'
@@ -82,13 +82,14 @@ timestamps {
         def BUILD = sh(returnStdout: true, script: 'grep "#define V8_BUILD_NUMBER" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         def PATCH = sh(returnStdout: true, script: 'grep "#define V8_PATCH_LEVEL" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
+        currentBuild.displayName = "${v8Version}-#${currentBuild.number}"
       }
 
       // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
           sh 'rm -rf out/'
-          sh 'git apply ../ndk11c_6.2.patch'
+          sh 'git apply ../ndk11c_6.4.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
