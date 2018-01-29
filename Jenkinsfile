@@ -11,14 +11,14 @@ def build(arch, mode) {
     node('osx && git && android-ndk') {
       unstash 'sources'
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf v8/out/' // clean output dir of v8 gyp-build
       sh 'rm -rf v8/out.gn/' // clean output dir of v8 ninja/gn-build
       sh 'rm -rf v8/xcodebuild/'
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R12B} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -j8 -l ${arch} -m ${mode}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
@@ -89,7 +89,7 @@ timestamps {
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
           sh 'rm -rf out/'
-          sh 'git apply ../ndk11c_6.4.patch'
+          sh 'git apply ../ndk16b_6.4.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
