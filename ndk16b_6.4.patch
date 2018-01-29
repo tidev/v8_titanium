@@ -88,7 +88,7 @@ index 417152177d..e129be63e3 100644
  	                      python -c "print raw_input().capitalize()") \
  	          builddir="$(shell pwd)/$(OUTDIR)/$@"
 diff --git a/gypfiles/standalone.gypi b/gypfiles/standalone.gypi
-index 7a45dc615f..8345de2cb5 100644
+index 7a45dc615f..9436dd2c69 100644
 --- a/gypfiles/standalone.gypi
 +++ b/gypfiles/standalone.gypi
 @@ -299,7 +299,7 @@
@@ -118,7 +118,7 @@ index 7a45dc615f..8345de2cb5 100644
                'android_target_arch%': 'arm',
                'android_target_platform%': '16',
                'arm_version%': 7,
-+              'android_triple%': 'arm-linux-android',
++              'android_triple%': 'arm-linux-androideabi',
              }],
              ['target_arch == "arm64"', {
                'android_toolchain%': '<(android_ndk_root)/toolchains/aarch64-linux-android-4.9/prebuilt/<(os_folder_name)-<(android_host_arch)/bin',
