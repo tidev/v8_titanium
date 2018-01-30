@@ -5,7 +5,7 @@ properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: 
 
 def build(arch, mode) {
   return {
-    def expectedLibraries = ['base', 'builtins_generators', 'builtins_setup', 'libbase', 'libplatform', 'libsampler', 'nosnapshot']
+    def expectedLibraries = ['base', 'init', 'initializers', 'libbase', 'libplatform', 'libsampler', 'nosnapshot']
 
     // FIXME Technically we could build on linux as well!
     node('osx && git && android-ndk') {
