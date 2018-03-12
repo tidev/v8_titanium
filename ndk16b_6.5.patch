@@ -18,12 +18,12 @@ index bc9e4e0a90..30e065421d 100644
      'url': Var('chromium_url') + '/catapult.git' + '@' + 'b4826a52853c9c2778d496f6c6fa853f777f94df',
      'condition': 'checkout_android',
 @@ -65,7 +57,6 @@ deps = {
- 
+
  recursedeps = [
    'v8/buildtools',
 -  'v8/third_party/android_tools',
  ]
- 
+
  include_rules = [
 diff --git a/Makefile b/Makefile
 index 167ebf8c08..ca1005f22f 100644
@@ -31,10 +31,10 @@ index 167ebf8c08..ca1005f22f 100644
 +++ b/Makefile
 @@ -35,6 +35,7 @@ ANDROID_NDK_HOST_ARCH ?=
  ANDROID_V8 ?= /data/local/tmp/v8
- 
+
  # Special build flags. Use them like this: "make library=shared"
 +GYPFLAGS += -Dwant_separate_host_toolset=0
- 
+
  # library=shared || component=shared_library
  ifeq ($(library), shared)
 @@ -47,6 +48,13 @@ endif
@@ -58,7 +58,7 @@ index 417152177d..e129be63e3 100644
 @@ -35,18 +35,27 @@ MODES = release debug
  ANDROID_BUILDS = $(foreach mode,$(MODES), \
                     $(addsuffix .$(mode),$(ANDROID_ARCHES)))
- 
+
 +HOST_OS = $(shell uname -s | sed -e 's/Linux/linux/;s/Darwin/darwin/')
 +HOST_ARCH = $(shell uname -m | sed -e 's/i[3456]86/x86/')
 +
@@ -153,7 +153,7 @@ index ec47f1c0ab..574fb0e651 100644
          'arm_version%': '<(arm_version)',
 +        'android_triple%': '<(android_triple)',
          'host_os%': '<(host_os)',
- 
+
          # Print to stdout on Android.
 @@ -365,37 +372,43 @@
            ['android_ndk_root==""', {
@@ -293,6 +293,19 @@ index ec47f1c0ab..574fb0e651 100644
          }],
        ],
        'target_defaults': {
+diff --git a/src/arm/simulator-arm.cc b/src/arm/simulator-arm.cc
+index 52fe902237..c4af874fef 100644
+--- a/src/arm/simulator-arm.cc
++++ b/src/arm/simulator-arm.cc
+@@ -5822,7 +5822,7 @@ intptr_t Simulator::CallImpl(byte* entry, int argument_count,
+   return get_register(r0);
+ }
+
+-int32_t Simulator::CallFPImpl(byte* entry, double d0, double d1) {
++intptr_t Simulator::CallFPImpl(byte* entry, double d0, double d1) {
+   if (use_eabi_hardfloat()) {
+     set_d_register_from_double(0, d0);
+     set_d_register_from_double(1, d1);
 diff --git a/src/v8.gyp b/src/v8.gyp
 index 218b173af2..47edd5f61b 100644
 --- a/src/v8.gyp
