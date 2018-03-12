@@ -89,7 +89,7 @@ timestamps {
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
           sh 'rm -rf out/'
-          sh 'git apply ../ndk16b_6.4.patch'
+          sh 'git apply ../ndk16b_6.5.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }

@@ -13,16 +13,18 @@ export PATH=`pwd`/depot_tools:"$PATH"
 cd v8
 git checkout -- . # "clean" the v8 directory
 rm -rf out/
-git apply ../ndk11c_5.9.patch
+git apply ../ndk16b_6.5.patch
 echo "Asking gclient to update v8 dependencies"
 gclient sync --shallow --no-history
 cd ..
-# wget http://dl.google.com/android/repository/android-ndk-r11c-darwin-x86_64.zip
-# unzip android-ndk-r11c-darwin-x86_64.zip
-# export ANDROID_NDK=${PWD}/android-ndk-r11c
+# wget http://dl.google.com/android/repository/android-ndk-r16b-darwin-x86_64.zip
+# unzip android-ndk-r16b-darwin-x86_64.zip
+# export ANDROID_NDK=${PWD}/android-ndk-r16b
 echo "Building v8 for x86..."
 ./build_v8.sh "-j" "8" "-l" "ia32" "-m" "release"
 echo "Building v8 for ARM..."
 ./build_v8.sh "-j" "8" "-l" "arm" "-m" "release"
+echo "Building v8 for ARM-64..."
+./build_v8.sh "-j" "8" "-l" "arm64" "-m" "release"
 echo "Packaging built v8 into tarball..."
 ./build_v8.sh "-t" "-m" "release"
