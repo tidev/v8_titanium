@@ -115,6 +115,8 @@ buildV8()
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
 	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=false v8_static_library=true v8_enable_i18n_support=false icu_use_data_file=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=16 android_ndk_version=\"r16b\" v8_monolithic=true target_os=\"android\" v8_android_log_stdout=true
+	# Hack one of the toolchain items to fix AR executable used for android
+	cp ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	ninja -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
 	# Copy the static libraries to our staging area.
