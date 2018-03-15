@@ -80,7 +80,6 @@ timestamps {
         def PATCH = sh(returnStdout: true, script: 'grep "#define V8_PATCH_LEVEL" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
         currentBuild.displayName = "${v8Version}-#${currentBuild.number}"
-        gitBranch = sh(returnStdout: true, script: "git status -s -b | grep \\#\\# | sed 's/\\#\\# //' | sed 's/...origin\\/.*//'").trim()
       }
 
       // patch v8 and sync dependencies
@@ -95,7 +94,7 @@ timestamps {
       // stash everything but depot_tools in 'sources'
       // FIXME They *really* don't reccomend stashing > 5Mb, and this is several Gbs. How can we fix this?
       stash excludes: 'depot_tools/**', name: 'sources'
-      stash includes: 'v8/include/**', name: 'include'
+      stash includes: 'v8/include/**/*.h', name: 'include'
     } // stage
   } // node
 
