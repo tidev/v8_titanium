@@ -5,20 +5,17 @@ properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: 
 
 def build(arch, mode) {
   return {
-    def expectedLibraries = ['base', 'init', 'initializers', 'libbase', 'libplatform', 'libsampler', 'nosnapshot']
+    def expectedLibraries = ['monolith']
 
     // FIXME Technically we could build on linux as well!
-    node('osx && git && android-ndk') {
+    node('osx && git && android-ndk && android-sdk') {
       unstash 'sources'
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
-      sh 'rm -rf v8/out/' // clean output dir of v8 gyp-build
-      sh 'rm -rf v8/out.gn/' // clean output dir of v8 ninja/gn-build
-      sh 'rm -rf v8/xcodebuild/'
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
@@ -40,7 +37,7 @@ def build(arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = '6.4-lkgr'
+  def gitBranch = '6.6-lkgr'
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release'] // 'debug'
@@ -83,13 +80,14 @@ timestamps {
         def PATCH = sh(returnStdout: true, script: 'grep "#define V8_PATCH_LEVEL" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
         currentBuild.displayName = "${v8Version}-#${currentBuild.number}"
+        gitBranch = sh(returnStdout: true, script: "git status -s -b | grep \#\# | sed 's/\#\# //' | sed 's/...origin\/.*//'").trim()
       }
 
       // patch v8 and sync dependencies
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
-          sh 'rm -rf out/'
-          sh 'git apply ../ndk16b_6.5.patch'
+          sh 'rm -rf out.gn/'
+          sh 'git apply ../ndk16b_6.6.patch'
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }

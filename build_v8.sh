@@ -15,14 +15,14 @@ Usage: $0 options
 This script builds v8 against the Android NDK.
 Options:
 	-h                Show this help message and exit
+	-s <sdk_dir>      The path to the Android SDK. Alternatively, you may set the ANDROID_SDK environment variable
 	-n <ndk_dir>      The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
 	-j <num-cpus>     The number of processors to use in building (passed on to make)
 	-m <mode>         The v8 build mode (release, debug, all. default: release)
 	-l <lib-version>  Architectures to build for (arm, x64, ia32, arm64, mipsel, x87, all. default: arm)
 	-t                Package a thirdparty tarball for uploading (don't build)
-	-s                Enable V8 snapshot. Improves performance, but takes longer to compile. (default: off)
 	-c                Clean the V8 build
-	-p				  The Android SDK version to support (android-8, android-9, etc.)
+	-p <api-level>		The Android SDK version to support (android-8, android-9, etc.)
 EOF
 }
 
@@ -31,10 +31,9 @@ MODE=release
 LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
-USE_V8_SNAPSHOT=0
 PLATFORM_VERSION=android-23
 
-while getopts "htscn:j:m:l:p:" OPTION; do
+while getopts "hts:cn:j:m:l:p:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -53,7 +52,7 @@ while getopts "htscn:j:m:l:p:" OPTION; do
 			THIRDPARTY=1
 			;;
 		s)
-			USE_V8_SNAPSHOT=1
+			SDK_DIR=$OPTARG
 			;;
 		l)
 			LIB_VERSION=$OPTARG
@@ -71,17 +70,27 @@ while getopts "htscn:j:m:l:p:" OPTION; do
 	esac
 done
 
+# NDK
 if [ "$NDK_DIR" = "" ]; then
 	NDK_DIR=$ANDROID_NDK
 fi
-
 if [ "$NDK_DIR" = "" ]; then
 	echo "Error: No Android NDK directory was specified, supply '-n </path/to/ndk>' or set ANDROID_NDK"
 	usage
 	exit 1
 fi
-
 echo "Building against Android NDK: $NDK_DIR"
+
+# SDK
+if [ "$SDK_DIR" = "" ]; then
+	SDK_DIR=$ANDROID_SDK
+fi
+if [ "$SDK_DIR" = "" ]; then
+	echo "Error: No Android SDK directory was specified, supply '-s </path/to/sdk>' or set ANDROID_SDK"
+	usage
+	exit 1
+fi
+echo "Building against Android SDK: $SDK_DIR"
 
 THIS_DIR=$(cd "$(dirname "$0")"; pwd)
 BUILD_DIR=$THIS_DIR/build
@@ -96,31 +105,22 @@ buildV8()
 {
 	BUILD_MODE=$1
 	BUILD_LIB_VERSION=$2
+	BUILDER_NAME=$3
+	BUILDER_GROUP=$4
 
 	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
 
-	# Setup for building V8.
-	# FIXME This is supposed to run gclient sync from depot_tools!
-	#make dependencies
-
-	# Disable snapshots if requested.
-	SNAPSHOT="on"
-	SNAPSHOT_TRUTHY="true"
-	if [ $USE_V8_SNAPSHOT = 0 ]; then
-		SNAPSHOT="off"
-		SNAPSHOT_TRUTHY="false"
-	fi
-
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	make $MAKE_TARGET -j$NUM_CPUS snapshot=$SNAPSHOT i18nsupport=off inspector=on android_ndk_root=$NDK_DIR
+	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=false v8_static_library=true v8_enable_i18n_support=false icu_use_data_file=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=16 android_ndk_version=\"r16b\" v8_monolithic=true target_os=\"android\" v8_android_log_stdout=true
+	ninja -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	find "$V8_DIR/out/$MAKE_TARGET/obj.target/src" -name '*.a' -exec cp -pv '{}' "$DEST_DIR/libs/$ARCH/" ';'
+	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
 }
 
 buildThirdparty()
@@ -137,7 +137,7 @@ buildThirdparty()
 	cd "$V8_DIR"
 	V8_VERSION="$MAJOR.$MINOR.$BUILD.$PATCH"
 	V8_GIT_REVISION=$(git rev-parse HEAD)
-	V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //')
+	V8_GIT_BRANCH=$(git status -s -b | grep \#\# | sed 's/\#\# //' | sed 's/...origin\/.*//')
 	V8_SVN_REVISION=$(git log -n 1 | grep git-svn-id | perl -ne 's/\s+git-svn-id: [^@]+@([^\s]+) .+/\1/; print')
 
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
@@ -163,7 +163,7 @@ EOF
 }
 
 if [ "$CLEAN" = "1" ]; then
-	cd v8 && make clean
+	cd v8 && rm -rf out.gn/
 	exit;
 fi
 
@@ -179,59 +179,69 @@ if [ "$THIRDPARTY" = "0" ]; then
 	for build_lib_version in $LIB_VERSION; do
 
 		# Set ARCH for buildToolchain
-	    case $build_lib_version in
-	        arm)
-	            ARCH=arm
-	            ;;
-	        ia32)
-	            ARCH=x86
-	            ;;
-	        mipsel)
-	            ARCH=mips
-	            ;;
-	        arm64)
-	            ARCH=arm64
-	            ;;
-	        x64)
-	            ARCH=x86_64
-	            ;;
-	        x87)
-	            ARCH=x86
-	            ;;
-	        *)
-	            echo "Invalid -l"
-	            echo "Please use one of ia32, x64, arm, arm64, mipsel, or x87"
-	            ARCH=null
-	            exit 1
-	            ;;
-	    esac
+		case $build_lib_version in
+			arm)
+				ARCH=arm
+				BUILDER_NAME="V8 Android Arm - builder"
+				BUILDER_GROUP="client.v8.ports"
+				;;
+			ia32)
+				ARCH=x86
+				BUILDER_NAME="V8 Win32 - builder"
+				BUILDER_GROUP="client.v8"
+				;;
+			mipsel)
+				ARCH=mips
+				BUILDER_NAME="V8 Mips - builder"
+				BUILDER_GROUP="client.v8.ports"
+				;;
+			arm64)
+				ARCH=arm64
+				BUILDER_NAME="V8 Android Arm64 - builder"
+				BUILDER_GROUP="client.v8.ports"
+				;;
+			x64)
+				ARCH=x86_64
+				BUILDER_NAME="V8 Win64"
+				BUILDER_GROUP="client.v8"
+				;;
+			x87)
+				ARCH=x86
+				;;
+			*)
+				echo "Invalid -l"
+				echo "Please use one of ia32, x64, arm, arm64, mipsel, or x87"
+				ARCH=null
+				exit 1
+				;;
+		esac
 
-	    # Verify we have a target platform that works with the selected arch
-	    # TODO Do we need to do this? I think Android NDK scripts do this for us!
-	    REV=`echo ${PLATFORM_VERSION} | sed s/android-//`
-	    case $ARCH in
-        arm)
-            if [ $REV -lt 3 ]; then
-				echo "Cannot build arm with android rev lower than SDK 3; use -p option to specify a different SDK"
-				exit 1
-			fi;
-			;;
-        x86|mips)
-            if [ $REV -lt 9 ]; then
-				echo "Cannot build x86 with android rev lower than SDK 9; use -p option to specify a different SDK"
-				exit 1
-			fi;
-            ;;
-        arm64|x86_64|mips64)
-            if [ $REV -lt 21 ]; then
-				echo "Cannot build 64-bit with android rev lower than SDK 21; use -p option to specify a different SDK"
-				exit 1
-			fi;
-            ;;
-        esac
+		# Verify we have a target platform that works with the selected arch
+		# TODO Do we need to do this? I think Android NDK scripts do this for us!
+		REV=`echo ${PLATFORM_VERSION} | sed s/android-//`
+		case $ARCH in
+			arm)
+				if [ $REV -lt 3 ]; then
+					echo "Cannot build arm with android rev lower than SDK 3; use -p option to specify a different SDK"
+					exit 1
+				fi;
+				;;
+			x86|mips)
+				if [ $REV -lt 9 ]; then
+					echo "Cannot build x86 with android rev lower than SDK 9; use -p option to specify a different SDK"
+					exit 1
+				fi;
+				;;
+			arm64|x86_64|mips64)
+				if [ $REV -lt 21 ]; then
+					echo "Cannot build 64-bit with android rev lower than SDK 21; use -p option to specify a different SDK"
+					exit 1
+				fi;
+				;;
+		esac
 
 		for build_mode in $MODE; do
-			buildV8 $build_mode $build_lib_version
+			buildV8 $build_mode $build_lib_version "$BUILDER_NAME" $BUILDER_GROUP
 		done
 	done
 else

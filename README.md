@@ -2,7 +2,7 @@ This is where we store the patches and revision of the v8 repository that we use
 
 To build V8, you'll need:
 
-- Android NDK r11c
+- Android NDK r16b
 
 Build V8 for Android against the NDK:
 
@@ -21,13 +21,14 @@ The Whole Shebang
 =======
 ```
 # Apply our patches to v8
-git apply 0001-Fix-cross-compilation-for-Android-from-a-Mac.patch
-git apply 0002-Create-standalone-static-libs.patch
+cd v8
+git apply ndk16b_6.6.patch
+cd ..
 
 # Install Android NDK
-wget http://dl.google.com/android/repository/android-ndk-r11c-linux-x86_64.zip
-unzip android-ndk-r11c-linux-x86_64.zip
-export ANDROID_NDK=${PWD}/android-ndk-r11c
+wget http://dl.google.com/android/repository/android-ndk-r16b-darwin-x86_64.zip
+unzip android-ndk-r16b-darwin-x86_64.zip
+export ANDROID_NDK=${PWD}/android-ndk-r16b
 
 # Download s3cmd
 wget http://tcpdiag.dl.sourceforge.net/project/s3tools/s3cmd/1.6.0/s3cmd-1.6.0.tar.gz
@@ -37,9 +38,10 @@ export PATH=${PWD}/s3cmd-1.6.0
 # Configure s3cmd
 s3cmd --configure
 
-# build v8 for ARM, and then x86
-./build_v8.sh -n /path/to/android-ndk-r11c -j16
-./build_v8.sh -n /path/to/android-ndk-r11c -j16 -l ia32
+# build v8 for ARM, ARM64, and then x86
+./build_v8.sh -n /path/to/android-ndk-r16b -j16 -l arm
+./build_v8.sh -n /path/to/android-ndk-r16b -j16 -l arm64
+./build_v8.sh -n /path/to/android-ndk-r16b -j16 -l ia32
 
 # Generate a tarball to publish
 ./build_v8.sh -t
@@ -58,6 +60,7 @@ This script builds v8 against the Android NDK.
 Options:
 	-h              Show this help message and exit
 	-n <ndk_dir>    The path to the Android NDK. Alternatively, you may set the ANDROID_NDK environment variable
+	-s <sdk_dir>    The path to the Android SDK. Alternatively, you may set the ANDROID_SDK environment variable
 	-j <num-cpus>   The number of processors to use in building (passed on to scons)
 	-m <mode>       The v8 build mode (release, debug. default: release)
 	-t              Build a thirdparty tarball for uploading

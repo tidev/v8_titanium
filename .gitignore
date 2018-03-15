@@ -1,2 +1,3 @@
-build
+/build/
+depot_tools/
 .DS_Store
