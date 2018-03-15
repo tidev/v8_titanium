@@ -12,8 +12,8 @@ fi
 export PATH=`pwd`/depot_tools:"$PATH"
 cd v8
 git checkout -- . # "clean" the v8 directory
-rm -rf out/
-git apply ../ndk16b_6.5.patch
+rm -rf out.gn/
+git apply ../ndk16b_6.56.patch
 echo "Asking gclient to update v8 dependencies"
 gclient sync --shallow --no-history
 cd ..
