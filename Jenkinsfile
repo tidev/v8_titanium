@@ -80,7 +80,7 @@ timestamps {
         def PATCH = sh(returnStdout: true, script: 'grep "#define V8_PATCH_LEVEL" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         v8Version = "${MAJOR}.${MINOR}.${BUILD}.${PATCH}"
         currentBuild.displayName = "${v8Version}-#${currentBuild.number}"
-        gitBranch = sh(returnStdout: true, script: "git status -s -b | grep \#\# | sed 's/\#\# //' | sed 's/...origin\/.*//'").trim()
+        gitBranch = sh(returnStdout: true, script: "git status -s -b | grep \\#\\# | sed 's/\\#\\# //' | sed 's/...origin\\/.*//'").trim()
       }
 
       // patch v8 and sync dependencies
