@@ -7,7 +7,7 @@ index 70aaf9073c..fc5312f4a6 100644
  
    defines = []
 -  cflags = []
-+  cflags = ["-flto", "-Os"]
++  cflags = ["-Os"]
    ldflags = []
  
    if (v8_current_cpu == "arm") {
