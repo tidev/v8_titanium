@@ -1,0 +1,13 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 70aaf9073c..fc5312f4a6 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -335,7 +335,7 @@ config("toolchain") {
+   visibility = [ ":*" ]  # Only targets in this file can depend on this.
+ 
+   defines = []
+-  cflags = []
++  cflags = ["-Os"]
+   ldflags = []
+ 
+   if (v8_current_cpu == "arm") {
