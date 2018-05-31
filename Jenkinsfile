@@ -11,11 +11,11 @@ def build(arch, mode) {
     node('osx && git && android-ndk && android-sdk') {
       unstash 'sources'
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R17} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R17} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
