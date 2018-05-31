@@ -1,9 +1,9 @@
 diff --git a/DEPS b/DEPS
-index 4bac02255d..e1ceac4ab2 100644
+index 52c33c0106..59383c1ac4 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -25,14 +25,6 @@ deps = {
-     Var('chromium_url') + '/chromium/buildtools.git' + '@' + '94288c26d2ffe3aec9848c147839afee597acefd',
+     Var('chromium_url') + '/chromium/buildtools.git' + '@' + '893eb86b02b2571894e328f05551112b96df1cce',
    'v8/base/trace_event/common':
      Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '211b3ed9d0481b4caddbee1322321b86a483ca1f',
 -  'v8/third_party/android_ndk': {
@@ -15,7 +15,7 @@ index 4bac02255d..e1ceac4ab2 100644
 -    'condition': 'checkout_android',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '49edbd3a2b582cbab0a912cb1989062e9b8453ff',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + '517100ca073f7deaf4818786104daf7e7c744b8d',
      'condition': 'checkout_android',
 @@ -71,7 +63,6 @@ deps = {
  
