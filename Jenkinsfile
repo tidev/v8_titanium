@@ -96,7 +96,7 @@ timestamps {
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
           [$class: 'SubmoduleOption', disableSubmodules: true, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
-          [$class: 'CloneOption', depth: 1, honorRefspec: true, noTags: true, reference: '', shallow: true]
+          [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
       ])
@@ -104,6 +104,7 @@ timestamps {
       // Pull sha of v8 out
       gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(15, 54)
       timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
+      def v8URL = sh(returnStdout: true, script: 'git config --get submodule.v8.url').trim()
 
       // Now clone/checkout v8/include folder only!
       // Grab some values we need for the libv8.json file
@@ -115,7 +116,9 @@ timestamps {
           extensions: [
             [$class: 'CloneOption', noTags: true, reference: '', shallow: true],
             [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: 'include']]]
-          ], userRemoteConfigs: [[]]])
+          ],
+          userRemoteConfigs: [[url: v8URL]]
+        ])
         // build the v8 version
         def MAJOR = sh(returnStdout: true, script: 'grep "#define V8_MAJOR_VERSION" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         def MINOR = sh(returnStdout: true, script: 'grep "#define V8_MINOR_VERSION" "include/v8-version.h" | awk \'{print $NF}\'').trim()
