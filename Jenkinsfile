@@ -3,13 +3,40 @@
 // (We upload to S3 on any successful build, so we really only need artifacts when testing PR builds)
 properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '1'))])
 
-def build(arch, mode) {
+def build(scm, arch, mode) {
   return {
     def expectedLibraries = ['monolith']
 
     // FIXME Technically we could build on linux as well!
-    node('osx && git && android-ndk && android-sdk') {
-      unstash 'sources'
+    node('osx && git && android-ndk && android-sdk && python') {
+      checkout([
+        $class: 'GitSCM',
+        branches: scm.branches,
+        extensions: scm.extensions + [
+          [$class: 'CleanBeforeCheckout'],
+          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
+          [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
+        ],
+        userRemoteConfigs: scm.userRemoteConfigs
+      ])
+
+      if (!fileExists('depot_tools')) {
+        sh 'mkdir depot_tools'
+        dir('depot_tools') {
+          git 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
+        }
+      }
+      sh 'rm -rf build/' // Don't include old pre-built libraries/includes that may have been left around
+
+      // patch v8 and sync dependencies
+      withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
+        dir('v8') {
+          sh 'rm -rf out.gn/'
+          sh 'git apply ../ndkr16b_6.9.patch'
+          sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
+        }
+      }
+
       // clean, but be ok with non-zero exit code
       sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
@@ -43,36 +70,52 @@ timestamps {
   def modes = ['release'] // 'debug'
   def arches = ['arm', 'arm64', 'ia32']
 
-  node('osx && git && android-ndk && python') {
-    stage('Checkout') {
-      // checkout scm
-      // Hack for JENKINS-37658 - see https://support.cloudbees.com/hc/en-us/articles/226122247-How-to-Customize-Checkout-for-Pipeline-Multibranch
+  // In parallel, check out on each node and then build
+  // We used to check out once, stash and then unstash, but that is not reccomended for such large amounts of data
+  stage('Build') {
+    def branches = [failFast: true]
+    for (int m = 0; m < modes.size(); m++) {
+      def mode = modes[m];
+      for (int a = 0; a < arches.size(); a++) {
+        def arch = arches[a];
+        branches["${arch} ${mode}"] = build(scm, arch, mode);
+      }
+    }
+    parallel(branches)
+  } // stage
+
+  node('master') { // can be 'osx || linux', but for build time/network perf, using master means we don't need to download the pieces to the node across the network again
+    stage('Package') {
+      // check out again, so we can get the v8/include folder
+      // FIXME Can we do a sparse checkout here? Or maybe just clone/checkout tip, grab sha of v8 submodule, then clone/checkout that specific SHA sparsely to only get the include dir?
+      // i.e. gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(15, 54)
+
       checkout([
         $class: 'GitSCM',
         branches: scm.branches,
         extensions: scm.extensions + [
           [$class: 'CleanBeforeCheckout'],
-          [$class: 'SubmoduleOption', disableSubmodules: false, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
-          [$class: 'CloneOption', depth: 30, honorRefspec: true, noTags: true, reference: '', shallow: true]
+          [$class: 'SubmoduleOption', disableSubmodules: true, parentCredentials: true, recursiveSubmodules: false, reference: '', timeout: 60, trackingSubmodules: false],
+          [$class: 'CloneOption', depth: 1, honorRefspec: true, noTags: true, reference: '', shallow: true]
         ],
         userRemoteConfigs: scm.userRemoteConfigs
       ])
 
-      if (!fileExists('depot_tools')) {
-        sh 'mkdir depot_tools'
-        dir('depot_tools') {
-          git 'https://chromium.googlesource.com/chromium/tools/depot_tools.git'
-        }
-      }
-      sh 'rm -rf build/' // Don't include old pre-built libraries/includes that may have been left around
-    } // stage
+      // Pull sha of v8 out
+      gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(15, 54)
+      timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
 
-    stage('Setup') {
-
-      // Grab some values we need for the libv8.json file when we package at the end
+      // Now clone/checkout v8/include folder only!
+      // Grab some values we need for the libv8.json file
       dir('v8') {
-        gitRevision = sh(returnStdout: true, script: 'git rev-parse HEAD').trim()
-        timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
+        checkout([
+          $class: 'GitSCM',
+          branches: [[name: gitRevision]],
+          doGenerateSubmoduleConfigurations: false,
+          extensions: [
+            [$class: 'CloneOption', noTags: true, reference: '', shallow: true],
+            [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: 'include']]]
+          ], userRemoteConfigs: [[]]])
         // build the v8 version
         def MAJOR = sh(returnStdout: true, script: 'grep "#define V8_MAJOR_VERSION" "include/v8-version.h" | awk \'{print $NF}\'').trim()
         def MINOR = sh(returnStdout: true, script: 'grep "#define V8_MINOR_VERSION" "include/v8-version.h" | awk \'{print $NF}\'').trim()
@@ -82,38 +125,6 @@ timestamps {
         currentBuild.displayName = "${v8Version}-#${currentBuild.number}"
       }
 
-      // patch v8 and sync dependencies
-      withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
-        dir('v8') {
-          sh 'rm -rf out.gn/'
-          sh 'git apply ../ndkr16b_6.9.patch'
-          sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
-        }
-      }
-
-      // stash everything but depot_tools in 'sources'
-      // FIXME They *really* don't reccomend stashing > 5Mb, and this is several Gbs. How can we fix this?
-      stash excludes: 'depot_tools/**', name: 'sources'
-      stash includes: 'v8/include/**/*.h', name: 'include'
-    } // stage
-  } // node
-
-  stage('Build') {
-    def branches = [failFast: true]
-    for (int m = 0; m < modes.size(); m++) {
-      def mode = modes[m];
-      for (int a = 0; a < arches.size(); a++) {
-        def arch = arches[a];
-        branches["${arch} ${mode}"] = build(arch, mode);
-      }
-    }
-    parallel(branches)
-  } // stage
-
-  node('master') { // can be 'osx || linux', but for build time/network perf, using master means we don't need to download the pieces to the node across the network again
-    stage('Package') {
-      // unstash v8/include/**
-      unstash 'include'
       // Unstash the build artifacts for each arch/mode combination
       for (int m = 0; m < modes.size(); m++) {
         def mode = modes[m];
