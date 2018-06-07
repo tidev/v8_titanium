@@ -1,16 +1,8 @@
 diff --git a/DEPS b/DEPS
-index ebb9e78a08..e9148bea06 100644
+index ebb9e78a08..eff197d3b2 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -17,26 +17,12 @@ deps = {
-     Var('chromium_url') + '/external/gyp.git' + '@' + 'd61a9397e668fa9843c4aa7da9e79460fe590bfb',
-   'v8/third_party/depot_tools':
-     Var('chromium_url') + '/chromium/tools/depot_tools.git' + '@' + 'e89dcf7dee37d535a9180823f2c8fe33cde1bfcc',
--  'v8/third_party/icu':
--    Var('chromium_url') + '/chromium/deps/icu.git' + '@' + 'f61e46dbee9d539a32551493e3bcc1dea92f83ec',
-   'v8/third_party/instrumented_libraries':
-     Var('chromium_url') + '/chromium/src/third_party/instrumented_libraries.git' + '@' + '323cf32193caecbf074d1a0cb5b02b905f163e0f',
-   'v8/buildtools':
+@@ -25,14 +25,6 @@ deps = {
      Var('chromium_url') + '/chromium/buildtools.git' + '@' + '6f4dae280c6a542acacd8db281decc5c0b2a9823',
    'v8/base/trace_event/common':
      Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '211b3ed9d0481b4caddbee1322321b86a483ca1f',
@@ -22,14 +14,10 @@ index ebb9e78a08..e9148bea06 100644
 -    'url': Var('chromium_url') + '/android_tools.git' + '@' + 'c22a664c39af72dd8f89200220713dcad811300a',
 -    'condition': 'checkout_android',
 -  },
--  'v8/third_party/catapult': {
--    'url': Var('chromium_url') + '/catapult.git' + '@' + '93a962fcd7c76763caeae897b38b6efda440a705',
--    'condition': 'checkout_android',
--  },
-   'v8/third_party/colorama/src': {
-     'url': Var('chromium_url') + '/external/colorama.git' + '@' + '799604a1041e9b3bc5d2789ecbd7e8db2e18e6b8',
+   'v8/third_party/catapult': {
+     'url': Var('chromium_url') + '/catapult.git' + '@' + '93a962fcd7c76763caeae897b38b6efda440a705',
      'condition': 'checkout_android',
-@@ -71,7 +57,6 @@ deps = {
+@@ -71,7 +63,6 @@ deps = {
  
  recursedeps = [
    'v8/buildtools',
