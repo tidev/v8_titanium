@@ -102,7 +102,7 @@ timestamps {
       ])
 
       // Pull sha of v8 out
-      gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(15, 54)
+      gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(14, 54)
       timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
       // FIXME: Grab v8URL from config properly!
       def v8URL = 'git://github.com/v8/v8.git'
@@ -116,10 +116,10 @@ timestamps {
           branches: [[name: gitRevision]],
           doGenerateSubmoduleConfigurations: false,
           extensions: [
-            [$class: 'CloneOption', noTags: true, reference: '', shallow: true],
+            [$class: 'CloneOption', honorRefspec: true, noTags: true, reference: '', shallow: true],
             [$class: 'SparseCheckoutPaths', sparseCheckoutPaths: [[path: 'include']]]
           ],
-          userRemoteConfigs: [[url: v8URL]]
+          userRemoteConfigs: [[refspec: "+refs/heads/${gitBranch}:refs/remotes/origin/${gitBranch}", url: v8URL]]
         ])
         // build the v8 version
         def MAJOR = sh(returnStdout: true, script: 'grep "#define V8_MAJOR_VERSION" "include/v8-version.h" | awk \'{print $NF}\'').trim()
