@@ -104,7 +104,9 @@ timestamps {
       // Pull sha of v8 out
       gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(15, 54)
       timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
-      def v8URL = sh(returnStdout: true, script: 'git config --get submodule.v8.url').trim()
+      // FIXME: Grab v8URL from config properly!
+      def v8URL = 'git://github.com/v8/v8.git'
+      // def v8URL = sh(returnStdout: true, script: 'git config --get submodule.v8.url').trim()
 
       // Now clone/checkout v8/include folder only!
       // Grab some values we need for the libv8.json file
