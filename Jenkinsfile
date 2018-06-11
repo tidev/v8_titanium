@@ -86,9 +86,6 @@ timestamps {
   } // stage
 
   node('master') { // can be 'osx || linux', but for build time/network perf, using master means we don't need to download the pieces to the node across the network again
-    // unstash v8/include/**
-    unstash 'include'
-
     stage('Package') {
       // check out again, so we can get the v8/include folder
       // FIXME Can we do a sparse checkout here? Or maybe just clone/checkout tip, grab sha of v8 submodule, then clone/checkout that specific SHA sparsely to only get the include dir?
@@ -109,7 +106,8 @@ timestamps {
       gitRevision = sh(returnStdout: true, script: 'git ls-tree HEAD -- v8').trim().substring(14, 54)
       timestamp = sh(returnStdout: true, script: 'date \'+%Y-%m-%d %H:%M:%S\'').trim()
 
-      // Now clone/checkout v8/include folder only!
+      // Now unstash v8/include/** folder only!
+      unstash 'include'
       // Grab some values we need for the libv8.json file
       dir('v8') {
         // build the v8 version
