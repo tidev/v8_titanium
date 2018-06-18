@@ -1,5 +1,5 @@
 diff --git a/DEPS b/DEPS
-index af761d74b5..245245f40c 100644
+index 18be8221a2..4dcdb64e22 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -25,14 +25,6 @@ deps = {
@@ -15,7 +15,7 @@ index af761d74b5..245245f40c 100644
 -    'condition': 'checkout_android',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '09b82f4a5ef5fd8f73b5ff5d3a3b3b5aeacfd51c',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'fdacd1639e2adc4631fc1d57f68e4d3715cef5ba',
      'condition': 'checkout_android',
 @@ -71,7 +63,6 @@ deps = {
  
