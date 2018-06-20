@@ -32,10 +32,14 @@ def build(scm, arch, mode) {
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
           sh 'rm -rf out.gn/'
+          // Force a git clean on everything under v8
+          sh '../depot_tools/gclient recurse git clean -fdx'
+          // Then apply our patch to avoid grabbing android sdk/ndk
           sh 'git apply ../ndkr16b_6.9.patch'
+          // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
-      }
+      } // withEnv
 
       // clean, but be ok with non-zero exit code
       sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -c"
@@ -55,10 +59,10 @@ def build(scm, arch, mode) {
         if (!fileExists(libraryName)) {
           error "Failed to build expected static library: ${libraryName}"
         }
-      }
+      } // for
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
       stash includes: 'v8/include/**/*.h', name: 'include'
-    }
+    } // node
   }
 }
 
