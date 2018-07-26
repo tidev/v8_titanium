@@ -1,9 +1,9 @@
 diff --git a/DEPS b/DEPS
-index ead70ddf51..b77043d348 100644
+index d095a09b7e..59fbf3477d 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -25,14 +25,6 @@ deps = {
-     Var('chromium_url') + '/chromium/buildtools.git' + '@' + '0dd5c6f980d22be96b728155249df2da355989d9',
+@@ -26,14 +26,6 @@ deps = {
+     Var('chromium_url') + '/chromium/buildtools.git' + '@' + '691bfec9d73bfefae30bad32e7a6496f2beceb9c',
    'v8/base/trace_event/common':
      Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '211b3ed9d0481b4caddbee1322321b86a483ca1f',
 -  'v8/third_party/android_ndk': {
@@ -15,9 +15,9 @@ index ead70ddf51..b77043d348 100644
 -    'condition': 'checkout_android',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '26d6aff1b57b0a3b225515a18f359f35d2fa5a66',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'c829a63538ba53b1f31e3d2eb2e2fdd6f390619a',
      'condition': 'checkout_android',
-@@ -73,7 +65,6 @@ deps = {
+@@ -74,7 +66,6 @@ deps = {
  
  recursedeps = [
    'v8/buildtools',
