@@ -8,7 +8,7 @@ def build(scm, arch, mode) {
     def expectedLibraries = ['monolith']
 
     // FIXME Technically we could build on linux as well!
-    node('osx && git && android-ndk && android-sdk && python') {
+    node('osx && git && android-ndk && android-sdk && python && xcode-9') {
       checkout([
         $class: 'GitSCM',
         branches: scm.branches,
