@@ -69,7 +69,7 @@ def build(scm, arch, mode) {
 timestamps {
   def gitRevision = '' // we calculate this later for the v8 repo
   // FIXME How do we get the current branch in a detached state?
-  def gitBranch = 'master' // V8 branch
+  def gitBranch = '6.9-lkgr' // V8 branch
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release'] // 'debug'
