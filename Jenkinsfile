@@ -32,7 +32,14 @@ def build(scm, arch, mode) {
       withEnv(["PATH+DEPOT_TOOLS=${env.WORKSPACE}/depot_tools"]) {
         dir('v8') {
           sh 'rm -rf out.gn/'
+          // Force a git clean on everything under v8
+          sh '../depot_tools/gclient recurse git clean -fdx'
+          // Then apply our patch to avoid grabbing android sdk/ndk
           sh 'git apply ../ndkr16b_6.8.patch'
+          // Force to grab last 1000 commits of each dependency - the sync doesn't behave
+          // as we expect anymore - it does not force a re-clone!
+          sh '../depot_tools/gclient recurse git fetch --depth=1000'
+          // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       }
