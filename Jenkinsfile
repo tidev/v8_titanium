@@ -36,6 +36,8 @@ def build(scm, arch, mode) {
           sh '../depot_tools/gclient recurse git clean -fdx'
           // Then apply our patch to avoid grabbing android sdk/ndk
           sh 'git apply ../ndkr16b_7.0.patch'
+          // And apply our backwards compatibility patch
+          sh 'git apply ../compat.patch'
           // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
