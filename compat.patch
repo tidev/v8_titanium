@@ -220,7 +220,7 @@ index a83305560c..1ec1d56597 100644
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
 diff --git a/src/api.cc b/src/api.cc
-index 4eb31a447c..e9deca50c4 100644
+index 4eb31a447c..428a41e107 100644
 --- a/src/api.cc
 +++ b/src/api.cc
 @@ -1432,15 +1432,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
@@ -241,8 +241,8 @@ index 4eb31a447c..e9deca50c4 100644
    if (behavior == ConstructorBehavior::kThrow) templ->RemovePrototype();
    return templ;
  }
-@@ -1758,11 +1757,10 @@ void ObjectTemplate::SetAccessor(v8::Local<String> name,
-                                  AccessorSetterCallback setter,
+@@ -1770,11 +1769,10 @@ void ObjectTemplate::SetAccessor(v8::Local<Name> name,
+                                  AccessorNameSetterCallback setter,
                                   v8::Local<Value> data, AccessControl settings,
                                   PropertyAttribute attribute,
 -                                 v8::Local<AccessorSignature> signature,
@@ -254,7 +254,7 @@ index 4eb31a447c..e9deca50c4 100644
 +                      SideEffectType::kHasSideEffect);
  }
  
- void ObjectTemplate::SetAccessor(v8::Local<Name> name,
+ template <typename Getter, typename Setter, typename Query, typename Descriptor,
 @@ -1857,6 +1855,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
    cons->set_named_property_handler(*obj);
  }
