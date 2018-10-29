@@ -207,18 +207,9 @@ index a83305560c..2e243d6c31 100644
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
 diff --git a/src/api.cc b/src/api.cc
-index 4eb31a447c..156b1f6bc1 100644
+index 4eb31a447c..3d2fbb6d68 100644
 --- a/src/api.cc
 +++ b/src/api.cc
-@@ -1432,7 +1432,7 @@ static Local<FunctionTemplate> FunctionTemplateNew(
- 
- Local<FunctionTemplate> FunctionTemplate::New(
-     Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
--    v8::Local<Signature> signature, int length, ConstructorBehavior behavior,
-+    v8::Local<Signature> signature, int length, ConstructorBehavior behavior.
-     SideEffectType side_effect_type) {
-   i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
-   // Changes to the environment cannot be captured in the snapshot. Expect no
 @@ -1857,6 +1857,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
    cons->set_named_property_handler(*obj);
  }
@@ -334,18 +325,7 @@ index 4eb31a447c..156b1f6bc1 100644
  void Message::PrintCurrentStackTrace(Isolate* isolate, FILE* out) {
    i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
    ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-@@ -3560,6 +3630,10 @@ Local<String> Value::ToString(Isolate* isolate) const {
-   RETURN_TO_LOCAL_UNCHECKED(ToString(isolate->GetCurrentContext()), String);
- }
- 
-+Local<String> Value::ToString() const {
-+  return ToString(Isolate::GetCurrent());
-+}
-+
- 
- MaybeLocal<String> Value::ToDetailString(Local<Context> context) const {
-   i::Handle<i::Object> obj = Utils::OpenHandle(this);
-@@ -3993,6 +4067,7 @@ int32_t Value::Int32Value() const {
+@@ -3993,6 +4063,7 @@ int32_t Value::Int32Value() const {
    return Int32Value(UnsafeContextFromHeapObject(obj)).FromMaybe(0);
  }
  
@@ -353,7 +333,7 @@ index 4eb31a447c..156b1f6bc1 100644
  Maybe<uint32_t> Value::Uint32Value(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsNumber()) return Just(NumberToUint32(*obj));
-@@ -4700,6 +4775,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4700,6 +4771,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
  }
  
  
@@ -371,7 +351,7 @@ index 4eb31a447c..156b1f6bc1 100644
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
                                   PropertyAttribute attribute,
-@@ -4762,6 +4848,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
+@@ -4762,6 +4844,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
    return result;
  }
  
@@ -383,7 +363,7 @@ index 4eb31a447c..156b1f6bc1 100644
  Maybe<bool> v8::Object::HasRealNamedProperty(Local<Context> context,
                                               Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4905,6 +4996,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
+@@ -4905,6 +4992,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
  }
  
  
@@ -396,7 +376,7 @@ index 4eb31a447c..156b1f6bc1 100644
  Maybe<PropertyAttribute> v8::Object::GetRealNamedPropertyAttributes(
      Local<Context> context, Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -5026,6 +5123,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -5026,6 +5119,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
@@ -409,7 +389,7 @@ index 4eb31a447c..156b1f6bc1 100644
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -9028,6 +9131,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9028,6 +9127,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -419,7 +399,7 @@ index 4eb31a447c..156b1f6bc1 100644
  String::Utf8Value::~Utf8Value() {
    i::DeleteArray(str_);
  }
-@@ -9047,6 +9153,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9047,6 +9149,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  
