@@ -9,17 +9,29 @@ else
   git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 fi
 
+rm -rf build/
+
 export PATH=`pwd`/depot_tools:"$PATH"
 cd v8
 git checkout -- . # "clean" the v8 directory
 rm -rf out.gn/
-git apply ../ndkr16b_6.7.patch
+echo "Asking gclient to clean v8 dependencies"
+../depot_tools/gclient recurse git clean -fdx
+echo "Applying patches"
+git apply ../ndkr16b_7.0.patch
+git apply ../compat.patch
 echo "Asking gclient to update v8 dependencies"
-gclient sync --shallow --no-history
+../depot_tools/gclient sync --shallow --no-history --reset --force
 cd ..
 # wget http://dl.google.com/android/repository/android-ndk-r16b-darwin-x86_64.zip
 # unzip android-ndk-r16b-darwin-x86_64.zip
 # export ANDROID_NDK=${PWD}/android-ndk-r16b
+
+echo "Cleaning v8 build"
+./build_v8.sh -c
+# Now manually clean since that usually fails trying to clean non-existant tags dir
+rm -rf build/
+
 echo "Building v8 for x86..."
 ./build_v8.sh "-j" "8" "-l" "ia32" "-m" "release"
 echo "Building v8 for ARM..."
