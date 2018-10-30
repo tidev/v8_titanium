@@ -1,8 +1,8 @@
 diff --git a/include/v8.h b/include/v8.h
-index a83305560c..2e243d6c31 100644
+index a4bbe1b0c4..83ccd7ef04 100644
 --- a/include/v8.h
 +++ b/include/v8.h
-@@ -1360,12 +1360,18 @@ class V8_EXPORT Script {
+@@ -1232,12 +1232,18 @@ class V8_EXPORT Script {
        Local<Context> context, Local<String> source,
        ScriptOrigin* origin = nullptr);
  
@@ -21,7 +21,7 @@ index a83305560c..2e243d6c31 100644
  
    /**
     * Returns the corresponding context-unbound script.
-@@ -1731,6 +1737,7 @@ class V8_EXPORT Message {
+@@ -1608,6 +1614,7 @@ class V8_EXPORT Message {
  
    V8_WARN_UNUSED_RESULT MaybeLocal<String> GetSourceLine(
        Local<Context> context) const;
@@ -29,7 +29,7 @@ index a83305560c..2e243d6c31 100644
  
    /**
     * Returns the origin for the script from where the function causing the
-@@ -1755,6 +1762,7 @@ class V8_EXPORT Message {
+@@ -1632,6 +1639,7 @@ class V8_EXPORT Message {
     * Returns the number, 1-based, of the line where the error occurred.
     */
    V8_WARN_UNUSED_RESULT Maybe<int> GetLineNumber(Local<Context> context) const;
@@ -37,7 +37,7 @@ index a83305560c..2e243d6c31 100644
  
    /**
     * Returns the index within the script of the first character where
-@@ -2986,6 +2994,7 @@ class V8_EXPORT String : public Name {
+@@ -2880,6 +2888,7 @@ class V8_EXPORT String : public Name {
     */
    class V8_EXPORT Utf8Value {
     public:
@@ -45,7 +45,7 @@ index a83305560c..2e243d6c31 100644
      Utf8Value(Isolate* isolate, Local<v8::Value> obj);
      ~Utf8Value();
      char* operator*() { return str_; }
-@@ -3009,6 +3018,7 @@ class V8_EXPORT String : public Name {
+@@ -2903,6 +2912,7 @@ class V8_EXPORT String : public Name {
     */
    class V8_EXPORT Value {
     public:
@@ -53,7 +53,7 @@ index a83305560c..2e243d6c31 100644
      Value(Isolate* isolate, Local<v8::Value> obj);
      ~Value();
      uint16_t* operator*() { return str_; }
-@@ -3446,6 +3456,12 @@ class V8_EXPORT Object : public Value {
+@@ -3348,6 +3358,12 @@ class V8_EXPORT Object : public Value {
    /**
     * Note: SideEffectType affects the getter only, not the setter.
     */
@@ -65,8 +65,8 @@ index a83305560c..2e243d6c31 100644
 +      PropertyAttribute attribute = None);
    V8_WARN_UNUSED_RESULT Maybe<bool> SetAccessor(
        Local<Context> context, Local<Name> name,
-       AccessorNameGetterCallback getter, AccessorNameSetterCallback setter = 0,
-@@ -3613,6 +3629,8 @@ class V8_EXPORT Object : public Value {
+       AccessorNameGetterCallback getter,
+@@ -3519,6 +3535,8 @@ class V8_EXPORT Object : public Value {
                                                     Local<Name> key);
    V8_WARN_UNUSED_RESULT Maybe<bool> HasOwnProperty(Local<Context> context,
                                                     uint32_t index);
@@ -75,7 +75,7 @@ index a83305560c..2e243d6c31 100644
    V8_DEPRECATE_SOON("Use maybe version",
                      bool HasRealNamedProperty(Local<String> key));
    /**
-@@ -3660,6 +3678,7 @@ class V8_EXPORT Object : public Value {
+@@ -3566,6 +3584,7 @@ class V8_EXPORT Object : public Value {
     * in the prototype chain.
     * This means interceptors in the prototype chain are not called.
     */
@@ -83,7 +83,7 @@ index a83305560c..2e243d6c31 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Value> GetRealNamedProperty(
        Local<Context> context, Local<Name> key);
  
-@@ -3911,6 +3930,7 @@ class FunctionCallbackInfo {
+@@ -3817,6 +3836,7 @@ class FunctionCallbackInfo {
    V8_INLINE int Length() const;
    /** Accessor for the available arguments. */
    V8_INLINE Local<Value> operator[](int i) const;
@@ -91,7 +91,7 @@ index a83305560c..2e243d6c31 100644
    /** Returns the receiver. This corresponds to the "this" value. */
    V8_INLINE Local<Object> This() const;
    /**
-@@ -3947,6 +3967,7 @@ class FunctionCallbackInfo {
+@@ -3853,6 +3873,7 @@ class FunctionCallbackInfo {
    static const int kReturnValueIndex = 3;
    static const int kDataIndex = 4;
    static const int kNewTargetIndex = 5;
@@ -99,7 +99,7 @@ index a83305560c..2e243d6c31 100644
  
    V8_INLINE FunctionCallbackInfo(internal::Object** implicit_args,
                                   internal::Object** values, int length);
-@@ -4099,6 +4120,8 @@ class V8_EXPORT Function : public Object {
+@@ -4005,6 +4026,8 @@ class V8_EXPORT Function : public Object {
      return NewInstance(context, 0, nullptr);
    }
  
@@ -108,7 +108,7 @@ index a83305560c..2e243d6c31 100644
    /**
     * When side effect checks are enabled, passing kHasNoSideEffect allows the
     * constructor to be invoked without throwing. Calls made within the
-@@ -5451,6 +5474,54 @@ class V8_EXPORT Template : public Data {
+@@ -5334,6 +5357,54 @@ class V8_EXPORT Template : public Data {
    friend class FunctionTemplate;
  };
  
@@ -163,9 +163,9 @@ index a83305560c..2e243d6c31 100644
  // TODO(dcarney): Replace GenericNamedPropertyFooCallback with just
  // NamedPropertyFooCallback.
  
-@@ -6158,6 +6229,14 @@ class V8_EXPORT ObjectTemplate : public Template {
-       Local<AccessorSignature> signature = Local<AccessorSignature>(),
-       SideEffectType getter_side_effect_type = SideEffectType::kHasSideEffect);
+@@ -6045,6 +6116,14 @@ class V8_EXPORT ObjectTemplate : public Template {
+       SideEffectType getter_side_effect_type = SideEffectType::kHasSideEffect,
+       SideEffectType setter_side_effect_type = SideEffectType::kHasSideEffect);
  
 +  void SetNamedPropertyHandler(
 +      NamedPropertyGetterCallback getter,
@@ -178,7 +178,7 @@ index a83305560c..2e243d6c31 100644
    /**
     * Sets a named property handler on the object template.
     *
-@@ -8831,6 +8910,7 @@ class V8_EXPORT TryCatch {
+@@ -8763,6 +8842,7 @@ class V8_EXPORT TryCatch {
     * all TryCatch blocks should be stack allocated because the memory
     * location itself is compared against JavaScript try/catch blocks.
     */
@@ -186,7 +186,7 @@ index a83305560c..2e243d6c31 100644
    explicit TryCatch(Isolate* isolate);
  
    /**
-@@ -8890,6 +8970,7 @@ class V8_EXPORT TryCatch {
+@@ -8822,6 +8902,7 @@ class V8_EXPORT TryCatch {
     */
    V8_WARN_UNUSED_RESULT MaybeLocal<Value> StackTrace(
        Local<Context> context) const;
@@ -194,7 +194,7 @@ index a83305560c..2e243d6c31 100644
  
    /**
     * Returns the message associated with this exception.  If there is
-@@ -9921,6 +10002,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
+@@ -9658,6 +9739,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
    return Local<Value>(reinterpret_cast<Value*>(values_ - i));
  }
  
@@ -207,10 +207,10 @@ index a83305560c..2e243d6c31 100644
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
 diff --git a/src/api.cc b/src/api.cc
-index 4eb31a447c..3d2fbb6d68 100644
+index 3f62a23d43..c4c5d647af 100644
 --- a/src/api.cc
 +++ b/src/api.cc
-@@ -1857,6 +1857,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
+@@ -1846,6 +1846,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
    cons->set_named_property_handler(*obj);
  }
  
@@ -226,7 +226,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  void ObjectTemplate::SetHandler(
      const NamedPropertyHandlerConfiguration& config) {
    ObjectTemplateSetNamedPropertyHandler(
-@@ -2141,6 +2150,16 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
+@@ -2120,6 +2129,16 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
  }
  
  
@@ -243,7 +243,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  Local<Value> ScriptOrModule::GetResourceName() {
    i::Handle<i::Script> obj = Utils::OpenHandle(this);
    i::Isolate* isolate = obj->GetIsolate();
-@@ -2652,9 +2671,42 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
+@@ -2623,9 +2642,42 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
    return ScriptCompiler::Compile(context, &script_source);
  }
  
@@ -286,7 +286,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
      : isolate_(reinterpret_cast<i::Isolate*>(isolate)),
        next_(isolate_->try_catch_handler()),
-@@ -2758,6 +2810,12 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
+@@ -2729,6 +2781,12 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
  }
  
  
@@ -299,7 +299,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  v8::Local<v8::Message> v8::TryCatch::Message() const {
    i::Object* message = reinterpret_cast<i::Object*>(message_obj_);
    DCHECK(message->IsJSMessageObject() || message->IsTheHole(isolate_));
-@@ -2852,6 +2910,12 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
+@@ -2823,6 +2881,12 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
  }
  
  
@@ -312,7 +312,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  int Message::GetStartPosition() const {
    auto self = Utils::OpenHandle(this);
    return self->start_position();
-@@ -2925,6 +2989,12 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
+@@ -2896,6 +2960,12 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
  }
  
  
@@ -325,15 +325,15 @@ index 4eb31a447c..3d2fbb6d68 100644
  void Message::PrintCurrentStackTrace(Isolate* isolate, FILE* out) {
    i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
    ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-@@ -3993,6 +4063,7 @@ int32_t Value::Int32Value() const {
-   return Int32Value(UnsafeContextFromHeapObject(obj)).FromMaybe(0);
+@@ -3932,6 +4002,7 @@ Maybe<int32_t> Value::Int32Value(Local<Context> context) const {
  }
+ 
  
 +
  Maybe<uint32_t> Value::Uint32Value(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsNumber()) return Just(NumberToUint32(*obj));
-@@ -4700,6 +4771,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4623,6 +4694,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
  }
  
  
@@ -351,7 +351,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
                                   PropertyAttribute attribute,
-@@ -4762,6 +4844,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
+@@ -4688,6 +4770,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
    return result;
  }
  
@@ -363,7 +363,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  Maybe<bool> v8::Object::HasRealNamedProperty(Local<Context> context,
                                               Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4905,6 +4992,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
+@@ -4831,6 +4918,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
  }
  
  
@@ -376,7 +376,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  Maybe<PropertyAttribute> v8::Object::GetRealNamedPropertyAttributes(
      Local<Context> context, Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -5026,6 +5119,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -4952,6 +5045,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
@@ -389,7 +389,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -9028,6 +9127,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8919,6 +9018,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -399,7 +399,7 @@ index 4eb31a447c..3d2fbb6d68 100644
  String::Utf8Value::~Utf8Value() {
    i::DeleteArray(str_);
  }
-@@ -9047,6 +9149,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8938,6 +9040,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  
