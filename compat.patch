@@ -221,10 +221,29 @@ index a4bbe1b0c4..f469b58a00 100644
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
 diff --git a/src/api.cc b/src/api.cc
-index 3f62a23d43..9de24ccbdb 100644
+index 3f62a23d43..d82ebddc6e 100644
 --- a/src/api.cc
 +++ b/src/api.cc
-@@ -1413,15 +1413,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
+@@ -221,6 +221,18 @@ Local<Context> ContextFromNeverReadOnlySpaceObject(
+   return reinterpret_cast<v8::Isolate*>(obj->GetIsolate())->GetCurrentContext();
+ }
+ 
++// TODO(delphick): Remove this completely when the deprecated functions that use
++// it are removed.
++// DO NOT USE THIS IN NEW CODE!
++Local<Context> UnsafeContextFromHeapObject(i::Handle<i::Object> obj) {
++  // Use MemoryChunk directly instead of Isolate::FromWritableHeapObject to
++  // temporarily allow isolate access from read-only space objects.
++  i::MemoryChunk* chunk =
++      i::MemoryChunk::FromHeapObject(i::HeapObject::cast(*obj));
++  return reinterpret_cast<Isolate*>(chunk->heap()->isolate())
++      ->GetCurrentContext();
++}
++
+ class InternalEscapableScope : public v8::EscapableHandleScope {
+  public:
+   explicit inline InternalEscapableScope(i::Isolate* isolate)
+@@ -1413,15 +1425,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
  
  Local<FunctionTemplate> FunctionTemplate::New(
      Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
@@ -242,7 +261,7 @@ index 3f62a23d43..9de24ccbdb 100644
    if (behavior == ConstructorBehavior::kThrow) templ->RemovePrototype();
    return templ;
  }
-@@ -1758,12 +1757,10 @@ void ObjectTemplate::SetAccessor(v8::Local<Name> name,
+@@ -1758,12 +1769,10 @@ void ObjectTemplate::SetAccessor(v8::Local<Name> name,
                                   AccessorNameSetterCallback setter,
                                   v8::Local<Value> data, AccessControl settings,
                                   PropertyAttribute attribute,
@@ -257,7 +276,7 @@ index 3f62a23d43..9de24ccbdb 100644
  }
  
  template <typename Getter, typename Setter, typename Query, typename Descriptor,
-@@ -1846,6 +1843,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
+@@ -1846,6 +1855,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
    cons->set_named_property_handler(*obj);
  }
  
@@ -273,7 +292,7 @@ index 3f62a23d43..9de24ccbdb 100644
  void ObjectTemplate::SetHandler(
      const NamedPropertyHandlerConfiguration& config) {
    ObjectTemplateSetNamedPropertyHandler(
-@@ -2120,6 +2126,16 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
+@@ -2120,6 +2138,16 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
  }
  
  
@@ -290,14 +309,14 @@ index 3f62a23d43..9de24ccbdb 100644
  Local<Value> ScriptOrModule::GetResourceName() {
    i::Handle<i::Script> obj = Utils::OpenHandle(this);
    i::Isolate* isolate = obj->GetIsolate();
-@@ -2623,9 +2639,42 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
+@@ -2623,9 +2651,42 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
    return ScriptCompiler::Compile(context, &script_source);
  }
  
 +Local<Script> Script::Compile(v8::Local<String> source,
 +                              v8::ScriptOrigin* origin) {
 +  auto str = Utils::OpenHandle(*source);
-+  auto context = ContextFromNeverReadOnlySpaceObject(str);
++  auto context = UnsafeContextFromHeapObject(str);
 +  RETURN_TO_LOCAL_UNCHECKED(Compile(context, source, origin), Script);
 +}
 +
@@ -305,7 +324,7 @@ index 3f62a23d43..9de24ccbdb 100644
 +Local<Script> Script::Compile(v8::Local<String> source,
 +                              v8::Local<String> file_name) {
 +  auto str = Utils::OpenHandle(*source);
-+  auto context = ContextFromNeverReadOnlySpaceObject(str);
++  auto context = UnsafeContextFromHeapObject(str);
 +  ScriptOrigin origin(file_name);
 +  return Compile(context, source, &origin).FromMaybe(Local<Script>());
 +}
@@ -333,7 +352,7 @@ index 3f62a23d43..9de24ccbdb 100644
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
      : isolate_(reinterpret_cast<i::Isolate*>(isolate)),
        next_(isolate_->try_catch_handler()),
-@@ -2729,6 +2778,12 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
+@@ -2729,6 +2790,12 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
  }
  
  
@@ -346,7 +365,7 @@ index 3f62a23d43..9de24ccbdb 100644
  v8::Local<v8::Message> v8::TryCatch::Message() const {
    i::Object* message = reinterpret_cast<i::Object*>(message_obj_);
    DCHECK(message->IsJSMessageObject() || message->IsTheHole(isolate_));
-@@ -2823,6 +2878,12 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
+@@ -2823,6 +2890,12 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
  }
  
  
@@ -359,7 +378,7 @@ index 3f62a23d43..9de24ccbdb 100644
  int Message::GetStartPosition() const {
    auto self = Utils::OpenHandle(this);
    return self->start_position();
-@@ -2896,6 +2957,12 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
+@@ -2896,6 +2969,12 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
  }
  
  
@@ -372,7 +391,7 @@ index 3f62a23d43..9de24ccbdb 100644
  void Message::PrintCurrentStackTrace(Isolate* isolate, FILE* out) {
    i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
    ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-@@ -3932,6 +3999,7 @@ Maybe<int32_t> Value::Int32Value(Local<Context> context) const {
+@@ -3932,6 +4011,7 @@ Maybe<int32_t> Value::Int32Value(Local<Context> context) const {
  }
  
  
@@ -380,7 +399,7 @@ index 3f62a23d43..9de24ccbdb 100644
  Maybe<uint32_t> Value::Uint32Value(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsNumber()) return Just(NumberToUint32(*obj));
-@@ -4623,6 +4691,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4623,6 +4703,18 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
  }
  
  
@@ -391,14 +410,15 @@ index 3f62a23d43..9de24ccbdb 100644
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  return ObjectSetAccessor(context, this, name, getter, setter,
 +                           data, settings, attribute, i::FLAG_disable_old_api_accessors,
-+                           false, SideEffectType::kHasSideEffect).FromMaybe(false);
++                           false, SideEffectType::kHasSideEffect,
++                           SideEffectType::kHasSideEffect).FromMaybe(false);
 +}
 +
 +
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
                                   PropertyAttribute attribute,
-@@ -4688,6 +4767,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
+@@ -4688,6 +4780,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
    return result;
  }
  
@@ -410,7 +430,7 @@ index 3f62a23d43..9de24ccbdb 100644
  Maybe<bool> v8::Object::HasRealNamedProperty(Local<Context> context,
                                               Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4831,6 +4915,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
+@@ -4831,6 +4928,12 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
  }
  
  
@@ -423,7 +443,7 @@ index 3f62a23d43..9de24ccbdb 100644
  Maybe<PropertyAttribute> v8::Object::GetRealNamedPropertyAttributes(
      Local<Context> context, Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4952,6 +5042,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -4952,6 +5055,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
@@ -436,7 +456,7 @@ index 3f62a23d43..9de24ccbdb 100644
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -8919,6 +9015,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8919,6 +9028,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -446,7 +466,7 @@ index 3f62a23d43..9de24ccbdb 100644
  String::Utf8Value::~Utf8Value() {
    i::DeleteArray(str_);
  }
-@@ -8938,6 +9037,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8938,6 +9050,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  

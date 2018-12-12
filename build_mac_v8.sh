@@ -18,7 +18,7 @@ rm -rf out.gn/
 echo "Asking gclient to clean v8 dependencies"
 ../depot_tools/gclient recurse git clean -fdx
 echo "Applying patches"
-git apply ../ndkr16b_7.0.patch
+git apply ../ndkr16b_7.1.patch
 git apply ../compat.patch
 echo "Asking gclient to update v8 dependencies"
 ../depot_tools/gclient sync --shallow --no-history --reset --force
