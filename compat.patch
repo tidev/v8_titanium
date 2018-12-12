@@ -282,7 +282,7 @@ index 3f62a23d43..9de24ccbdb 100644
 +  // If execution is terminating, Compile(..)->Run() requires this
 +  // check.
 +  if (self.is_null()) return Local<Value>();
-+  auto context = UnsafeContextFromHeapObject(self);
++  auto context = ContextFromNeverReadOnlySpaceObject(self);
 +  RETURN_TO_LOCAL_UNCHECKED(Run(context), Value);
 +}
 +
@@ -297,7 +297,7 @@ index 3f62a23d43..9de24ccbdb 100644
 +Local<Script> Script::Compile(v8::Local<String> source,
 +                              v8::ScriptOrigin* origin) {
 +  auto str = Utils::OpenHandle(*source);
-+  auto context = UnsafeContextFromHeapObject(str);
++  auto context = ContextFromNeverReadOnlySpaceObject(str);
 +  RETURN_TO_LOCAL_UNCHECKED(Compile(context, source, origin), Script);
 +}
 +
@@ -305,7 +305,7 @@ index 3f62a23d43..9de24ccbdb 100644
 +Local<Script> Script::Compile(v8::Local<String> source,
 +                              v8::Local<String> file_name) {
 +  auto str = Utils::OpenHandle(*source);
-+  auto context = UnsafeContextFromHeapObject(str);
++  auto context = ContextFromNeverReadOnlySpaceObject(str);
 +  ScriptOrigin origin(file_name);
 +  return Compile(context, source, &origin).FromMaybe(Local<Script>());
 +}
@@ -351,7 +351,7 @@ index 3f62a23d43..9de24ccbdb 100644
  
  
 +int Message::GetLineNumber() const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  return GetLineNumber(context).FromMaybe(0);
 +}
 +
@@ -364,7 +364,7 @@ index 3f62a23d43..9de24ccbdb 100644
  
  
 +Local<String> Message::GetSourceLine() const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  RETURN_TO_LOCAL_UNCHECKED(GetSourceLine(context), String)
 +}
 +
@@ -388,7 +388,7 @@ index 3f62a23d43..9de24ccbdb 100644
 +                         AccessorNameSetterCallback setter,
 +                         v8::Local<Value> data, AccessControl settings,
 +                         PropertyAttribute attribute) {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  return ObjectSetAccessor(context, this, name, getter, setter,
 +                           data, settings, attribute, i::FLAG_disable_old_api_accessors,
 +                           false, SideEffectType::kHasSideEffect).FromMaybe(false);
@@ -403,7 +403,7 @@ index 3f62a23d43..9de24ccbdb 100644
  }
  
 +bool v8::Object::HasOwnProperty(Local<String> key) {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  return HasOwnProperty(context, key).FromMaybe(false);
 +}
 +
@@ -415,7 +415,7 @@ index 3f62a23d43..9de24ccbdb 100644
  
  
 +Local<Value> v8::Object::GetRealNamedProperty(Local<String> key) {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  RETURN_TO_LOCAL_UNCHECKED(GetRealNamedProperty(context, key), Value);
 +}
 +
@@ -429,7 +429,7 @@ index 3f62a23d43..9de24ccbdb 100644
  
 +Local<v8::Object> Function::NewInstance(int argc,
 +                                        v8::Local<v8::Value> argv[]) const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
 +  RETURN_TO_LOCAL_UNCHECKED(NewInstance(context, argc, argv), Object);
 +}
 +
