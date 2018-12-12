@@ -258,7 +258,7 @@ index a4bbe1b0c4..2661a013be 100644
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
 diff --git a/src/api.cc b/src/api.cc
-index 3f62a23d43..1f5211b1e0 100644
+index 3f62a23d43..8f5eaa739c 100644
 --- a/src/api.cc
 +++ b/src/api.cc
 @@ -221,6 +221,18 @@ Local<Context> ContextFromNeverReadOnlySpaceObject(
@@ -572,9 +572,9 @@ index 3f62a23d43..1f5211b1e0 100644
  }
  
  
-+int String::Write(Isolate* isolate, uint16_t* buffer, int start, int length,
++int String::Write(uint16_t* buffer, int start, int length,
 +                  int options) const {
-+  return Write(v8::Isolate::getCurrent(), buffer,
++  return Write(v8::Isolate::GetCurrent(), buffer,
 +                     start, length, options);
 +}
 +
