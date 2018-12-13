@@ -6,9 +6,15 @@ properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: 
 def build(scm, arch, mode) {
   return {
     def expectedLibraries = ['monolith']
+    def labels = 'ninja && git && android-ndk && android-sdk && python'
+    if (arch.equals('ia32') || arch.equals('arm')) {
+      labels += ' && (linux || (osx && xcode-9))' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
+    } else {
+      // 64-bit can be built on xcode 10, so we can use linux or osx
+      labels += ' && (linux || osx)'
+    }
 
-    // FIXME Technically we could build on linux as well!
-    node('osx && git && android-ndk && android-sdk && python && xcode-9') {
+    node(labels) {
       checkout([
         $class: 'GitSCM',
         branches: scm.branches,
