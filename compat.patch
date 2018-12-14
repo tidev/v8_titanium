@@ -1,5 +1,5 @@
 diff --git a/include/v8.h b/include/v8.h
-index a4bbe1b0c4..2661a013be 100644
+index a4bbe1b0c4..3ad45deb24 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -1232,12 +1232,18 @@ class V8_EXPORT Script {
@@ -200,8 +200,12 @@ index a4bbe1b0c4..2661a013be 100644
  // TODO(dcarney): Replace GenericNamedPropertyFooCallback with just
  // NamedPropertyFooCallback.
  
-@@ -5682,8 +5768,7 @@ class V8_EXPORT FunctionTemplate : public Template {
-       Isolate* isolate, FunctionCallback callback = nullptr,
+@@ -5679,11 +5765,10 @@ class V8_EXPORT FunctionTemplate : public Template {
+  public:
+   /** Creates a function template.*/
+   static Local<FunctionTemplate> New(
+-      Isolate* isolate, FunctionCallback callback = nullptr,
++      Isolate* isolate, FunctionCallback callback = 0,
        Local<Value> data = Local<Value>(),
        Local<Signature> signature = Local<Signature>(), int length = 0,
 -      ConstructorBehavior behavior = ConstructorBehavior::kAllow,
@@ -210,8 +214,12 @@ index a4bbe1b0c4..2661a013be 100644
  
    /** Get a template included in the snapshot by index. */
    static MaybeLocal<FunctionTemplate> FromSnapshot(Isolate* isolate,
-@@ -6041,9 +6126,15 @@ class V8_EXPORT ObjectTemplate : public Template {
-       AccessorNameSetterCallback setter = nullptr,
+@@ -6038,12 +6123,18 @@ class V8_EXPORT ObjectTemplate : public Template {
+       SideEffectType setter_side_effect_type = SideEffectType::kHasSideEffect);
+   void SetAccessor(
+       Local<Name> name, AccessorNameGetterCallback getter,
+-      AccessorNameSetterCallback setter = nullptr,
++      AccessorNameSetterCallback setter = 0,
        Local<Value> data = Local<Value>(), AccessControl settings = DEFAULT,
        PropertyAttribute attribute = None,
 -      Local<AccessorSignature> signature = Local<AccessorSignature>(),
