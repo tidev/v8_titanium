@@ -124,9 +124,21 @@ buildV8()
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
 	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
 
-	MKSNAPSHOT=$V8_DIR/out.gn/$MAKE_TARGET/clang_*/mksnapshot
-	if [ -f "$MKSNAPSHOT" ]; then
-		cp "$MKSNAPSHOT" "$DEST_DIR/$MAKE_TARGET/mksnapshot"
+	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
+	if [ -f $MKSNAPSHOT_X86 ]; then
+		cp $MKSNAPSHOT_X86 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_X64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64/mksnapshot"
+	if [ -f $MKSNAPSHOT_X64 ]; then
+		cp $MKSNAPSHOT_X64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_ARM="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86_v8_arm/mksnapshot"
+	if [ -f $MKSNAPSHOT_ARM ]; then
+		cp $MKSNAPSHOT_ARM "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_ARM64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64_v8_arm64/mksnapshot"
+	if [ -f $MKSNAPSHOT_ARM64 ]; then
+		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot"
 	fi
 }
 
