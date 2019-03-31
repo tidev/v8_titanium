@@ -20,6 +20,7 @@ echo "Asking gclient to clean v8 dependencies"
 echo "Applying patches"
 git apply ../ndkr19c_7.3.patch
 git apply ../compat.patch
+git apply ../optimize.patch
 echo "Asking gclient to update v8 dependencies"
 ../depot_tools/gclient sync --shallow --no-history --reset --force
 cd ..
