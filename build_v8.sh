@@ -114,15 +114,34 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=false v8_static_library=true v8_enable_i18n_support=false icu_use_data_file=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=16 android_ndk_version=\"r16b\" v8_monolithic=true target_os=\"android\" v8_android_log_stdout=true
+	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=true v8_enable_embedded_builtins=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=19 android_ndk_version=\"r19c\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
 	# Hack one of the toolchain items to fix AR executable used for android
-	cp ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
-	ninja -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
+	cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
+	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
+	cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
+	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
 	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+
+	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
+	if [ -f $MKSNAPSHOT_X86 ]; then
+		cp $MKSNAPSHOT_X86 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_X64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64/mksnapshot"
+	if [ -f $MKSNAPSHOT_X64 ]; then
+		cp $MKSNAPSHOT_X64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_ARM="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86_v8_arm/mksnapshot"
+	if [ -f $MKSNAPSHOT_ARM ]; then
+		cp $MKSNAPSHOT_ARM "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+	MKSNAPSHOT_ARM64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64_v8_arm64/mksnapshot"
+	if [ -f $MKSNAPSHOT_ARM64 ]; then
+		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
 }
 
 buildThirdparty()

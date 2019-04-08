@@ -1,0 +1,32 @@
+From 764568df0e1fca9e964d5992ffd761f59a416865 Mon Sep 17 00:00:00 2001
+From: Gary Mathews <gmathews@appcelerator.com>
+Date: Sat, 30 Mar 2019 19:39:12 -0700
+Subject: [PATCH] optimize for speed
+
+---
+ gni/v8.gni | 9 +--------
+ 1 file changed, 1 insertion(+), 8 deletions(-)
+
+diff --git a/gni/v8.gni b/gni/v8.gni
+index 1ed8e0382a..2e3dfabbd7 100644
+--- a/gni/v8.gni
++++ b/gni/v8.gni
+@@ -96,14 +96,7 @@ if (is_debug && !v8_optimized_debug) {
+   v8_add_configs += [ "//build/config/compiler:no_optimize" ]
+ } else {
+   v8_remove_configs += [ "//build/config/compiler:default_optimization" ]
+-
+-  # TODO(crbug.com/621335) Rework this so that we don't have the confusion
+-  # between "optimize_speed" and "optimize_max".
+-  if (((is_posix && !is_android) || is_fuchsia) && !using_sanitizer) {
+-    v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
+-  } else {
+-    v8_add_configs += [ "//build/config/compiler:optimize_max" ]
+-  }
++  v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
+ }
+ 
+ if (v8_code_coverage && !is_clang) {
+-- 
+2.17.2 (Apple Git-113)
+

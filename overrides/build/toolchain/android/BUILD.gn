@@ -44,7 +44,9 @@ template("android_clang_toolchain") {
     # The tools should be run relative to the build dir.
     _tool_prefix = rebase_path("$_android_tool_prefix", root_build_dir)
 
-    _prefix = rebase_path("$clang_base_path/bin", root_build_dir)
+    # Use android ndk clang
+    _prefix = "$android_ndk_root/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+
     cc = "$_prefix/clang"
     cxx = "$_prefix/clang++"
     ar = _tool_prefix + "ar"

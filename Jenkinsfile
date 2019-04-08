@@ -8,10 +8,10 @@ def build(scm, arch, mode) {
     def expectedLibraries = ['monolith']
     def labels = 'ninja && git && android-ndk && android-sdk && python'
     if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (linux || (osx && xcode-9))' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
+      labels += ' && (osx && xcode-9)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
     } else {
       // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && (linux || osx)'
+      labels += ' && osx'
     }
 
     node(labels) {
@@ -41,18 +41,20 @@ def build(scm, arch, mode) {
           // Force a git clean on everything under v8
           sh '../depot_tools/gclient recurse git clean -fdx'
           // Then apply our patch to avoid grabbing android sdk/ndk
-          sh 'git apply ../ndkr16b_7.1.patch'
+          sh 'git apply ../ndkr19c_7.3.patch'
+          sh 'git apply ../compat.patch'
+          sh 'git apply ../optimize.patch'
           // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       } // withEnv
 
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R16B} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
