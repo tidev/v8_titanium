@@ -2101,7 +2101,7 @@ config("optimize_speed") {
     } else if (optimize_for_fuzzing) {
       cflags = [ "-O1" ] + common_optimize_on_cflags
     } else {
-      cflags = [ "-Ofast" ] + common_optimize_on_cflags
+      cflags = [ "-O3" ] + common_optimize_on_cflags
     }
   }
 }
