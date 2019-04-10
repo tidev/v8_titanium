@@ -1,19 +1,19 @@
-From eb3b9b0111174c8e27eb44f87238da9545ad6b1c Mon Sep 17 00:00:00 2001
+From 8a2572ff7c08ce44ba6ded10fdde3d48905b91c0 Mon Sep 17 00:00:00 2001
 From: Gary Mathews <gmathews@appcelerator.com>
-Date: Sat, 6 Apr 2019 14:05:08 -0700
+Date: Thu, 11 Apr 2019 13:05:22 -0700
 Subject: [PATCH] compatibility
 
 ---
- include/v8.h                             |  95 +++++++++-------
- src/api.cc                               | 131 +++++++++++++++++++++--
+ include/v8.h                             | 122 ++++++++++++---------
+ src/api.cc                               | 134 +++++++++++++++++++++--
  src/handles.h                            |   1 +
  src/heap/factory.cc                      |   4 +-
  src/objects.cc                           |   4 +-
  src/parsing/scanner-character-streams.cc |  34 +-----
- 6 files changed, 187 insertions(+), 82 deletions(-)
+ 6 files changed, 205 insertions(+), 94 deletions(-)
 
 diff --git a/include/v8.h b/include/v8.h
-index b23114f4ff..aed25e0f3d 100644
+index b23114f4ff..2c7483b082 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -118,12 +118,12 @@ class HeapObject;
@@ -37,6 +37,17 @@ index b23114f4ff..aed25e0f3d 100644
 +  static internal::Object** CreateHandle(internal::Isolate* isolate, internal::Object* value);
    static internal::Address* CreateHandle(internal::Isolate* isolate,
                                           internal::Address value);
+ 
+@@ -900,8 +901,8 @@ class V8_EXPORT EscapableHandleScope : public HandleScope {
+    */
+   template <class T>
+   V8_INLINE Local<T> Escape(Local<T> value) {
+-    internal::Address* slot =
+-        Escape(reinterpret_cast<internal::Address*>(*value));
++    internal::Object** slot =
++        Escape(reinterpret_cast<internal::Object**>(*value));
+     return Local<T>(reinterpret_cast<T*>(slot));
+   }
  
 @@ -921,6 +922,7 @@ class V8_EXPORT EscapableHandleScope : public HandleScope {
    void operator delete(void*, size_t);
@@ -268,7 +279,7 @@ index b23114f4ff..aed25e0f3d 100644
  
    /**
     * Sets a named property handler on the object template.
-@@ -8563,14 +8569,18 @@ class V8_EXPORT V8 {
+@@ -8563,14 +8569,19 @@ class V8_EXPORT V8 {
   private:
    V8();
  
@@ -282,12 +293,13 @@ index b23114f4ff..aed25e0f3d 100644
    static void MakeWeak(internal::Address* location, void* data,
                         WeakCallbackInfo<void>::Callback weak_callback,
                         WeakCallbackType type);
++  static void MakeWeak(internal::Object*** location_addr);
    static void MakeWeak(internal::Address** location_addr);
 +  static void* ClearWeak(internal::Object** location);
    static void* ClearWeak(internal::Address* location);
    static void AnnotateStrongRetainer(internal::Address* location,
                                       const char* label);
-@@ -8830,6 +8840,7 @@ class V8_EXPORT TryCatch {
+@@ -8830,6 +8841,7 @@ class V8_EXPORT TryCatch {
     * all TryCatch blocks should be stack allocated because the memory
     * location itself is compared against JavaScript try/catch blocks.
     */
@@ -295,7 +307,7 @@ index b23114f4ff..aed25e0f3d 100644
    explicit TryCatch(Isolate* isolate);
  
    /**
-@@ -8887,6 +8898,7 @@ class V8_EXPORT TryCatch {
+@@ -8887,6 +8899,7 @@ class V8_EXPORT TryCatch {
     * Returns the .stack property of the thrown object.  If no .stack
     * property is present an empty handle is returned.
     */
@@ -303,7 +315,58 @@ index b23114f4ff..aed25e0f3d 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Value> StackTrace(
        Local<Context> context) const;
  
-@@ -9783,6 +9795,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
+@@ -9455,7 +9468,7 @@ template <class T>
+ Local<T> Local<T>::New(Isolate* isolate, T* that) {
+   if (that == nullptr) return Local<T>();
+   T* that_ptr = that;
+-  internal::Address* p = reinterpret_cast<internal::Address*>(that_ptr);
++  internal::Object** p = reinterpret_cast<internal::Object**>(that_ptr);
+   return Local<T>(reinterpret_cast<T*>(HandleScope::CreateHandle(
+       reinterpret_cast<internal::Isolate*>(isolate), *p)));
+ }
+@@ -9498,7 +9511,7 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
+ template <class T>
+ T* PersistentBase<T>::New(Isolate* isolate, T* that) {
+   if (that == nullptr) return nullptr;
+-  internal::Address* p = reinterpret_cast<internal::Address*>(that);
++  internal::Object** p = reinterpret_cast<internal::Object**>(that);
+   return reinterpret_cast<T*>(
+       V8::GlobalizeReference(reinterpret_cast<internal::Isolate*>(isolate),
+                              p));
+@@ -9547,7 +9560,7 @@ bool PersistentBase<T>::IsWeak() const {
+ template <class T>
+ void PersistentBase<T>::Reset() {
+   if (this->IsEmpty()) return;
+-  V8::DisposeGlobal(reinterpret_cast<internal::Address*>(this->val_));
++  V8::DisposeGlobal(reinterpret_cast<internal::Object**>(this->val_));
+   val_ = nullptr;
+ }
+ 
+@@ -9579,20 +9592,20 @@ V8_INLINE void PersistentBase<T>::SetWeak(
+     P* parameter, typename WeakCallbackInfo<P>::Callback callback,
+     WeakCallbackType type) {
+   typedef typename WeakCallbackInfo<void>::Callback Callback;
+-  V8::MakeWeak(reinterpret_cast<internal::Address*>(this->val_), parameter,
++  V8::MakeWeak(reinterpret_cast<internal::Object**>(this->val_), parameter,
+                reinterpret_cast<Callback>(callback), type);
+ }
+ 
+ template <class T>
+ void PersistentBase<T>::SetWeak() {
+-  V8::MakeWeak(reinterpret_cast<internal::Address**>(&this->val_));
++  V8::MakeWeak(reinterpret_cast<internal::Object***>(&this->val_));
+ }
+ 
+ template <class T>
+ template <typename P>
+ P* PersistentBase<T>::ClearWeak() {
+   return reinterpret_cast<P*>(
+-      V8::ClearWeak(reinterpret_cast<internal::Address*>(this->val_)));
++      V8::ClearWeak(reinterpret_cast<internal::Object**>(this->val_)));
+ }
+ 
+ template <class T>
+@@ -9783,6 +9796,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
    return Local<Value>(reinterpret_cast<Value*>(values_ - i));
  }
  
@@ -315,8 +378,45 @@ index b23114f4ff..aed25e0f3d 100644
  
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
+@@ -9943,6 +9961,7 @@ AccessorSignature* AccessorSignature::Cast(Data* data) {
+ 
+ Local<Value> Object::GetInternalField(int index) {
+ #if !defined(V8_ENABLE_CHECKS) && !defined(V8_COMPRESS_POINTERS)
++  typedef internal::Object* O;
+   typedef internal::Address A;
+   typedef internal::Internals I;
+   A obj = *reinterpret_cast<A*>(this);
+@@ -9954,10 +9973,10 @@ Local<Value> Object::GetInternalField(int index) {
+       instance_type == I::kJSSpecialApiObjectType) {
+     int offset = I::kJSObjectHeaderSizeForEmbedderFields +
+                  (I::kEmbedderDataSlotSize * index);
+-    A value = I::ReadTaggedAnyField(obj, offset);
++    O value = reinterpret_cast<O>(I::ReadTaggedAnyField(obj, offset));
+     internal::Isolate* isolate =
+         internal::IsolateFromNeverReadOnlySpaceObject(obj);
+-    A* result = HandleScope::CreateHandle(isolate, value);
++    O* result = HandleScope::CreateHandle(isolate, value);
+     return Local<Value>(reinterpret_cast<Value*>(result));
+   }
+ #endif
+@@ -10575,12 +10594,13 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
+ 
+ Local<Value> Context::GetEmbedderData(int index) {
+ #if !defined(V8_ENABLE_CHECKS) && !defined(V8_COMPRESS_POINTERS)
++  typedef internal::Object* O;
+   typedef internal::Address A;
+   typedef internal::Internals I;
+   internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
+       *reinterpret_cast<A*>(this));
+-  A* result =
+-      HandleScope::CreateHandle(isolate, I::ReadEmbedderData<A>(this, index));
++  O* result =
++      HandleScope::CreateHandle(isolate, reinterpret_cast<O>(I::ReadEmbedderData<A>(this, index)));
+   return Local<Value>(reinterpret_cast<Value*>(result));
+ #else
+   return SlowGetEmbedderData(index);
 diff --git a/src/api.cc b/src/api.cc
-index b1f9c99860..902cb4a4a9 100644
+index b1f9c99860..c5a7448771 100644
 --- a/src/api.cc
 +++ b/src/api.cc
 @@ -243,6 +243,11 @@ Local<Context> ContextFromNeverReadOnlySpaceObject(
@@ -341,7 +441,7 @@ index b1f9c99860..902cb4a4a9 100644
  i::Address* V8::GlobalizeReference(i::Isolate* isolate, i::Address* obj) {
    LOG_API(isolate, Persistent, New);
    i::Handle<i::Object> result = isolate->global_handles()->Create(*obj);
-@@ -1014,6 +1022,9 @@ void V8::RegisterExternallyReferencedObject(i::Address* location,
+@@ -1014,16 +1022,25 @@ void V8::RegisterExternallyReferencedObject(i::Address* location,
    isolate->heap()->RegisterExternallyReferencedObject(location);
  }
  
@@ -351,7 +451,13 @@ index b1f9c99860..902cb4a4a9 100644
  void V8::MakeWeak(i::Address* location, void* parameter,
                    WeakCallbackInfo<void>::Callback weak_callback,
                    WeakCallbackType type) {
-@@ -1024,6 +1035,9 @@ void V8::MakeWeak(i::Address** location_addr) {
+   i::GlobalHandles::MakeWeak(location, parameter, weak_callback, type);
+ }
+ 
++void V8::MakeWeak(i::Object*** location_addr) {
++  MakeWeak(reinterpret_cast<i::Address**>(location_addr));
++}
+ void V8::MakeWeak(i::Address** location_addr) {
    i::GlobalHandles::MakeWeak(location_addr);
  }
  
@@ -361,7 +467,7 @@ index b1f9c99860..902cb4a4a9 100644
  void* V8::ClearWeak(i::Address* location) {
    return i::GlobalHandles::ClearWeakness(location);
  }
-@@ -1032,6 +1046,9 @@ void V8::AnnotateStrongRetainer(i::Address* location, const char* label) {
+@@ -1032,6 +1049,9 @@ void V8::AnnotateStrongRetainer(i::Address* location, const char* label) {
    i::GlobalHandles::AnnotateStrongRetainer(location, label);
  }
  
@@ -371,7 +477,7 @@ index b1f9c99860..902cb4a4a9 100644
  void V8::DisposeGlobal(i::Address* location) {
    i::GlobalHandles::Destroy(location);
  }
-@@ -1105,6 +1122,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
+@@ -1105,6 +1125,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
        reinterpret_cast<i::Isolate*>(isolate));
  }
  
@@ -381,7 +487,7 @@ index b1f9c99860..902cb4a4a9 100644
  i::Address* HandleScope::CreateHandle(i::Isolate* isolate, i::Address value) {
    return i::HandleScope::CreateHandle(isolate, value);
  }
-@@ -1116,6 +1136,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
+@@ -1116,6 +1139,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
    Initialize(v8_isolate);
  }
  
@@ -391,7 +497,7 @@ index b1f9c99860..902cb4a4a9 100644
  i::Address* EscapableHandleScope::Escape(i::Address* escape_value) {
    i::Heap* heap = reinterpret_cast<i::Isolate*>(GetIsolate())->heap();
    Utils::ApiCheck(i::Object(*escape_slot_)->IsTheHole(heap->isolate()),
-@@ -1430,15 +1453,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
+@@ -1430,15 +1456,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
  
  Local<FunctionTemplate> FunctionTemplate::New(
      Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
@@ -409,7 +515,7 @@ index b1f9c99860..902cb4a4a9 100644
    if (behavior == ConstructorBehavior::kThrow) templ->RemovePrototype();
    return templ;
  }
-@@ -1777,12 +1799,10 @@ void ObjectTemplate::SetAccessor(v8::Local<Name> name,
+@@ -1777,12 +1802,10 @@ void ObjectTemplate::SetAccessor(v8::Local<Name> name,
                                   AccessorNameSetterCallback setter,
                                   v8::Local<Value> data, AccessControl settings,
                                   PropertyAttribute attribute,
@@ -424,7 +530,7 @@ index b1f9c99860..902cb4a4a9 100644
  }
  
  template <typename Getter, typename Setter, typename Query, typename Descriptor,
-@@ -1865,6 +1885,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
+@@ -1865,6 +1888,15 @@ static void ObjectTemplateSetNamedPropertyHandler(
    i::FunctionTemplateInfo::SetNamedPropertyHandler(isolate, cons, obj);
  }
  
@@ -440,7 +546,7 @@ index b1f9c99860..902cb4a4a9 100644
  void ObjectTemplate::SetHandler(
      const NamedPropertyHandlerConfiguration& config) {
    ObjectTemplateSetNamedPropertyHandler(
-@@ -2138,6 +2167,14 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
+@@ -2138,6 +2170,14 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
    RETURN_ESCAPED(result);
  }
  
@@ -455,7 +561,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  Local<Value> ScriptOrModule::GetResourceName() {
    i::Handle<i::Script> obj = Utils::OpenHandle(this);
-@@ -2613,9 +2650,39 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
+@@ -2613,9 +2653,39 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
    return ScriptCompiler::Compile(context, &script_source);
  }
  
@@ -495,7 +601,7 @@ index b1f9c99860..902cb4a4a9 100644
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
      : isolate_(reinterpret_cast<i::Isolate*>(isolate)),
        next_(isolate_->try_catch_handler()),
-@@ -2718,6 +2785,10 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
+@@ -2718,6 +2788,10 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -506,7 +612,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  v8::Local<v8::Message> v8::TryCatch::Message() const {
    i::Object message(reinterpret_cast<i::Address>(message_obj_));
-@@ -2812,6 +2883,10 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
+@@ -2812,6 +2886,10 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
    return Just(msg->GetLineNumber());
  }
  
@@ -517,7 +623,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  int Message::GetStartPosition() const {
    auto self = Utils::OpenHandle(this);
-@@ -2885,6 +2960,10 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
+@@ -2885,6 +2963,10 @@ MaybeLocal<String> Message::GetSourceLine(Local<Context> context) const {
    RETURN_ESCAPED(Utils::ToLocal(msg->GetSourceLine()));
  }
  
@@ -528,7 +634,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  void Message::PrintCurrentStackTrace(Isolate* isolate, FILE* out) {
    i::Isolate* i_isolate = reinterpret_cast<i::Isolate*>(isolate);
-@@ -4483,6 +4562,10 @@ Maybe<bool> v8::Object::DeletePrivate(Local<Context> context,
+@@ -4483,6 +4565,10 @@ Maybe<bool> v8::Object::DeletePrivate(Local<Context> context,
    return result;
  }
  
@@ -539,7 +645,7 @@ index b1f9c99860..902cb4a4a9 100644
  Maybe<bool> v8::Object::Has(Local<Context> context, Local<Value> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
    ENTER_V8(isolate, context, Object, Has, Nothing<bool>(), i::HandleScope);
-@@ -4581,6 +4664,15 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4581,6 +4667,15 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
                             getter_side_effect_type, setter_side_effect_type);
  }
  
@@ -555,7 +661,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
-@@ -4647,6 +4739,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
+@@ -4647,6 +4742,11 @@ Maybe<bool> v8::Object::HasOwnProperty(Local<Context> context, uint32_t index) {
    return result;
  }
  
@@ -567,7 +673,7 @@ index b1f9c99860..902cb4a4a9 100644
  Maybe<bool> v8::Object::HasRealNamedProperty(Local<Context> context,
                                               Local<Name> key) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4789,6 +4886,10 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
+@@ -4789,6 +4889,10 @@ MaybeLocal<Value> v8::Object::GetRealNamedProperty(Local<Context> context,
    RETURN_ESCAPED(result);
  }
  
@@ -578,7 +684,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  Maybe<PropertyAttribute> v8::Object::GetRealNamedPropertyAttributes(
      Local<Context> context, Local<Name> key) {
-@@ -4911,6 +5012,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -4911,6 +5015,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
@@ -591,7 +697,7 @@ index b1f9c99860..902cb4a4a9 100644
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -6765,6 +6872,10 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
+@@ -6765,6 +6875,10 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
    RETURN_ESCAPED(result);
  }
  
@@ -602,7 +708,7 @@ index b1f9c99860..902cb4a4a9 100644
  
  double v8::Date::ValueOf() const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
-@@ -8929,6 +9040,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8929,6 +9043,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -612,7 +718,7 @@ index b1f9c99860..902cb4a4a9 100644
  String::Utf8Value::~Utf8Value() {
    i::DeleteArray(str_);
  }
-@@ -8948,6 +9062,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -8948,6 +9065,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  
