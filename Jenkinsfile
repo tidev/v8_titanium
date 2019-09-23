@@ -41,9 +41,9 @@ def build(scm, arch, mode) {
           // Force a git clean on everything under v8
           sh '../depot_tools/gclient recurse git clean -fdx'
           // Then apply our patch to avoid grabbing android sdk/ndk
-          sh 'git apply ../ndkr19c_7.3.patch'
+          sh 'git apply ../ndkr19c_7.7.patch'
           sh 'git apply ../compat.patch'
-          sh 'git apply ../optimize.patch'
+          // sh 'git apply ../optimize.patch'
           // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
