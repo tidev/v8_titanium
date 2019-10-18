@@ -1,39 +1,27 @@
-From c9e438015b92a3f7739dbae60d0c6f691405cddd Mon Sep 17 00:00:00 2001
-From: Gary Mathews <gmathews@appcelerator.com>
-Date: Thu, 28 Mar 2019 17:09:33 -0700
-Subject: [PATCH] dependencies
-
----
- DEPS | 17 -----------------
- 1 file changed, 17 deletions(-)
-
 diff --git a/DEPS b/DEPS
-index ec6045a90a..d7e3a451eb 100644
+index 1837bd96bc..1d4a4229d9 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -27,14 +27,6 @@ deps = {
-     Var('chromium_url') + '/chromium/buildtools.git' + '@' + '2f02e1f363b1af2715536f38e239853f04ec1497',
+@@ -35,14 +35,6 @@ deps = {
+     Var('chromium_url') + '/external/llvm.org/libunwind.git' + '@' + '69d9b84cca8354117b9fe9705a4430d789ee599b',
    'v8/base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'e31a1706337ccb9a658b37d29a018c81695c6518',
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '936ba8a963284a6b3737cf2f0474a7131073abee',
 -  'v8/third_party/android_ndk': {
 -    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '4e2cea441bfd43f0863d14f57b1e1844260b9884',
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_tools': {
--    'url': Var('chromium_url') + '/android_tools.git' + '@' + 'e958d6ea74442d4e0849bb8a018d215a0e78981d',
+-    'url': Var('chromium_url') + '/android_tools.git' + '@' + '347a7c8078a009e98995985b7ab6ec6b35696dea',
 -    'condition': 'checkout_android',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + 'dd2de388fc4e3e8fa97a97515ec35c5b3834b753',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'ccc29087522abefc852d1294595ae6db7e86d649',
      'condition': 'checkout_android',
-@@ -109,7 +101,6 @@ deps = {
+@@ -116,7 +108,6 @@ deps = {
+ }
  
  recursedeps = [
-   'v8/buildtools',
 -  'v8/third_party/android_tools',
  ]
  
  include_rules = [
--- 
-2.17.2 (Apple Git-113)
-
