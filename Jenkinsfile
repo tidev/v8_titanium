@@ -8,10 +8,10 @@ def build(scm, arch, mode) {
     def expectedLibraries = ['monolith']
     def labels = 'ninja && git && android-ndk && android-sdk && python'
     if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (osx && xcode-9)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
+      labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
     } else {
       // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && osx'
+      labels += ' && (osx || linux)'
     }
 
     node(labels) {
