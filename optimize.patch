@@ -1,19 +1,20 @@
 diff --git a/BUILD.gn b/BUILD.gn
-index fddd525297..84c48bf04e 100644
+index 10fee26420..60fd08d2a5 100644
 --- a/BUILD.gn
 +++ b/BUILD.gn
-@@ -674,13 +674,7 @@ config("default_optimization") {
-   if (is_debug && !v8_optimized_debug) {
-     configs = [ "//build/config/compiler:no_optimize" ]
-   } else {
--    # TODO(crbug.com/621335) Rework this so that we don't have the confusion
--    # between "optimize_speed" and "optimize_max".
--    if (((is_posix && !is_android) || is_fuchsia) && !using_sanitizer) {
--      configs = [ "//build/config/compiler:optimize_speed" ]
--    } else {
--      configs = [ "//build/config/compiler:optimize_max" ]
--    }
-+    configs = [ "//build/config/compiler:optimize_speed" ]
-   }
+@@ -703,14 +703,7 @@ config("toolchain") {
+ # optimize some files even in debug builds to speed up mksnapshot times.
+ config("always_optimize") {
+   configs = [ ":internal_config" ]
+-
+-  # TODO(crbug.com/621335) Rework this so that we don't have the confusion
+-  # between "optimize_speed" and "optimize_max".
+-  if (((is_posix && !is_android) || is_fuchsia) && !using_sanitizer) {
+-    configs += [ "//build/config/compiler:optimize_speed" ]
+-  } else {
+-    configs += [ "//build/config/compiler:optimize_max" ]
+-  }
++  configs += [ "//build/config/compiler:optimize_speed" ]
  }
  
+ # Configs for code coverage with gcov. Separate configs for cflags and ldflags
