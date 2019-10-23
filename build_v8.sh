@@ -120,7 +120,7 @@ buildV8()
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
 	# Hack another override to force libc++ stdlib (lines 50-56 of file)
-	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
+	#cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
 	# Copy the static libraries to our staging area.
