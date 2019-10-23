@@ -119,8 +119,8 @@ buildV8()
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
-	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
+	#cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
+	#cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
 	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
 	# Copy the static libraries to our staging area.
