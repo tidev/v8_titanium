@@ -120,6 +120,8 @@ buildV8()
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
 	# Hack another override to force libc++ stdlib (lines 50-56 of file)
+	# FIXME: We need to *not* use this on macOS for it to build for me locally.
+	# But on linux, this seems to break the build somehow?
 	#cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
 
