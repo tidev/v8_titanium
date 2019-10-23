@@ -18,3 +18,22 @@ index 10fee26420..60fd08d2a5 100644
  }
  
  # Configs for code coverage with gcov. Separate configs for cflags and ldflags
+diff --git a/gni/v8.gni b/gni/v8.gni
+index 0a120df8e1..9d289732f1 100644
+--- a/gni/v8.gni
++++ b/gni/v8.gni
+@@ -107,13 +107,7 @@ if (is_debug && !v8_optimized_debug) {
+ } else {
+   v8_remove_configs += [ "//build/config/compiler:default_optimization" ]
+ 
+-  # TODO(crbug.com/621335) Rework this so that we don't have the confusion
+-  # between "optimize_speed" and "optimize_max".
+-  if (((is_posix && !is_android) || is_fuchsia) && !using_sanitizer) {
+-    v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
+-  } else {
+-    v8_add_configs += [ "//build/config/compiler:optimize_max" ]
+-  }
++  v8_add_configs += [ "//build/config/compiler:optimize_max" ]
+ }
+ 
+ if (v8_code_coverage && !is_clang) {
