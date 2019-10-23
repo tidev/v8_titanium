@@ -1,19 +1,5 @@
-From 8a8ea61cff27ba05008ed730630e3f7d60b0c809 Mon Sep 17 00:00:00 2001
-From: Chris Williams <chris.a.williams@gmail.com>
-Date: Tue, 22 Oct 2019 15:15:03 -0400
-Subject: [PATCH] fix: backwards compatible API
-
----
- include/v8.h                             | 156 +++++++++++++----------
- src/api.cc                               | 151 +++++++++++++++++++++-
- src/handles.h                            |   1 +
- src/heap/factory.cc                      |   4 +-
- src/objects/string.cc                    |   4 +-
- src/parsing/scanner-character-streams.cc |  34 +----
- 6 files changed, 242 insertions(+), 108 deletions(-)
-
 diff --git a/include/v8.h b/include/v8.h
-index b4b920555b..2cc1926cb7 100644
+index b4b920555b..44090172a3 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -123,12 +123,12 @@ class Isolate;
@@ -425,60 +411,38 @@ index b4b920555b..2cc1926cb7 100644
  
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
-@@ -10317,7 +10357,8 @@ AccessorSignature* AccessorSignature::Cast(Data* data) {
- }
+@@ -10318,6 +10358,7 @@ AccessorSignature* AccessorSignature::Cast(Data* data) {
  
  Local<Value> Object::GetInternalField(int index) {
--#ifndef V8_ENABLE_CHECKS
-+#if !defined(V8_ENABLE_CHECKS) && !defined(V8_COMPRESS_POINTERS)
+ #ifndef V8_ENABLE_CHECKS
 +  typedef internal::Object* O;
    typedef internal::Address A;
    typedef internal::Internals I;
    A obj = *reinterpret_cast<A*>(this);
-@@ -10328,15 +10369,10 @@ Local<Value> Object::GetInternalField(int index) {
-       instance_type == I::kJSApiObjectType ||
-       instance_type == I::kJSSpecialApiObjectType) {
-     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
--    A value = I::ReadRawField<A>(obj, offset);
--#ifdef V8_COMPRESS_POINTERS
--    // We read the full pointer value and then decompress it in order to avoid
--    // dealing with potential endiannes issues.
--    value = I::DecompressTaggedAnyField(obj, static_cast<int32_t>(value));
--#endif
-+    O value = reinterpret_cast<O>(I::ReadTaggedAnyField(obj, offset));
+@@ -10336,7 +10377,7 @@ Local<Value> Object::GetInternalField(int index) {
+ #endif
      internal::Isolate* isolate =
          internal::IsolateFromNeverReadOnlySpaceObject(obj);
 -    A* result = HandleScope::CreateHandle(isolate, value);
-+    O* result = HandleScope::CreateHandle(isolate, value);
++    O* result = HandleScope::CreateHandle(isolate, reinterpret_cast<O>(value));
      return Local<Value>(reinterpret_cast<Value*>(result));
    }
  #endif
-@@ -10960,24 +10996,14 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
- }
+@@ -10961,6 +11002,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
  
  Local<Value> Context::GetEmbedderData(int index) {
--#ifndef V8_ENABLE_CHECKS
-+#if !defined(V8_ENABLE_CHECKS) && !defined(V8_COMPRESS_POINTERS)
+ #ifndef V8_ENABLE_CHECKS
 +  typedef internal::Object* O;
    typedef internal::Address A;
    typedef internal::Internals I;
--  A ctx = *reinterpret_cast<const A*>(this);
--  A embedder_data =
--      I::ReadTaggedPointerField(ctx, I::kNativeContextEmbedderDataOffset);
--  int value_offset =
--      I::kEmbedderDataArrayHeaderSize + (I::kEmbedderDataSlotSize * index);
--  A value = I::ReadRawField<A>(embedder_data, value_offset);
--#ifdef V8_COMPRESS_POINTERS
--  // We read the full pointer value and then decompress it in order to avoid
--  // dealing with potential endiannes issues.
--  value =
--      I::DecompressTaggedAnyField(embedder_data, static_cast<int32_t>(value));
--#endif
+   A ctx = *reinterpret_cast<const A*>(this);
+@@ -10977,7 +11019,8 @@ Local<Value> Context::GetEmbedderData(int index) {
+ #endif
    internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
        *reinterpret_cast<A*>(this));
 -  A* result = HandleScope::CreateHandle(isolate, value);
 +  O* result =
-+      HandleScope::CreateHandle(isolate, reinterpret_cast<O>(I::ReadEmbedderData<A>(this, index)));
++      HandleScope::CreateHandle(isolate, reinterpret_cast<O>(value));
    return Local<Value>(reinterpret_cast<Value*>(result));
  #else
    return SlowGetEmbedderData(index);
@@ -951,6 +915,3 @@ index d58e346904..7ffe956232 100644
    const Char* const data_;
    const size_t length_;
  };
--- 
-2.23.0
-
