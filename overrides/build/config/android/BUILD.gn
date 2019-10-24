@@ -48,7 +48,7 @@ config("compiler") {
   ]
 
   # Use NDK libc++
-  cflags += [
+  cflags_cc = [
       "-stdlib=libc++",
       "-isystem" + rebase_path("$android_ndk_root/sources/cxx-stl/llvm-libc++/include", root_build_dir),
       "-isystem" + rebase_path("$android_ndk_root/sources/cxx-stl/llvm-libc++abi/include", root_build_dir)
@@ -56,7 +56,7 @@ config("compiler") {
   ldflags += [ "-stdlib=libc++" ]
 
   # If using custom libcxx build, force namespace to match ndk
-  # Note that this crashes at runtime
+  # Note that this crashes at runtime for Titanium SDK anyways
   #cflags += [ "-D_LIBCPP_ABI_NAMESPACE=__ndk1" ]
 
   # $compile_api_level corresponds to the API level used for the sysroot path
