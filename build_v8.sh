@@ -119,6 +119,7 @@ buildV8()
 	if [[ "$OSTYPE" == "darwin"* ]]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
+	cp -f ../overrides/build/config/sysroot.gni "$V8_DIR/build/config/sysroot.gni"
 	#cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 	#cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
 
