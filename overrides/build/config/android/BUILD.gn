@@ -56,7 +56,7 @@ config("compiler") {
   #ldflags += [ "-stdlib=libc++" ]
 
   # If using custom libcxx build, force namespace to match ndk
-  cflags += [ "-D_LIBCPP_ABI_NAMESPACE=__ndk" ]
+  cflags += [ "-D_LIBCPP_ABI_NAMESPACE=__ndk1" ]
   #cflags += [ "-DLIBCXX_ABI_NAMESPACE=__ndk" ]
 
   # $compile_api_level corresponds to the API level used for the sysroot path
