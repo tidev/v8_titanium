@@ -1,27 +1,57 @@
 diff --git a/DEPS b/DEPS
-index 1837bd96bc..1d4a4229d9 100644
+index a7d4081edb..a17fee73c1 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -35,14 +35,6 @@ deps = {
-     Var('chromium_url') + '/external/llvm.org/libunwind.git' + '@' + '69d9b84cca8354117b9fe9705a4430d789ee599b',
+@@ -121,52 +121,6 @@ deps = {
+   },
    'v8/base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '936ba8a963284a6b3737cf2f0474a7131073abee',
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '5e4fce17a9d2439c44a7b57ceecef6df9287ec2f',
 -  'v8/third_party/android_ndk': {
--    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '4e2cea441bfd43f0863d14f57b1e1844260b9884',
+-    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '62582753e869484bf0cc7f7e8d184ce0077033c2',
 -    'condition': 'checkout_android',
 -  },
--  'v8/third_party/android_tools': {
--    'url': Var('chromium_url') + '/android_tools.git' + '@' + '347a7c8078a009e98995985b7ab6ec6b35696dea',
--    'condition': 'checkout_android',
+-  'v8/third_party/android_sdk/public': {
+-      'packages': [
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/build-tools',
+-              'version': Var('android_sdk_build-tools_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/emulator',
+-              'version': Var('android_sdk_emulator_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/extras',
+-              'version': Var('android_sdk_extras_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/patcher',
+-              'version': Var('android_sdk_patcher_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/platform-tools',
+-              'version': Var('android_sdk_platform-tools_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/platforms',
+-              'version': Var('android_sdk_platforms_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/sources',
+-              'version': Var('android_sdk_sources_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/tools',
+-              'version': Var('android_sdk_tools_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/tools-lint',
+-              'version': Var('android_sdk_tools-lint_version'),
+-          },
+-      ],
+-      'condition': 'checkout_android',
+-      'dep_type': 'cipd',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + 'ccc29087522abefc852d1294595ae6db7e86d649',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'e7c719c3e85f76938bf4fef0ba37c27f89246f71',
      'condition': 'checkout_android',
-@@ -116,7 +108,6 @@ deps = {
- }
- 
- recursedeps = [
--  'v8/third_party/android_tools',
- ]
- 
- include_rules = [
