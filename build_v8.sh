@@ -22,7 +22,8 @@ Options:
 	-l <lib-version>  Architectures to build for (arm, x64, ia32, arm64, mipsel, x87, all. default: arm)
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-c                Clean the V8 build
-	-p <api-level>		The Android SDK version to support (android-8, android-9, etc.)
+	-p <api-level>    The Android SDK version to support (android-8, android-9, etc. default: android-23)
+	-x <target>        Target to build (v8_snapshot || v8_monolith. default: v8_monolith)
 EOF
 }
 
@@ -33,7 +34,7 @@ THIRDPARTY=0
 CLEAN=0
 PLATFORM_VERSION=android-23
 
-while getopts "hts:cn:j:m:l:p:" OPTION; do
+while getopts "hts:cn:j:m:l:p:x:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -62,6 +63,9 @@ while getopts "hts:cn:j:m:l:p:" OPTION; do
 			;;
 		p)
 			PLATFORM_VERSION=$OPTARG
+			;;
+		x)
+			TARGET=$OPTARG
 			;;
 		?)
 			usage
@@ -92,6 +96,11 @@ if [ "$SDK_DIR" = "" ]; then
 fi
 echo "Building against Android SDK: $SDK_DIR"
 
+# build target
+if [ "$TARGET" = "" ]; then
+	TARGET=v8_monolith
+fi
+
 THIS_DIR=$(cd "$(dirname "$0")"; pwd)
 BUILD_DIR=$THIS_DIR/build
 
@@ -121,18 +130,16 @@ buildV8()
 	if [ "$OS" == "Darwin" ]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
-	#cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	#cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
 
-	# Fix android sysroot path
-	#cp -f ../overrides/build/config/sysroot.gni "$V8_DIR/build/config/sysroot.gni"
-
-	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
+	# v8_snapshot build fails but still generates the intended mksnapshot binary
+	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	if [ "$TARGET" == "v8_monolith" ]; then
+		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	fi
 
 	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
 	if [ -f $MKSNAPSHOT_X86 ]; then
