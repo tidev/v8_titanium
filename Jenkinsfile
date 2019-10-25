@@ -41,7 +41,7 @@ def build(scm, arch, mode) {
           // Force a git clean on everything under v8
           sh '../depot_tools/gclient recurse git clean -fdx'
           // Then apply our patch to avoid grabbing android sdk/ndk
-          sh 'git apply ../ndkr19c_7.3.patch'
+          sh 'git apply ../DEPS.patch'
           // Apply patch to retain backwards-compatible APIs (to avoid breaking module api changes)
           //sh 'git apply ../compat.patch'
           // Apply patch to optimize for speed
@@ -52,11 +52,11 @@ def build(scm, arch, mode) {
       } // withEnv
 
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
