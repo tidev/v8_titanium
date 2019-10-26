@@ -1,4 +1,4 @@
-From d117989a73a38e2cdc7495af6b2e5c1ab89bbdb2 Mon Sep 17 00:00:00 2001
+From d786c855a267a26841166b792aa28f8e9fea26b5 Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Fri, 18 Oct 2019 13:20:26 -0400
 Subject: [PATCH] fix: patch
@@ -416,7 +416,7 @@ index d66f360c99..f0fb79e1e2 100644
  #else
    return SlowGetEmbedderData(index);
 diff --git a/src/api/api.cc b/src/api/api.cc
-index 30eceb6223..2e049bce74 100644
+index 30eceb6223..fd17783339 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
 @@ -242,6 +242,16 @@ namespace v8 {
@@ -568,7 +568,7 @@ index 30eceb6223..2e049bce74 100644
 +  // check.
 +  if (self.is_null()) return Local<Value>();
 +  auto context = UnsafeContextFromHeapObject(self);
-+  RETURN_TO_LOCAL_UNCHECKED(Run(context), Value);
++  return Run(context).FromMaybe(Local<Value>());
 +}
 +
  Local<Value> ScriptOrModule::GetResourceName() {
@@ -582,7 +582,7 @@ index 30eceb6223..2e049bce74 100644
 +                              v8::ScriptOrigin* origin) {
 +  auto str = Utils::OpenHandle(*source);
 +  auto context = UnsafeContextFromHeapObject(str);
-+  RETURN_TO_LOCAL_UNCHECKED(Compile(context, source, origin), Script);
++  return Compile(context, source, origin).FromMaybe(Local<Script>());
 +}
 +
 +Local<Script> Script::Compile(v8::Local<String> source,
@@ -620,7 +620,7 @@ index 30eceb6223..2e049bce74 100644
  
 +v8::Local<Value> v8::TryCatch::StackTrace() const {
 +  auto context = reinterpret_cast<v8::Isolate*>(isolate_)->GetCurrentContext();
-+  RETURN_TO_LOCAL_UNCHECKED(StackTrace(context), Value);
++  return StackTrace(context).FromMaybe(Local<Value>());
 +}
 +
  v8::Local<v8::Message> v8::TryCatch::Message() const {
@@ -644,7 +644,7 @@ index 30eceb6223..2e049bce74 100644
  
 +Local<String> Message::GetSourceLine() const {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  RETURN_TO_LOCAL_UNCHECKED(GetSourceLine(context), String)
++  return GetSourceLine(context).FromMaybe(Local<String>());
 +}
 +
  void Message::PrintCurrentStackTrace(Isolate* isolate, FILE* out) {
@@ -656,7 +656,7 @@ index 30eceb6223..2e049bce74 100644
  
 +Local<Array> v8::Object::GetPropertyNames() {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  RETURN_TO_LOCAL_UNCHECKED(GetPropertyNames(context), Array);
++  return GetPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
  MaybeLocal<Array> v8::Object::GetOwnPropertyNames(Local<Context> context) {
@@ -666,7 +666,7 @@ index 30eceb6223..2e049bce74 100644
  
 +Local<Array> v8::Object::GetOwnPropertyNames() {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  RETURN_TO_LOCAL_UNCHECKED(GetOwnPropertyNames(context), Array);
++  return GetOwnPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
  MaybeLocal<Array> v8::Object::GetOwnPropertyNames(
@@ -719,7 +719,7 @@ index 30eceb6223..2e049bce74 100644
  
 +Local<Value> v8::Object::GetRealNamedProperty(Local<String> key) {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  RETURN_TO_LOCAL_UNCHECKED(GetRealNamedProperty(context, key), Value);
++  return GetRealNamedProperty(context, key).FromMaybe(Local<Value>());
 +}
 +
  Maybe<PropertyAttribute> v8::Object::GetRealNamedPropertyAttributes(
@@ -732,7 +732,7 @@ index 30eceb6223..2e049bce74 100644
 +Local<v8::Object> Function::NewInstance(int argc,
 +                                        v8::Local<v8::Value> argv[]) const {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  RETURN_TO_LOCAL_UNCHECKED(NewInstance(context, argc, argv), Object);
++  return NewInstance(context, argc, argv).FromMaybe(Local<Object>());
 +}
 +
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
@@ -746,7 +746,7 @@ index 30eceb6223..2e049bce74 100644
 +  Local<Context> context =
 +      reinterpret_cast<v8::Isolate*>(Utils::OpenHandle(this)->GetIsolate())
 +          ->GetCurrentContext();
-+  RETURN_TO_LOCAL_UNCHECKED(GetFunction(context), Function);
++  return GetFunction(context).FromMaybe(Local<Function>());
 +}
 +
  MaybeLocal<v8::Object> FunctionTemplate::NewRemoteInstance() {
@@ -758,7 +758,7 @@ index 30eceb6223..2e049bce74 100644
  
 +Local<v8::Value> v8::Date::New(Isolate* isolate, double time) {
 +  auto context = isolate->GetCurrentContext();
-+  RETURN_TO_LOCAL_UNCHECKED(New(context, time), Value);
++  return New(context, time).FromMaybe(Local<Value>());
 +}
 +
  double v8::Date::ValueOf() const {
