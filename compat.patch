@@ -1,19 +1,19 @@
-From d786c855a267a26841166b792aa28f8e9fea26b5 Mon Sep 17 00:00:00 2001
+From 42a3c4b0b64856a274611e91808ae9ab2d46f564 Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Fri, 18 Oct 2019 13:20:26 -0400
 Subject: [PATCH] fix: patch
 
 ---
- include/v8.h                             | 116 +++++++++------
+ include/v8.h                             | 119 ++++++++++------
  src/api/api.cc                           | 172 ++++++++++++++++++++++-
  src/handles/handles.h                    |   1 +
  src/heap/factory.cc                      |   4 +-
  src/objects/string.cc                    |   4 +-
  src/parsing/scanner-character-streams.cc |  34 +----
- 6 files changed, 243 insertions(+), 88 deletions(-)
+ 6 files changed, 246 insertions(+), 88 deletions(-)
 
 diff --git a/include/v8.h b/include/v8.h
-index d66f360c99..f0fb79e1e2 100644
+index d66f360c99..9a15033011 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -123,12 +123,12 @@ class ExternalString;
@@ -184,7 +184,23 @@ index d66f360c99..f0fb79e1e2 100644
    V8_WARN_UNUSED_RESULT Maybe<bool> SetAccessor(
        Local<Context> context, Local<Name> name,
        AccessorNameGetterCallback getter,
-@@ -3684,6 +3676,7 @@ class V8_EXPORT Object : public Value {
+@@ -3567,6 +3559,7 @@ class V8_EXPORT Object : public Value {
+    * array returned by this method contains the same values as would
+    * be enumerated by a for-in statement over this object.
+    */
++  V8_DEPRECATED("Use maybe version", Local<Array> GetPropertyNames());
+   V8_WARN_UNUSED_RESULT MaybeLocal<Array> GetPropertyNames(
+       Local<Context> context);
+   V8_WARN_UNUSED_RESULT MaybeLocal<Array> GetPropertyNames(
+@@ -3579,6 +3572,7 @@ class V8_EXPORT Object : public Value {
+    * the returned array doesn't contain the names of properties from
+    * prototype objects.
+    */
++  V8_DEPRECATED("Use maybe version", Local<Array> GetOwnPropertyNames());
+   V8_WARN_UNUSED_RESULT MaybeLocal<Array> GetOwnPropertyNames(
+       Local<Context> context);
+ 
+@@ -3684,6 +3678,7 @@ class V8_EXPORT Object : public Value {
     *
     * See also v8::Object::Has() and v8::Object::HasRealNamedProperty().
     */
@@ -192,7 +208,7 @@ index d66f360c99..f0fb79e1e2 100644
    V8_WARN_UNUSED_RESULT Maybe<bool> HasOwnProperty(Local<Context> context,
                                                     Local<Name> key);
    V8_WARN_UNUSED_RESULT Maybe<bool> HasOwnProperty(Local<Context> context,
-@@ -3729,6 +3722,7 @@ class V8_EXPORT Object : public Value {
+@@ -3729,6 +3724,7 @@ class V8_EXPORT Object : public Value {
     * in the prototype chain.
     * This means interceptors in the prototype chain are not called.
     */
@@ -200,7 +216,7 @@ index d66f360c99..f0fb79e1e2 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Value> GetRealNamedProperty(
        Local<Context> context, Local<Name> key);
  
-@@ -4006,6 +4000,7 @@ class FunctionCallbackInfo {
+@@ -4006,6 +4002,7 @@ class FunctionCallbackInfo {
    V8_INLINE int Length() const;
    /** Accessor for the available arguments. */
    V8_INLINE Local<Value> operator[](int i) const;
@@ -208,7 +224,7 @@ index d66f360c99..f0fb79e1e2 100644
    /** Returns the receiver. This corresponds to the "this" value. */
    V8_INLINE Local<Object> This() const;
    /**
-@@ -4042,6 +4037,7 @@ class FunctionCallbackInfo {
+@@ -4042,6 +4039,7 @@ class FunctionCallbackInfo {
    static const int kReturnValueIndex = 3;
    static const int kDataIndex = 4;
    static const int kNewTargetIndex = 5;
@@ -216,7 +232,7 @@ index d66f360c99..f0fb79e1e2 100644
  
    V8_INLINE FunctionCallbackInfo(internal::Address* implicit_args,
                                   internal::Address* values, int length);
-@@ -4190,6 +4186,8 @@ class V8_EXPORT Function : public Object {
+@@ -4190,6 +4188,8 @@ class V8_EXPORT Function : public Object {
      return NewInstance(context, 0, nullptr);
    }
  
@@ -225,7 +241,7 @@ index d66f360c99..f0fb79e1e2 100644
    /**
     * When side effect checks are enabled, passing kHasNoSideEffect allows the
     * constructor to be invoked without throwing. Calls made within the
-@@ -5330,6 +5328,7 @@ class V8_EXPORT SharedArrayBuffer : public Object {
+@@ -5330,6 +5330,7 @@ class V8_EXPORT SharedArrayBuffer : public Object {
   */
  class V8_EXPORT Date : public Object {
   public:
@@ -233,7 +249,7 @@ index d66f360c99..f0fb79e1e2 100644
    static V8_WARN_UNUSED_RESULT MaybeLocal<Value> New(Local<Context> context,
                                                       double time);
  
-@@ -5627,6 +5626,12 @@ class V8_EXPORT Template : public Data {
+@@ -5627,6 +5628,12 @@ class V8_EXPORT Template : public Data {
    friend class FunctionTemplate;
  };
  
@@ -246,7 +262,7 @@ index d66f360c99..f0fb79e1e2 100644
  // TODO(dcarney): Replace GenericNamedPropertyFooCallback with just
  // NamedPropertyFooCallback.
  
-@@ -5975,8 +5980,7 @@ class V8_EXPORT FunctionTemplate : public Template {
+@@ -5975,8 +5982,7 @@ class V8_EXPORT FunctionTemplate : public Template {
        Isolate* isolate, FunctionCallback callback = nullptr,
        Local<Value> data = Local<Value>(),
        Local<Signature> signature = Local<Signature>(), int length = 0,
@@ -256,7 +272,15 @@ index d66f360c99..f0fb79e1e2 100644
  
    /** Get a template included in the snapshot by index. */
    static MaybeLocal<FunctionTemplate> FromSnapshot(Isolate* isolate,
-@@ -6318,9 +6322,15 @@ class V8_EXPORT ObjectTemplate : public Template {
+@@ -5992,6 +5998,7 @@ class V8_EXPORT FunctionTemplate : public Template {
+       SideEffectType side_effect_type = SideEffectType::kHasSideEffect);
+ 
+   /** Returns the unique function instance in the current execution context.*/
++  V8_DEPRECATED("Use maybe version", Local<Function> GetFunction());
+   V8_WARN_UNUSED_RESULT MaybeLocal<Function> GetFunction(
+       Local<Context> context);
+ 
+@@ -6318,9 +6325,15 @@ class V8_EXPORT ObjectTemplate : public Template {
        AccessorNameSetterCallback setter = nullptr,
        Local<Value> data = Local<Value>(), AccessControl settings = DEFAULT,
        PropertyAttribute attribute = None,
@@ -275,7 +299,7 @@ index d66f360c99..f0fb79e1e2 100644
  
    /**
     * Sets a named property handler on the object template.
-@@ -9062,6 +9072,7 @@ class V8_EXPORT V8 {
+@@ -9062,6 +9075,7 @@ class V8_EXPORT V8 {
   private:
    V8();
  
@@ -283,7 +307,7 @@ index d66f360c99..f0fb79e1e2 100644
    static internal::Address* GlobalizeReference(internal::Isolate* isolate,
                                                 internal::Address* handle);
    static internal::Address* GlobalizeTracedReference(internal::Isolate* isolate,
-@@ -9075,12 +9086,17 @@ class V8_EXPORT V8 {
+@@ -9075,12 +9089,17 @@ class V8_EXPORT V8 {
    static void CopyTracedGlobalReference(const internal::Address* const* from,
                                          internal::Address** to);
    static internal::Address* CopyGlobalReference(internal::Address* from);
@@ -301,7 +325,7 @@ index d66f360c99..f0fb79e1e2 100644
    static void* ClearWeak(internal::Address* location);
    static void SetFinalizationCallbackTraced(
        internal::Address* location, void* parameter,
-@@ -9344,6 +9360,7 @@ class V8_EXPORT TryCatch {
+@@ -9344,6 +9363,7 @@ class V8_EXPORT TryCatch {
     * all TryCatch blocks should be stack allocated because the memory
     * location itself is compared against JavaScript try/catch blocks.
     */
@@ -309,7 +333,7 @@ index d66f360c99..f0fb79e1e2 100644
    explicit TryCatch(Isolate* isolate);
  
    /**
-@@ -9401,6 +9418,7 @@ class V8_EXPORT TryCatch {
+@@ -9401,6 +9421,7 @@ class V8_EXPORT TryCatch {
     * Returns the .stack property of the thrown object.  If no .stack
     * property is present an empty handle is returned.
     */
@@ -317,7 +341,7 @@ index d66f360c99..f0fb79e1e2 100644
    V8_WARN_UNUSED_RESULT MaybeLocal<Value> StackTrace(
        Local<Context> context) const;
  
-@@ -9983,7 +10001,7 @@ template <class T>
+@@ -9983,7 +10004,7 @@ template <class T>
  Local<T> Local<T>::New(Isolate* isolate, T* that) {
    if (that == nullptr) return Local<T>();
    T* that_ptr = that;
@@ -326,7 +350,7 @@ index d66f360c99..f0fb79e1e2 100644
    return Local<T>(reinterpret_cast<T*>(HandleScope::CreateHandle(
        reinterpret_cast<internal::Isolate*>(isolate), *p)));
  }
-@@ -10026,7 +10044,7 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
+@@ -10026,7 +10047,7 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
  template <class T>
  T* PersistentBase<T>::New(Isolate* isolate, T* that) {
    if (that == nullptr) return nullptr;
@@ -335,7 +359,7 @@ index d66f360c99..f0fb79e1e2 100644
    return reinterpret_cast<T*>(
        V8::GlobalizeReference(reinterpret_cast<internal::Isolate*>(isolate),
                               p));
-@@ -10056,7 +10074,7 @@ bool PersistentBase<T>::IsWeak() const {
+@@ -10056,7 +10077,7 @@ bool PersistentBase<T>::IsWeak() const {
  template <class T>
  void PersistentBase<T>::Reset() {
    if (this->IsEmpty()) return;
@@ -344,7 +368,7 @@ index d66f360c99..f0fb79e1e2 100644
    val_ = nullptr;
  }
  
-@@ -10088,20 +10106,20 @@ V8_INLINE void PersistentBase<T>::SetWeak(
+@@ -10088,20 +10109,20 @@ V8_INLINE void PersistentBase<T>::SetWeak(
      P* parameter, typename WeakCallbackInfo<P>::Callback callback,
      WeakCallbackType type) {
    typedef typename WeakCallbackInfo<void>::Callback Callback;
@@ -368,7 +392,7 @@ index d66f360c99..f0fb79e1e2 100644
  }
  
  template <class T>
-@@ -10395,6 +10413,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
+@@ -10395,6 +10416,11 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
    return Local<Value>(reinterpret_cast<Value*>(values_ - i));
  }
  
@@ -380,7 +404,7 @@ index d66f360c99..f0fb79e1e2 100644
  
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
-@@ -10555,6 +10578,7 @@ AccessorSignature* AccessorSignature::Cast(Data* data) {
+@@ -10555,6 +10581,7 @@ AccessorSignature* AccessorSignature::Cast(Data* data) {
  
  Local<Value> Object::GetInternalField(int index) {
  #ifndef V8_ENABLE_CHECKS
@@ -388,7 +412,7 @@ index d66f360c99..f0fb79e1e2 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A obj = *reinterpret_cast<A*>(this);
-@@ -10573,7 +10597,7 @@ Local<Value> Object::GetInternalField(int index) {
+@@ -10573,7 +10600,7 @@ Local<Value> Object::GetInternalField(int index) {
  #endif
      internal::Isolate* isolate =
          internal::IsolateFromNeverReadOnlySpaceObject(obj);
@@ -397,7 +421,7 @@ index d66f360c99..f0fb79e1e2 100644
      return Local<Value>(reinterpret_cast<Value*>(result));
    }
  #endif
-@@ -11202,6 +11226,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
+@@ -11202,6 +11229,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
  
  Local<Value> Context::GetEmbedderData(int index) {
  #ifndef V8_ENABLE_CHECKS
@@ -405,7 +429,7 @@ index d66f360c99..f0fb79e1e2 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A ctx = *reinterpret_cast<const A*>(this);
-@@ -11218,7 +11243,8 @@ Local<Value> Context::GetEmbedderData(int index) {
+@@ -11218,7 +11246,8 @@ Local<Value> Context::GetEmbedderData(int index) {
  #endif
    internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
        *reinterpret_cast<A*>(this));
