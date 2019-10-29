@@ -1,4 +1,4 @@
-From 521203c95c69c107b85819b5bee1d07ae08a9161 Mon Sep 17 00:00:00 2001
+From 5e6b0c27754a0a9307fd42da21df5fe86e5d20f9 Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Fri, 18 Oct 2019 13:20:26 -0400
 Subject: [PATCH] fix: patch
@@ -6,12 +6,12 @@ Subject: [PATCH] fix: patch
 ---
  include/v8-internal.h                    |   2 +
  include/v8.h                             | 214 ++++++++++++++++++-----
- src/api/api.cc                           | 206 +++++++++++++++++++++-
+ src/api/api.cc                           | 212 ++++++++++++++++++++--
  src/handles/handles.h                    |   1 +
  src/heap/factory.cc                      |   4 +-
  src/objects/string.cc                    |   4 +-
  src/parsing/scanner-character-streams.cc |  34 +---
- 7 files changed, 374 insertions(+), 91 deletions(-)
+ 7 files changed, 377 insertions(+), 94 deletions(-)
 
 diff --git a/include/v8-internal.h b/include/v8-internal.h
 index 6ecddf45d6..a037210f55 100644
@@ -619,7 +619,7 @@ index d66f360c99..47f9348ef7 100644
  #else
    return SlowGetEmbedderData(index);
 diff --git a/src/api/api.cc b/src/api/api.cc
-index 30eceb6223..96c319c1e5 100644
+index 30eceb6223..0c8d14cc22 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
 @@ -242,6 +242,16 @@ namespace v8 {
@@ -879,7 +879,7 @@ index 30eceb6223..96c319c1e5 100644
        reinterpret_cast<i::Isolate*>(v8_isolate));
  }
  
-+Maybe<bool> BooleanValue(Local<Context> context) const {
++Maybe<bool> Value::BooleanValue(Local<Context> context) const {
 +  return Just(BooleanValue(context->GetIsolate()));
 +}
 +
@@ -1033,18 +1033,36 @@ index 30eceb6223..96c319c1e5 100644
  MaybeLocal<v8::Object> FunctionTemplate::NewRemoteInstance() {
    auto self = Utils::OpenHandle(this);
    i::Isolate* isolate = self->GetIsolate();
-@@ -6190,6 +6366,11 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
+@@ -6190,21 +6366,26 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
      result = Utils::ToLocal(handle_result);                                \
    }
  
+-MaybeLocal<String> String::NewFromUtf8(Isolate* isolate, const char* data,
 +Local<String> String::NewFromUtf8(Isolate* isolate, const char* data,
-+                                       NewStringType type, int length) {
-+  return String::NewFromUtf8(isolate, data, type, length).FromMaybe(Local<String>());
+                                        NewStringType type, int length) {
++  return String::NewFromUtf8(isolate, data, static_cast<v8::NewStringType>(type), length).FromMaybe(Local<String>());
 +}
 +
- MaybeLocal<String> String::NewFromUtf8(Isolate* isolate, const char* data,
-                                        NewStringType type, int length) {
++MaybeLocal<String> String::NewFromUtf8(Isolate* isolate, const char* data,
++                                       v8::NewStringType type, int length) {
    NEW_STRING(isolate, String, NewFromUtf8, char, data, type, length);
+   return result;
+ }
+ 
+ MaybeLocal<String> String::NewFromOneByte(Isolate* isolate, const uint8_t* data,
+-                                          NewStringType type, int length) {
++                                          v8::NewStringType type, int length) {
+   NEW_STRING(isolate, String, NewFromOneByte, uint8_t, data, type, length);
+   return result;
+ }
+ 
+ MaybeLocal<String> String::NewFromTwoByte(Isolate* isolate,
+                                           const uint16_t* data,
+-                                          NewStringType type, int length) {
++                                          v8::NewStringType type, int length) {
+   NEW_STRING(isolate, String, NewFromTwoByte, uint16_t, data, type, length);
+   return result;
+ }
 @@ -6534,6 +6715,11 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
    RETURN_ESCAPED(result);
  }
