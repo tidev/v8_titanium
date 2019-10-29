@@ -1,4 +1,4 @@
-From 5e6b0c27754a0a9307fd42da21df5fe86e5d20f9 Mon Sep 17 00:00:00 2001
+From 25e4845d16a2888fb2f0c429e5da93ea856a0cbb Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Fri, 18 Oct 2019 13:20:26 -0400
 Subject: [PATCH] fix: patch
@@ -11,7 +11,8 @@ Subject: [PATCH] fix: patch
  src/heap/factory.cc                      |   4 +-
  src/objects/string.cc                    |   4 +-
  src/parsing/scanner-character-streams.cc |  34 +---
- 7 files changed, 377 insertions(+), 94 deletions(-)
+ src/wasm/wasm-module-sourcemap.cc        |   8 +-
+ 8 files changed, 381 insertions(+), 98 deletions(-)
 
 diff --git a/include/v8-internal.h b/include/v8-internal.h
 index 6ecddf45d6..a037210f55 100644
@@ -1213,6 +1214,46 @@ index 0cd295fd29..b57475f623 100644
    const Char* const data_;
    const size_t length_;
  };
+diff --git a/src/wasm/wasm-module-sourcemap.cc b/src/wasm/wasm-module-sourcemap.cc
+index cfe54e7c37..0c9c21760c 100644
+--- a/src/wasm/wasm-module-sourcemap.cc
++++ b/src/wasm/wasm-module-sourcemap.cc
+@@ -28,7 +28,7 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
+   bool has_valid_version =
+       src_map_obj
+           ->Get(context,
+-                v8::String::NewFromUtf8(v8_isolate, "version").ToLocalChecked())
++                v8::String::NewFromUtf8(v8_isolate, "version", v8::NewStringType::kNormal).ToLocalChecked())
+           .ToLocal(&version_value) &&
+       version_value->IsUint32();
+   uint32_t version = 0;
+@@ -39,7 +39,7 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
+   bool has_valid_sources =
+       src_map_obj
+           ->Get(context,
+-                v8::String::NewFromUtf8(v8_isolate, "sources").ToLocalChecked())
++                v8::String::NewFromUtf8(v8_isolate, "sources", v8::NewStringType::kNormal).ToLocalChecked())
+           .ToLocal(&sources_value) &&
+       sources_value->IsArray();
+   if (!has_valid_sources) return;
+@@ -49,7 +49,7 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
+   v8::Local<v8::Value> sources_len_value;
+   if (!sources_arr
+            ->Get(context,
+-                 v8::String::NewFromUtf8(v8_isolate, "length").ToLocalChecked())
++                 v8::String::NewFromUtf8(v8_isolate, "length", v8::NewStringType::kNormal).ToLocalChecked())
+            .ToLocal(&sources_len_value))
+     return;
+   uint32_t sources_len = 0;
+@@ -73,7 +73,7 @@ WasmModuleSourceMap::WasmModuleSourceMap(v8::Isolate* v8_isolate,
+       src_map_obj
+           ->Get(
+               context,
+-              v8::String::NewFromUtf8(v8_isolate, "mappings").ToLocalChecked())
++              v8::String::NewFromUtf8(v8_isolate, "mappings", v8::NewStringType::kNormal).ToLocalChecked())
+           .ToLocal(&mappings_value) &&
+       mappings_value->IsString();
+   if (!has_valid_mappings) return;
 -- 
 2.23.0
 
