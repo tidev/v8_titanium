@@ -1,4 +1,4 @@
-From 42a3c4b0b64856a274611e91808ae9ab2d46f564 Mon Sep 17 00:00:00 2001
+From 8dc046159e95827907efcdfe908d47d4a36e79af Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Fri, 18 Oct 2019 13:20:26 -0400
 Subject: [PATCH] fix: patch
@@ -865,7 +865,7 @@ index 41de3aef04..fe67902ea5 100644
    if (FLAG_enable_slow_asserts) {
      // Assert that the resource and the string are equivalent.
 diff --git a/src/parsing/scanner-character-streams.cc b/src/parsing/scanner-character-streams.cc
-index 0cd295fd29..3c768d0fcd 100644
+index 0cd295fd29..b57475f623 100644
 --- a/src/parsing/scanner-character-streams.cc
 +++ b/src/parsing/scanner-character-streams.cc
 @@ -18,33 +18,6 @@
@@ -908,7 +908,7 @@ index 0cd295fd29..3c768d0fcd 100644
                         size_t length)
 -      : lock_(string),
 -        data_(string.GetChars() + start_offset),
-+      : data_(string->GetChars() + start_offset),
++      : data_(string.GetChars() + start_offset),
          length_(length) {}
  
    ExternalStringStream(const ExternalStringStream& other) V8_NOEXCEPT
