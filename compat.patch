@@ -1,6 +1,6 @@
-From 60c40a8aa4049ba059198e2ad034d0b22a4379e2 Mon Sep 17 00:00:00 2001
+From 978bc55ee891375f00d04243c66dd259d627841f Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
-Date: Fri, 18 Oct 2019 13:20:26 -0400
+Date: Wed, 30 Oct 2019 11:20:56 -0400
 Subject: [PATCH] fix: patch
 
 ---
@@ -642,7 +642,7 @@ index d66f360c99..5b694dfafb 100644
  #else
    return SlowGetEmbedderData(index);
 diff --git a/src/api/api.cc b/src/api/api.cc
-index 30eceb6223..13ec303532 100644
+index 30eceb6223..6ffca193a1 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
 @@ -242,6 +242,16 @@ namespace v8 {
@@ -907,7 +907,7 @@ index 30eceb6223..13ec303532 100644
 +}
 +
 +MaybeLocal<Boolean> Value::ToBoolean(Local<Context> context) const {
-+  return Just(ToBoolean(context->GetIsolate()));
++  return MaybeLocal<Boolean>(ToBoolean(context->GetIsolate()));
 +}
 +
  Local<Boolean> Value::ToBoolean(Isolate* v8_isolate) const {
