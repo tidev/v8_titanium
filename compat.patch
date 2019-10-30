@@ -1,4 +1,4 @@
-From 82c0a83a29212b0bdfd34f7bcd0a1f6551282bd3 Mon Sep 17 00:00:00 2001
+From 1d693ce524c453b932fea254f0163b139c222b8f Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Wed, 30 Oct 2019 11:20:56 -0400
 Subject: [PATCH] fix: patch
@@ -642,7 +642,7 @@ index d66f360c99..3cb395b855 100644
  #else
    return SlowGetEmbedderData(index);
 diff --git a/src/api/api.cc b/src/api/api.cc
-index 30eceb6223..6ffca193a1 100644
+index 30eceb6223..fd500cba21 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
 @@ -242,6 +242,16 @@ namespace v8 {
@@ -952,7 +952,7 @@ index 30eceb6223..6ffca193a1 100644
  
 +bool v8::Object::Set(v8::Local<Value> key, v8::Local<Value> value) {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  return Set(context, value, key).FromMaybe(false);
++  return Set(context, key, value).FromMaybe(false);
 +}
 +
  Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context,
