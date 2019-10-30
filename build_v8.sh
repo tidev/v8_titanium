@@ -130,6 +130,8 @@ buildV8()
 	if [ "$OS" = "Darwin" ]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
+	# Force building with libc++ from Android NDK
+	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 
 	# v8_snapshot build fails but still generates the intended mksnapshot binary
 	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
