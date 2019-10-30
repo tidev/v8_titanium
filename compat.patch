@@ -1,4 +1,4 @@
-From 978bc55ee891375f00d04243c66dd259d627841f Mon Sep 17 00:00:00 2001
+From 82c0a83a29212b0bdfd34f7bcd0a1f6551282bd3 Mon Sep 17 00:00:00 2001
 From: Chris Williams <chris.a.williams@gmail.com>
 Date: Wed, 30 Oct 2019 11:20:56 -0400
 Subject: [PATCH] fix: patch
@@ -28,7 +28,7 @@ index 6ecddf45d6..a037210f55 100644
    static const int kFirstNonstringType = 0x40;
    static const int kOddballType = 0x43;
 diff --git a/include/v8.h b/include/v8.h
-index d66f360c99..5b694dfafb 100644
+index d66f360c99..3cb395b855 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -123,12 +123,12 @@ class ExternalString;
@@ -251,7 +251,7 @@ index d66f360c99..5b694dfafb 100644
    static V8_WARN_UNUSED_RESULT MaybeLocal<String> NewFromUtf8(
        Isolate* isolate, const char* data,
 -      NewStringType type = NewStringType::kNormal, int length = -1);
-+      v8::NewStringType type = v8::NewStringType::kNormal, int length = -1);
++      v8::NewStringType type, int length = -1);
  
    /** Allocates a new string from Latin-1 data.  Only returns an empty value
     * when length > kMaxLength. **/
