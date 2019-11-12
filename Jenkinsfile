@@ -159,7 +159,7 @@ timestamps {
         }
       }
       // unstash 64-bit macOS mksnapshot binary
-      unstash 'results-x64-release'
+      // unstash 'results-x64-release'
 
       // Package each mode
       for (int m = 0; m < modes.size(); m++) {
