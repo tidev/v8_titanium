@@ -75,6 +75,8 @@ def build(scm, arch, mode, buildTarget) {
         def modifiedArch = arch
         if (arch.equals('ia32')) {
           modifiedArch = 'x86'
+        } else if (arch.equals('x64')) {
+          modifiedArch = 'x86_64'
         }
         def libraryName = "build/${mode}/libs/${modifiedArch}/lib${lib}.a"
         if (!fileExists(libraryName)) {
