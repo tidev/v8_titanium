@@ -97,7 +97,7 @@ timestamps {
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release'] // 'debug'
-  def arches = ['arm', 'arm64', 'ia32']
+  def arches = ['arm', 'arm64', 'ia32', 'x64']
 
   // In parallel, check out on each node and then build
   // We used to check out once, stash and then unstash, but that is not reccomended for such large amounts of data
@@ -111,7 +111,7 @@ timestamps {
       }
     }
     // Also in parallel do an x64 build on mac with target v8_snapshot, not v8_monolith - we need a mksnapshot executable
-    branches['x64 mksnapshot'] = buildMksnapshot(scm, 'x64', 'release');
+    // branches['x64 mksnapshot'] = buildMksnapshot(scm, 'x64', 'release');
     // TODO: Build a windows or linux mksnapshot binary too?
     parallel(branches)
   } // stage
