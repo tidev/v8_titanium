@@ -719,13 +719,13 @@ index 30eceb6223..b659403a18 100644
 +  auto self = Utils::OpenHandle(this, true);
 +  if (self.is_null()) return Local<Value>();
 +  auto context = UnsafeContextFromHeapObject(self);
-+  return Run(context).ToLocalChecked();
++  return Run(context).FromMaybe(Local<Value>());
 +}
 +
 +Local<Script> Script::Compile(v8::Local<String> source, v8::ScriptOrigin* origin) {
 +  auto str = Utils::OpenHandle(*source);
 +  auto context = UnsafeContextFromHeapObject(str);
-+  return Compile(context, source, origin).ToLocalChecked();
++  return Compile(context, source, origin).FromMaybe(Local<Script>());
 +}
 +
 +Local<Script> Script::Compile(v8::Local<String> source, v8::Local<String> file_name) {
@@ -757,7 +757,7 @@ index 30eceb6223..b659403a18 100644
 +
 +v8::Local<Value> v8::TryCatch::StackTrace() const {
 +  auto context = reinterpret_cast<v8::Isolate*>(isolate_)->GetCurrentContext();
-+  return StackTrace(context).ToLocalChecked();
++  return StackTrace(context).FromMaybe(v8::Local<Value>());
 +}
 +
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
@@ -774,7 +774,7 @@ index 30eceb6223..b659403a18 100644
 +
 +Local<String> Message::GetSourceLine() const {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  return GetSourceLine(context).ToLocalChecked();
++  return GetSourceLine(context).FromMaybe(Local<String>());
 +}
 +
  int Message::GetStartPosition() const {
@@ -785,7 +785,7 @@ index 30eceb6223..b659403a18 100644
  }
  
 +Local<String> Value::ToString(Isolate* isolate) const {
-+  return ToString(isolate->GetCurrentContext()).ToLocalChecked();
++  return ToString(isolate->GetCurrentContext()).FromMaybe(Local<String>());
 +}
 +
  MaybeLocal<String> Value::ToDetailString(Local<Context> context) const {
@@ -828,27 +828,27 @@ index 30eceb6223..b659403a18 100644
 +
 +Local<Value> v8::Object::Get(Local<Value> key) {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  return Get(context, key).ToLocalChecked();
++  return Get(context, key).FromMaybe(Local<Value>());
 +}
 +
 +Local<Value> v8::Object::Get(uint32_t index) {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  return Get(context, index).ToLocalChecked();
++  return Get(context, index).FromMaybe(Local<Value>());
 +}
 +
 +Local<Array> v8::Object::GetPropertyNames() {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  return GetPropertyNames(context).ToLocalChecked();
++  return GetPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
 +Local<Array> v8::Object::GetOwnPropertyNames() {
 +  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
-+  return GetOwnPropertyNames(context).ToLocalChecked();
++  return GetOwnPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
 +Local<Value> v8::Object::GetRealNamedProperty(Local<String> key) {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  return GetRealNamedProperty(context, key).ToLocalChecked();
++  return GetRealNamedProperty(context, key).FromMaybe(Local<Value>());
 +}
 +
 +bool v8::Object::Has(Local<Value> key) {
@@ -911,7 +911,7 @@ index 30eceb6223..b659403a18 100644
 +Local<v8::Object> Function::NewInstance(int argc,
 +                                        v8::Local<v8::Value> argv[]) const {
 +  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  return NewInstance(context, argc, argv).ToLocalChecked();
++  return NewInstance(context, argc, argv).FromMaybe(Local<v8::Object>());
 +}
 +
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
@@ -939,7 +939,7 @@ index 30eceb6223..b659403a18 100644
 +  Local<Context> context =
 +      reinterpret_cast<v8::Isolate*>(Utils::OpenHandle(this)->GetIsolate())
 +          ->GetCurrentContext();
-+  return GetFunction(context).ToLocalChecked();
++  return GetFunction(context).FromMaybe(Local<v8::Function>());
 +}
 +
  MaybeLocal<v8::Object> FunctionTemplate::NewRemoteInstance() {
@@ -991,7 +991,7 @@ index 30eceb6223..b659403a18 100644
 +                                  int length) {
 +  NEW_STRING(isolate, String, NewFromUtf8, char, data,
 +             static_cast<v8::NewStringType>(type), length);
-+  return result.ToLocalChecked();
++  return result.FromMaybe(Local<String>());
 +}
 +
 +Local<String> String::NewFromTwoByte(Isolate* isolate,
@@ -1000,7 +1000,7 @@ index 30eceb6223..b659403a18 100644
 +                                     int length) {
 +  NEW_STRING(isolate, String, NewFromTwoByte, uint16_t, data,
 +             static_cast<v8::NewStringType>(type), length);
-+  return result.ToLocalChecked();
++  return result.FromMaybe(Local<String>());
 +}
 +
  MaybeLocal<String> String::NewFromUtf8(Isolate* isolate, const char* data,
@@ -1030,7 +1030,7 @@ index 30eceb6223..b659403a18 100644
  
 +Local<v8::Value> v8::Date::New(Isolate* isolate, double time) {
 +  auto context = isolate->GetCurrentContext();
-+  return New(context, time).ToLocalChecked();
++  return New(context, time).FromMaybe(Local<v8::Value>());
 +}
 +
  double v8::Date::ValueOf() const {
