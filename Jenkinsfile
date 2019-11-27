@@ -54,7 +54,7 @@ def build(scm, arch, mode, buildTarget) {
           // Then apply our patch to avoid grabbing android sdk/ndk
           sh 'git apply ../DEPS.patch'
           // Apply patch to retain backwards-compatible APIs (to avoid breaking module api changes)
-          sh 'git apply ../compat.patch'
+          // sh 'git apply ../compat.patch'
           // Apply patch to optimize for speed
           sh 'git apply ../optimize.patch'
           // Now let gclient get the dependencies.
