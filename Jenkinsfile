@@ -17,12 +17,10 @@ def build(scm, arch, mode, buildTarget) {
     def expectedLibraries = buildTarget.equals('v8_monolith') ? [ 'v8_monolith' ] : []
     def labels = 'ninja && git && android-ndk && android-sdk && python'
     if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-    } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
-      labels += ' && xcode' // ensure we build 64-bit mksnapsot binary on mac!
+      labels += ' && xcode-9' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
     } else {
       // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && (osx || linux)'
+      labels += ' && xcode'
     }
 
     node(labels) {
