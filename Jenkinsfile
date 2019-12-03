@@ -11,18 +11,30 @@ def buildMksnapshot(scm, arch, mode) {
   return build(scm, arch, mode, 'v8_snapshot')
 }
 
+// FIXME: We *need* to build mksnapshot binaries on macOS to be able to run them on macOS! (We think!)
+// We need all 4 variants of the mksnapshot binaries
+// Easiest way to do this is to build v8_monolith only on mac and get the mksnapshot for "free"
+// Another way to do it would be to build the v8_monolith on linux nodes and the v8_snapshot on mac nodes in parallel
+// (but that's likely overkill!)
+// Another issue? As of macOS catalina, 32-bit binaries can't run on macOS! So we cannot generate x86/arm snapshots from a catalina box
+// So do we generate mksnapshot binaries for host OS of linux with 32-bit target platforms and modify our SDK build to generate the snapshots from linux boxes?
+// Do we try to generate windows bianries?
+// Do we just give up and use electron's mksnapshot pre-built binaries and hope our versions align and our custom compatibility patches don't interfere?
 def build(scm, arch, mode, buildTarget) {
   return {
     // Ensure we get a libv8_monolith.a, nothing special for mksnapshot
     def expectedLibraries = buildTarget.equals('v8_monolith') ? [ 'v8_monolith' ] : []
     def labels = 'ninja && git && android-ndk && android-sdk && python'
     if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-    } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
-      labels += ' && xcode' // ensure we build 64-bit mksnapsot binary on mac!
+      // For now, generate all variants from macs
+      // labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
+      labels += ' && xcode-9' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
+    // } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
+    //   labels += ' && xcode' // ensure we build 64-bit mksnapshot binary on mac!
     } else {
+      labels += 'osx' // for now, always build on macs
       // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && (osx || linux)'
+      // labels += ' && (osx || linux)'
     }
 
     node(labels) {
