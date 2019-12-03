@@ -32,7 +32,7 @@ def build(scm, arch, mode, buildTarget) {
     // } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
     //   labels += ' && xcode' // ensure we build 64-bit mksnapshot binary on mac!
     } else {
-      labels += 'osx' // for now, always build on macs
+      labels += ' && osx' // for now, always build on macs
       // 64-bit can be built on xcode 10, so we can use linux or osx
       // labels += ' && (osx || linux)'
     }
