@@ -12,29 +12,21 @@ def buildMksnapshot(scm, arch, mode) {
 }
 
 // FIXME: We *need* to build mksnapshot binaries on macOS to be able to run them on macOS! (We think!)
-// We need all 4 variants of the mksnapshot binaries
-// Easiest way to do this is to build v8_monolith only on mac and get the mksnapshot for "free"
-// Another way to do it would be to build the v8_monolith on linux nodes and the v8_snapshot on mac nodes in parallel
-// (but that's likely overkill!)
-// Another issue? As of macOS catalina, 32-bit binaries can't run on macOS! So we cannot generate x86/arm snapshots from a catalina box
-// So do we generate mksnapshot binaries for host OS of linux with 32-bit target platforms and modify our SDK build to generate the snapshots from linux boxes?
-// Do we try to generate windows bianries?
-// Do we just give up and use electron's mksnapshot pre-built binaries and hope our versions align and our custom compatibility patches don't interfere?
+// But 32-bit is effectively dead on mac. (V8 requires xcode 10+, xcode 10 is when 32-bit support got dropped)
+// so build arm/x86 from linux; build x86_64 and arm64 from mac
+// Note this means we can only generate snapshots for x64/arm64 on macs; x86/arm on linux
+// We append the lowercase uname of the host os to the mksnapshot binaries
+// The directory it's in determines the v8 target arch (and the host arch: arm64/x64 targets are 64-bit host binaries, arm/x86 targets are 32-bit binaries)
 def build(scm, arch, mode, buildTarget) {
   return {
     // Ensure we get a libv8_monolith.a, nothing special for mksnapshot
     def expectedLibraries = buildTarget.equals('v8_monolith') ? [ 'v8_monolith' ] : []
     def labels = 'ninja && git && android-ndk && android-sdk && python'
     if (arch.equals('ia32') || arch.equals('arm')) {
-      // For now, generate all variants from macs
-      // labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-      labels += ' && xcode-9' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-    // } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
-    //   labels += ' && xcode' // ensure we build 64-bit mksnapshot binary on mac!
+      labels += ' && linux' // 32-bit is dead on mac (v8 requires macos 10.14 sdk, which is in xcode 10+ - which removed 32-bit support)
     } else {
-      labels += ' && osx' // for now, always build on macs
-      // 64-bit can be built on xcode 10, so we can use linux or osx
-      // labels += ' && (osx || linux)'
+      // 64-bit can be built on macs or linux. Let's build on macs to we get the mac compatible mksnapshot binary
+      labels += ' && osx'
     }
 
     node(labels) {

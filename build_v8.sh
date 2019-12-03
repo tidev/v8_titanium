@@ -136,6 +136,8 @@ buildV8()
 	# v8_snapshot build fails but still generates the intended mksnapshot binary
 	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
 
+	LOWER_OS=$(echo $OS | tr '[:upper:]' '[:lower:]')
+
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
@@ -145,19 +147,19 @@ buildV8()
 
 	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
 	if [ -f $MKSNAPSHOT_X86 ]; then
-		cp $MKSNAPSHOT_X86 "$DEST_DIR/libs/$ARCH/mksnapshot"
+		cp $MKSNAPSHOT_X86 "$DEST_DIR/libs/$ARCH/mksnapshot.${LOWER_OS}"
 	fi
 	MKSNAPSHOT_X64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64/mksnapshot"
 	if [ -f $MKSNAPSHOT_X64 ]; then
-		cp $MKSNAPSHOT_X64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+		cp $MKSNAPSHOT_X64 "$DEST_DIR/libs/$ARCH/mksnapshot.${LOWER_OS}"
 	fi
 	MKSNAPSHOT_ARM="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86_v8_arm/mksnapshot"
 	if [ -f $MKSNAPSHOT_ARM ]; then
-		cp $MKSNAPSHOT_ARM "$DEST_DIR/libs/$ARCH/mksnapshot"
+		cp $MKSNAPSHOT_ARM "$DEST_DIR/libs/$ARCH/mksnapshot.${LOWER_OS}"
 	fi
 	MKSNAPSHOT_ARM64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64_v8_arm64/mksnapshot"
 	if [ -f $MKSNAPSHOT_ARM64 ]; then
-		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot.${LOWER_OS}"
 	fi
 }
 
