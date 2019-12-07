@@ -15,15 +15,7 @@ def build(scm, arch, mode, buildTarget) {
   return {
     // Ensure we get a libv8_monolith.a, nothing special for mksnapshot
     def expectedLibraries = buildTarget.equals('v8_monolith') ? [ 'v8_monolith' ] : []
-    def labels = 'ninja && git && android-ndk && android-sdk && python'
-    if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (xcode-9 || linux)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-    } else if (arch.equals('x64') && buildTarget.equals('v8_snapshot')) {
-      labels += ' && xcode' // ensure we build 64-bit mksnapsot binary on mac!
-    } else {
-      // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && (osx || linux)'
-    }
+    def labels = 'ninja && git && android-ndk && android-sdk && python && linux'
 
     node(labels) {
       checkout([
@@ -67,7 +59,7 @@ def build(scm, arch, mode, buildTarget) {
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode} -x ${buildTarget}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -j`nproc` -l ${arch} -m ${mode} -x ${buildTarget}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedLibraries.size(); l++) {
