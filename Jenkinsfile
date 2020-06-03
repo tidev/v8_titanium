@@ -14,7 +14,7 @@ def buildMksnapshot(scm, arch, mode) {
 def build(scm, arch, mode, buildTarget) {
   return {
     // Ensure we get a libv8_monolith.a, nothing special for mksnapshot
-    def expectedLibraries = buildTarget.equals('v8_monolith') ? [ 'v8_monolith' ] : []
+    def expectedOutput = buildTarget.equals('v8_monolith') ? [ 'libv8_monolith.a', 'mksnapshot', 'embedded.S' ] : []
     def labels = 'ninja && git && android-ndk && android-sdk && python && linux'
 
     node(labels) {
@@ -62,17 +62,17 @@ def build(scm, arch, mode, buildTarget) {
       sh "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -j`nproc` -l ${arch} -m ${mode} -x ${buildTarget}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
-      for (int l = 0; l < expectedLibraries.size(); l++) {
-        def lib = expectedLibraries[l]
+      for (int l = 0; l < expectedOutput.size(); l++) {
+        def out = expectedOutput[l]
         def modifiedArch = arch
         if (arch.equals('ia32')) {
           modifiedArch = 'x86'
         } else if (arch.equals('x64')) {
           modifiedArch = 'x86_64'
         }
-        def libraryName = "build/${mode}/libs/${modifiedArch}/lib${lib}.a"
-        if (!fileExists(libraryName)) {
-          error "Failed to build expected static library: ${libraryName}"
+        def outputPath = "build/${mode}/libs/${modifiedArch}/${out}"
+        if (!fileExists(outputPath)) {
+          error "Failed to build expected output: ${outputPath}"
         }
       } // for
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
