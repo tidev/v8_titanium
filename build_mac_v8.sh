@@ -24,9 +24,6 @@ git apply ../optimize.patch
 echo "Asking gclient to update v8 dependencies"
 ../depot_tools/gclient sync --shallow --no-history --reset --force
 cd ..
-# wget http://dl.google.com/android/repository/android-ndk-r16b-darwin-x86_64.zip
-# unzip android-ndk-r16b-darwin-x86_64.zip
-# export ANDROID_NDK=${PWD}/android-ndk-r16b
 
 echo "Cleaning v8 build"
 ./build_v8.sh -c
@@ -34,11 +31,11 @@ echo "Cleaning v8 build"
 rm -rf build/
 
 echo "Building v8 for x86..."
-./build_v8.sh "-j" "8" "-l" "ia32" "-m" "release"
+./build_v8.sh "-l" "ia32" "-m" "release"
 echo "Building v8 for ARM..."
-./build_v8.sh "-j" "8" "-l" "arm" "-m" "release"
+./build_v8.sh "-l" "arm" "-m" "release"
 echo "Building v8 for ARM-64..."
-./build_v8.sh "-j" "8" "-l" "arm64" "-m" "release"
+./build_v8.sh "-l" "arm64" "-m" "release"
 
 echo "Packaging built v8 into tarball..."
 ./build_v8.sh "-t" "-m" "release"

@@ -23,11 +23,11 @@ Options:
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-c                Clean the V8 build
 	-p <api-level>    The Android SDK version to support (android-8, android-9, etc. default: android-23)
-	-x <target>        Target to build (v8_snapshot || v8_monolith. default: v8_monolith)
+	-x <target>       Target to build (v8_snapshot || v8_monolith. default: v8_monolith)
 EOF
 }
 
-NUM_CPUS=1
+# NUM_CPUS=0
 MODE=release
 LIB_VERSION=arm
 THIRDPARTY=0
@@ -119,13 +119,13 @@ buildV8()
 	BUILDER_NAME=$3
 	BUILDER_GROUP=$4
 
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
+	echo "Building $TARGET - mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=true v8_enable_embedded_builtins=true v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=20 android_ndk_version=\"r20\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
+	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=20 android_ndk_version=\"r20\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
 	# Hack one of the toolchain items to fix AR executable used for android
 	if [ "$OS" = "Darwin" ]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
@@ -133,8 +133,12 @@ buildV8()
 	# Force building with libc++ from Android NDK
 	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 
-	# v8_snapshot build fails but still generates the intended mksnapshot binary
-	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
+	# Build using ninja
+	if [ ! -z "$NUM_CPUS" ]; then
+		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
+	else
+		ninja -v -C out.gn/$MAKE_TARGET $TARGET
+	fi
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
