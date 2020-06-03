@@ -125,7 +125,7 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=20 android_ndk_version=\"r20\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
+	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
 	# Hack one of the toolchain items to fix AR executable used for android
 	if [ "$OS" = "Darwin" ]; then
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
