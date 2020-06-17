@@ -1,28 +1,32 @@
-From 6472af3b3508b0a168626d91d2e532cd543152cc Mon Sep 17 00:00:00 2001
-From: Gary Mathews <gmathews@appcelerator.com>
-Date: Fri, 13 Dec 2019 16:47:56 -0800
-Subject: [PATCH] dependencies
+From 91cabb7305741b10c77bdfe09487fc42da5f7eb8 Mon Sep 17 00:00:00 2001
+From: Gary Mathews <contact@garymathews.com>
+Date: Wed, 17 Jun 2020 11:41:15 -0700
+Subject: [PATCH 1/2] DEPS
 
 ---
  DEPS | 46 ----------------------------------------------
  1 file changed, 46 deletions(-)
 
 diff --git a/DEPS b/DEPS
-index 0faa57e5b0..bc45c669b4 100644
+index 1bc687beaf..28cf3018e4 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -120,52 +120,6 @@ deps = {
+@@ -121,52 +121,6 @@ deps = {
    },
    'v8/base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '5e4fce17a9d2439c44a7b57ceecef6df9287ec2f',
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'dab187b372fc17e51f5b9fad8201813d0aed5129',
 -  'v8/third_party/android_ndk': {
--    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '89e8db0cdf323af8bc24de875d7d2a43a66bf10e',
+-    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '27c0a8d090c666a50e40fceb4ee5b40b1a2d3f87',
+-    'condition': 'checkout_android',
+-  },
+-  'v8/third_party/android_platform': {
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + '2244b5ea295f8fda3179bef160c84ef8fa0ec9fc',
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_sdk/public': {
 -      'packages': [
 -          {
--              'package': 'chromium/third_party/android_sdk/public/build-tools',
+-              'package': 'chromium/third_party/android_sdk/public/build-tools/29.0.2',
 -              'version': Var('android_sdk_build-tools_version'),
 -          },
 -          {
@@ -42,16 +46,12 @@ index 0faa57e5b0..bc45c669b4 100644
 -              'version': Var('android_sdk_platform-tools_version'),
 -          },
 -          {
--              'package': 'chromium/third_party/android_sdk/public/platforms',
+-              'package': 'chromium/third_party/android_sdk/public/platforms/android-29',
 -              'version': Var('android_sdk_platforms_version'),
 -          },
 -          {
--              'package': 'chromium/third_party/android_sdk/public/sources',
+-              'package': 'chromium/third_party/android_sdk/public/sources/android-29',
 -              'version': Var('android_sdk_sources_version'),
--          },
--          {
--              'package': 'chromium/third_party/android_sdk/public/tools',
--              'version': Var('android_sdk_tools_version'),
 -          },
 -          {
 -              'package': 'chromium/third_party/android_sdk/public/tools-lint',
@@ -62,8 +62,8 @@ index 0faa57e5b0..bc45c669b4 100644
 -      'dep_type': 'cipd',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + 'b9fad2fbcc499b984d88f4c4aec26d162297efae',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + '032c78376792ef343ea361bca2181ba6dec6b95f',
      'condition': 'checkout_android',
 -- 
-2.21.0 (Apple Git-122)
+2.25.1
 
