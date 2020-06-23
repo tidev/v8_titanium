@@ -1,27 +1,24 @@
-From 4c9ab8e2ed32f0ec5a8c8c2fe47fa4cc8633deab Mon Sep 17 00:00:00 2001
+From 9b9966cd180e2d3c589276415f21d843afa729fb Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Thu, 18 Jun 2020 00:09:06 -0700
+Date: Tue, 23 Jun 2020 15:31:05 -0700
 Subject: [PATCH] compatibility
 
 ---
  include/libplatform/libplatform.h             |   7 +
  include/v8-internal.h                         |   3 +
- include/v8.h                                  | 233 +++++++++++----
+ include/v8.h                                  | 226 +++++++++++----
  src/api/api.cc                                | 274 +++++++++++++++++-
- src/d8/d8.cc                                  |  24 +-
  src/extensions/gc-extension.cc                |   4 +-
  src/extensions/statistics-extension.cc        |   6 +-
  .../vtunedomain-support-extension.cc          |   2 +-
  src/handles/handles.h                         |   1 +
  src/heap/factory.cc                           |   4 +-
- src/inspector/injected-script.cc              |   2 +-
  src/interpreter/interpreter.cc                |   4 +-
  src/libplatform/default-platform.cc           |  10 +
  src/objects/string.cc                         |   4 +-
  src/parsing/scanner-character-streams.cc      |  34 +--
- src/runtime/runtime-test.cc                   |   2 +-
  src/snapshot/snapshot-common.cc               |   4 +-
- 17 files changed, 485 insertions(+), 133 deletions(-)
+ 14 files changed, 473 insertions(+), 110 deletions(-)
 
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 6051b644fb..6202a4c2b9 100644
@@ -56,7 +53,7 @@ index 876408ebba..8ac20e0b13 100644
    static const int kFirstNonstringType = 0x40;
    static const int kOddballType = 0x43;
 diff --git a/include/v8.h b/include/v8.h
-index 9926b308b1..76f216f47b 100644
+index 9926b308b1..754134f45f 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -124,6 +124,7 @@ enum class ArgumentsType;
@@ -229,21 +226,21 @@ index 9926b308b1..76f216f47b 100644
    static V8_WARN_UNUSED_RESULT MaybeLocal<String> NewFromUtf8(
        Isolate* isolate, const char* data,
 -      NewStringType type = NewStringType::kNormal, int length = -1);
-+      v8::NewStringType type, int length = -1);
++      v8::NewStringType type = v8::NewStringType::kNormal, int length = -1);
  
    /** Allocates a new string from Latin-1 data.  Only returns an empty value
     * when length > kMaxLength. **/
    static V8_WARN_UNUSED_RESULT MaybeLocal<String> NewFromOneByte(
        Isolate* isolate, const uint8_t* data,
 -      NewStringType type = NewStringType::kNormal, int length = -1);
-+      v8::NewStringType type, int length = -1);
++      v8::NewStringType type = v8::NewStringType::kNormal, int length = -1);
  
    /** Allocates a new string from UTF-16 data. Only returns an empty value when
     * length > kMaxLength. **/
    static V8_WARN_UNUSED_RESULT MaybeLocal<String> NewFromTwoByte(
        Isolate* isolate, const uint16_t* data,
 -      NewStringType type = NewStringType::kNormal, int length = -1);
-+      v8::NewStringType type, int length = -1);
++      v8::NewStringType type = v8::NewStringType::kNormal, int length = -1);
 +
 +  static Local<String> NewFromUtf8(Isolate* isolate, const char* data, NewStringType type = kNormalString, int length = -1);
 +  static Local<String> NewFromTwoByte(Isolate* isolate, const uint16_t* data, NewStringType type = kNormalString, int length = -1);
@@ -577,17 +574,18 @@ index 9926b308b1..76f216f47b 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A obj = *reinterpret_cast<A*>(this);
-@@ -11334,15 +11453,10 @@ Local<Value> Object::GetInternalField(int index) {
+@@ -11334,15 +11453,15 @@ Local<Value> Object::GetInternalField(int index) {
        instance_type == I::kJSApiObjectType ||
        instance_type == I::kJSSpecialApiObjectType) {
      int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
 -    A value = I::ReadRawField<A>(obj, offset);
--#ifdef V8_COMPRESS_POINTERS
--    // We read the full pointer value and then decompress it in order to avoid
--    // dealing with potential endiannes issues.
--    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(value));
--#endif
 +    O value = I::ReadRawField<O>(obj, offset);
+ #ifdef V8_COMPRESS_POINTERS
+     // We read the full pointer value and then decompress it in order to avoid
+     // dealing with potential endiannes issues.
+-    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(value));
++    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(&value));
+ #endif
      internal::Isolate* isolate =
          internal::IsolateFromNeverReadOnlySpaceObject(obj);
 -    A* result = HandleScope::CreateHandle(isolate, value);
@@ -595,7 +593,7 @@ index 9926b308b1..76f216f47b 100644
      return Local<Value>(reinterpret_cast<Value*>(result));
    }
  #endif
-@@ -11970,6 +12084,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
+@@ -11970,6 +12089,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
  
  Local<Value> Context::GetEmbedderData(int index) {
  #ifndef V8_ENABLE_CHECKS
@@ -603,18 +601,19 @@ index 9926b308b1..76f216f47b 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A ctx = *reinterpret_cast<const A*>(this);
-@@ -11977,16 +12092,10 @@ Local<Value> Context::GetEmbedderData(int index) {
+@@ -11977,16 +12097,16 @@ Local<Value> Context::GetEmbedderData(int index) {
        I::ReadTaggedPointerField(ctx, I::kNativeContextEmbedderDataOffset);
    int value_offset =
        I::kEmbedderDataArrayHeaderSize + (I::kEmbedderDataSlotSize * index);
 -  A value = I::ReadRawField<A>(embedder_data, value_offset);
--#ifdef V8_COMPRESS_POINTERS
--  // We read the full pointer value and then decompress it in order to avoid
--  // dealing with potential endiannes issues.
--  value =
--      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(value));
--#endif
 +  O value = I::ReadRawField<O>(embedder_data, value_offset);
+ #ifdef V8_COMPRESS_POINTERS
+   // We read the full pointer value and then decompress it in order to avoid
+   // dealing with potential endiannes issues.
+   value =
+-      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(value));
++      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(&value));
+ #endif
    internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
        *reinterpret_cast<A*>(this));
 -  A* result = HandleScope::CreateHandle(isolate, value);
@@ -1123,118 +1122,6 @@ index b2d6db3661..71b0f6c4a3 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
-diff --git a/src/d8/d8.cc b/src/d8/d8.cc
-index dd00c58288..9ef6c9b0f5 100644
---- a/src/d8/d8.cc
-+++ b/src/d8/d8.cc
-@@ -311,7 +311,7 @@ std::unique_ptr<v8::Platform> g_platform;
- 
- static Local<Value> Throw(Isolate* isolate, const char* message) {
-   return isolate->ThrowException(
--      String::NewFromUtf8(isolate, message).ToLocalChecked());
-+      String::NewFromUtf8(isolate, message, NewStringType::kNormal).ToLocalChecked());
- }
- 
- static MaybeLocal<Value> TryGetValue(v8::Isolate* isolate,
-@@ -319,7 +319,7 @@ static MaybeLocal<Value> TryGetValue(v8::Isolate* isolate,
-                                      Local<v8::Object> object,
-                                      const char* property) {
-   Local<String> v8_str =
--      String::NewFromUtf8(isolate, property).FromMaybe(Local<String>());
-+      String::NewFromUtf8(isolate, property, NewStringType::kNormal).FromMaybe(Local<String>());
-   if (v8_str.IsEmpty()) return Local<Value>();
-   return object->Get(context, v8_str);
- }
-@@ -371,7 +371,7 @@ class TraceConfigParser {
-     HandleScope inner_scope(isolate);
- 
-     Local<String> source =
--        String::NewFromUtf8(isolate, json_str).ToLocalChecked();
-+        String::NewFromUtf8(isolate, json_str, NewStringType::kNormal).ToLocalChecked();
-     Local<Value> result = JSON::Parse(context, source).ToLocalChecked();
-     Local<v8::Object> trace_config_object = Local<v8::Object>::Cast(result);
- 
-@@ -811,7 +811,7 @@ MaybeLocal<Module> Shell::FetchModuleTree(Local<Context> context,
-     return MaybeLocal<Module>();
-   }
-   ScriptOrigin origin(
--      String::NewFromUtf8(isolate, file_name.c_str()).ToLocalChecked(),
-+      String::NewFromUtf8(isolate, file_name.c_str(), NewStringType::kNormal).ToLocalChecked(),
-       Local<Integer>(), Local<Integer>(), Local<Boolean>(), Local<Integer>(),
-       Local<Value>(), Local<Boolean>(), Local<Boolean>(), True(isolate));
-   ScriptCompiler::Source source(source_text, origin);
-@@ -947,7 +947,7 @@ void Shell::HostInitializeImportMetaObject(Local<Context> context,
- 
-   Local<String> url_key =
-       String::NewFromUtf8Literal(isolate, "url", NewStringType::kInternalized);
--  Local<String> url = String::NewFromUtf8(isolate, specifier_it->second.c_str())
-+  Local<String> url = String::NewFromUtf8(isolate, specifier_it->second.c_str(), NewStringType::kNormal)
-                           .ToLocalChecked();
-   meta->CreateDataProperty(context, url_key, url).ToChecked();
- }
-@@ -1573,7 +1573,7 @@ void Shell::Load(const v8::FunctionCallbackInfo<v8::Value>& args) {
-     }
-     if (!ExecuteString(
-             args.GetIsolate(), source,
--            String::NewFromUtf8(args.GetIsolate(), *file).ToLocalChecked(),
-+            String::NewFromUtf8(args.GetIsolate(), *file, NewStringType::kNormal).ToLocalChecked(),
-             kNoPrintResult,
-             options.quiet_load ? kNoReportExceptions : kReportExceptions,
-             kNoProcessMessageQueue)) {
-@@ -1748,7 +1748,7 @@ void Shell::NotifyDone(const v8::FunctionCallbackInfo<v8::Value>& args) {
- 
- void Shell::Version(const v8::FunctionCallbackInfo<v8::Value>& args) {
-   args.GetReturnValue().Set(
--      String::NewFromUtf8(args.GetIsolate(), V8::GetVersion())
-+      String::NewFromUtf8(args.GetIsolate(), V8::GetVersion(), NewStringType::kNormal)
-           .ToLocalChecked());
- }
- 
-@@ -1903,7 +1903,7 @@ Local<String> Shell::Stringify(Isolate* isolate, Local<Value> value) {
-       v8::Local<v8::Context>::New(isolate, evaluation_context_);
-   if (stringify_function_.IsEmpty()) {
-     Local<String> source =
--        String::NewFromUtf8(isolate, stringify_source_).ToLocalChecked();
-+        String::NewFromUtf8(isolate, stringify_source_, NewStringType::kNormal).ToLocalChecked();
-     Local<String> name = String::NewFromUtf8Literal(isolate, "d8-stringify");
-     ScriptOrigin origin(name);
-     Local<Script> script =
-@@ -2109,7 +2109,7 @@ Local<Context> Shell::CreateEvaluationContext(Isolate* isolate) {
-     Local<Array> array = Array::New(isolate, size);
-     for (int i = 0; i < size; i++) {
-       Local<String> arg =
--          v8::String::NewFromUtf8(isolate, args[i]).ToLocalChecked();
-+          v8::String::NewFromUtf8(isolate, args[i], v8::NewStringType::kNormal).ToLocalChecked();
-       Local<Number> index = v8::Number::New(isolate, i);
-       array->Set(context, index, arg).FromJust();
-     }
-@@ -2583,7 +2583,7 @@ bool SourceGroup::Execute(Isolate* isolate) {
-       HandleScope handle_scope(isolate);
-       Local<String> file_name = String::NewFromUtf8Literal(isolate, "unnamed");
-       Local<String> source =
--          String::NewFromUtf8(isolate, argv_[i + 1]).ToLocalChecked();
-+          String::NewFromUtf8(isolate, argv_[i + 1], NewStringType::kNormal).ToLocalChecked();
-       Shell::set_script_executed();
-       if (!Shell::ExecuteString(isolate, source, file_name,
-                                 Shell::kNoPrintResult, Shell::kReportExceptions,
-@@ -2617,7 +2617,7 @@ bool SourceGroup::Execute(Isolate* isolate) {
-     // Use all other arguments as names of files to load and run.
-     HandleScope handle_scope(isolate);
-     Local<String> file_name =
--        String::NewFromUtf8(isolate, arg).ToLocalChecked();
-+        String::NewFromUtf8(isolate, arg, NewStringType::kNormal).ToLocalChecked();
-     Local<String> source = ReadFile(isolate, arg);
-     if (source.IsEmpty()) {
-       printf("Error reading '%s'\n", arg);
-@@ -2819,7 +2819,7 @@ void Worker::ExecuteInThread() {
-         Local<String> file_name =
-             String::NewFromUtf8Literal(isolate, "unnamed");
-         Local<String> source =
--            String::NewFromUtf8(isolate, script_).ToLocalChecked();
-+            String::NewFromUtf8(isolate, script_, NewStringType::kNormal).ToLocalChecked();
-         if (Shell::ExecuteString(
-                 isolate, source, file_name, Shell::kNoPrintResult,
-                 Shell::kReportExceptions, Shell::kProcessMessageQueue)) {
 diff --git a/src/extensions/gc-extension.cc b/src/extensions/gc-extension.cc
 index fddd40b352..732eff0818 100644
 --- a/src/extensions/gc-extension.cc
@@ -1333,19 +1220,6 @@ index 933a51425f..feb03d8795 100644
                                              : uncached_external_string_map();
    Handle<ExternalTwoByteString> external_string(
        ExternalTwoByteString::cast(New(map, AllocationType::kOld)), isolate());
-diff --git a/src/inspector/injected-script.cc b/src/inspector/injected-script.cc
-index 734c70141d..ea12410e46 100644
---- a/src/inspector/injected-script.cc
-+++ b/src/inspector/injected-script.cc
-@@ -110,7 +110,7 @@ class InjectedScript::ProtocolPromiseHandler {
-   static v8::Local<v8::String> GetDotReplResultString(v8::Isolate* isolate) {
-     // TODO(szuend): Cache the string in a v8::Persistent handle.
-     return v8::String::NewFromOneByte(
--               isolate, reinterpret_cast<const uint8_t*>(".repl_result"))
-+               isolate, reinterpret_cast<const uint8_t*>(".repl_result"), v8::NewStringType::kNormal)
-         .ToLocalChecked();
-   }
- 
 diff --git a/src/interpreter/interpreter.cc b/src/interpreter/interpreter.cc
 index 54f4a3caa3..00b940d80b 100644
 --- a/src/interpreter/interpreter.cc
@@ -1473,19 +1347,6 @@ index 1414b3490b..acae3799cc 100644
    const Char* const data_;
    const size_t length_;
  };
-diff --git a/src/runtime/runtime-test.cc b/src/runtime/runtime-test.cc
-index 220a4a473c..22f9f48db1 100644
---- a/src/runtime/runtime-test.cc
-+++ b/src/runtime/runtime-test.cc
-@@ -91,7 +91,7 @@ v8::Local<v8::Value> NewRangeException(v8::Isolate* isolate,
-                                        const char* message) {
-   return v8::Exception::RangeError(
-       v8::String::NewFromOneByte(isolate,
--                                 reinterpret_cast<const uint8_t*>(message))
-+                                 reinterpret_cast<const uint8_t*>(message), v8::NewStringType::kNormal)
-           .ToLocalChecked());
- }
- 
 diff --git a/src/snapshot/snapshot-common.cc b/src/snapshot/snapshot-common.cc
 index 8e80b0b0b0..fcd0587b70 100644
 --- a/src/snapshot/snapshot-common.cc
