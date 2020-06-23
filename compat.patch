@@ -1,4 +1,4 @@
-From 9b9966cd180e2d3c589276415f21d843afa729fb Mon Sep 17 00:00:00 2001
+From 9332c8f85f495e4927933ae2ebb277abddf5d052 Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
 Date: Tue, 23 Jun 2020 15:31:05 -0700
 Subject: [PATCH] compatibility
@@ -6,7 +6,7 @@ Subject: [PATCH] compatibility
 ---
  include/libplatform/libplatform.h             |   7 +
  include/v8-internal.h                         |   3 +
- include/v8.h                                  | 226 +++++++++++----
+ include/v8.h                                  | 228 +++++++++++----
  src/api/api.cc                                | 274 +++++++++++++++++-
  src/extensions/gc-extension.cc                |   4 +-
  src/extensions/statistics-extension.cc        |   6 +-
@@ -18,7 +18,7 @@ Subject: [PATCH] compatibility
  src/objects/string.cc                         |   4 +-
  src/parsing/scanner-character-streams.cc      |  34 +--
  src/snapshot/snapshot-common.cc               |   4 +-
- 14 files changed, 473 insertions(+), 110 deletions(-)
+ 14 files changed, 475 insertions(+), 110 deletions(-)
 
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 6051b644fb..6202a4c2b9 100644
@@ -53,7 +53,7 @@ index 876408ebba..8ac20e0b13 100644
    static const int kFirstNonstringType = 0x40;
    static const int kOddballType = 0x43;
 diff --git a/include/v8.h b/include/v8.h
-index 9926b308b1..754134f45f 100644
+index 9926b308b1..215a3f5dd3 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -124,6 +124,7 @@ enum class ArgumentsType;
@@ -574,7 +574,7 @@ index 9926b308b1..754134f45f 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A obj = *reinterpret_cast<A*>(this);
-@@ -11334,15 +11453,15 @@ Local<Value> Object::GetInternalField(int index) {
+@@ -11334,15 +11453,16 @@ Local<Value> Object::GetInternalField(int index) {
        instance_type == I::kJSApiObjectType ||
        instance_type == I::kJSSpecialApiObjectType) {
      int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
@@ -584,7 +584,8 @@ index 9926b308b1..754134f45f 100644
      // We read the full pointer value and then decompress it in order to avoid
      // dealing with potential endiannes issues.
 -    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(value));
-+    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(&value));
++    uint32_t ptr = I::ReadRawField<uint32_t>(obj, offset);
++    value = reinterpret_cast<O>(I::DecompressTaggedAnyField(obj, ptr));
  #endif
      internal::Isolate* isolate =
          internal::IsolateFromNeverReadOnlySpaceObject(obj);
@@ -593,7 +594,7 @@ index 9926b308b1..754134f45f 100644
      return Local<Value>(reinterpret_cast<Value*>(result));
    }
  #endif
-@@ -11970,6 +12089,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
+@@ -11970,6 +12090,7 @@ int64_t Isolate::AdjustAmountOfExternalAllocatedMemory(
  
  Local<Value> Context::GetEmbedderData(int index) {
  #ifndef V8_ENABLE_CHECKS
@@ -601,7 +602,7 @@ index 9926b308b1..754134f45f 100644
    typedef internal::Address A;
    typedef internal::Internals I;
    A ctx = *reinterpret_cast<const A*>(this);
-@@ -11977,16 +12097,16 @@ Local<Value> Context::GetEmbedderData(int index) {
+@@ -11977,16 +12098,17 @@ Local<Value> Context::GetEmbedderData(int index) {
        I::ReadTaggedPointerField(ctx, I::kNativeContextEmbedderDataOffset);
    int value_offset =
        I::kEmbedderDataArrayHeaderSize + (I::kEmbedderDataSlotSize * index);
@@ -610,9 +611,10 @@ index 9926b308b1..754134f45f 100644
  #ifdef V8_COMPRESS_POINTERS
    // We read the full pointer value and then decompress it in order to avoid
    // dealing with potential endiannes issues.
++  uint32_t ptr = I::ReadRawField<uint32_t>(embedder_data, value_offset);
    value =
 -      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(value));
-+      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(&value));
++      reinterpret_cast<O>(I::DecompressTaggedAnyField(embedder_data, ptr));
  #endif
    internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
        *reinterpret_cast<A*>(this));
