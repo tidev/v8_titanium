@@ -1,9 +1,10 @@
-From 9332c8f85f495e4927933ae2ebb277abddf5d052 Mon Sep 17 00:00:00 2001
+From eebb1eccd3590c9fac37fd1111b9bf9a929d6a36 Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Tue, 23 Jun 2020 15:31:05 -0700
+Date: Wed, 24 Jun 2020 09:41:41 -0700
 Subject: [PATCH] compatibility
 
 ---
+ BUILD.gn                                      |   2 +-
  include/libplatform/libplatform.h             |   7 +
  include/v8-internal.h                         |   3 +
  include/v8.h                                  | 228 +++++++++++----
@@ -18,8 +19,21 @@ Subject: [PATCH] compatibility
  src/objects/string.cc                         |   4 +-
  src/parsing/scanner-character-streams.cc      |  34 +--
  src/snapshot/snapshot-common.cc               |   4 +-
- 14 files changed, 475 insertions(+), 110 deletions(-)
+ 15 files changed, 476 insertions(+), 111 deletions(-)
 
+diff --git a/BUILD.gn b/BUILD.gn
+index b2dde3f9d7..ee726f8b13 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -504,7 +504,7 @@ config("features") {
+ 
+   # TODO(v8:8519): Remove the define once all use-sites in
+   #                the code are removed/fixed
+-  defines += [ "V8_EMBEDDED_BUILTINS" ]
++  # defines += [ "V8_EMBEDDED_BUILTINS" ]
+   if (v8_use_multi_snapshots) {
+     defines += [ "V8_MULTI_SNAPSHOTS" ]
+   }
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 6051b644fb..6202a4c2b9 100644
 --- a/include/libplatform/libplatform.h
