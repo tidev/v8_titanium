@@ -1,14 +1,14 @@
-From 91cabb7305741b10c77bdfe09487fc42da5f7eb8 Mon Sep 17 00:00:00 2001
+From 67bad306d5d6c3260636fe728c0de67643de54cb Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Wed, 17 Jun 2020 11:41:15 -0700
-Subject: [PATCH 1/2] DEPS
+Date: Thu, 16 Jul 2020 09:15:57 -0700
+Subject: [PATCH] DEPS
 
 ---
  DEPS | 46 ----------------------------------------------
  1 file changed, 46 deletions(-)
 
 diff --git a/DEPS b/DEPS
-index 1bc687beaf..28cf3018e4 100644
+index 7b38c3dcd0..94b353ac9c 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -121,52 +121,6 @@ deps = {
@@ -20,7 +20,7 @@ index 1bc687beaf..28cf3018e4 100644
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_platform': {
--    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + '2244b5ea295f8fda3179bef160c84ef8fa0ec9fc',
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + '716366f5685ad8aaf1208c64941e440e8e117441',
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_sdk/public': {
@@ -54,15 +54,15 @@ index 1bc687beaf..28cf3018e4 100644
 -              'version': Var('android_sdk_sources_version'),
 -          },
 -          {
--              'package': 'chromium/third_party/android_sdk/public/tools-lint',
--              'version': Var('android_sdk_tools-lint_version'),
+-              'package': 'chromium/third_party/android_sdk/public/cmdline-tools',
+-              'version': Var('android_sdk_cmdline-tools_version'),
 -          },
 -      ],
 -      'condition': 'checkout_android',
 -      'dep_type': 'cipd',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '032c78376792ef343ea361bca2181ba6dec6b95f',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'e9a8d378c950ee44beec5dd5207e151f48e5b5be',
      'condition': 'checkout_android',
 -- 
 2.25.1
