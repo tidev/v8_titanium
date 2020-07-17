@@ -1,6 +1,6 @@
-From dfdabe82a61e7075b01c732f642b17f3ff6c9047 Mon Sep 17 00:00:00 2001
+From 50e3f1e693f1f5d39f007b9d3055072716cea8c0 Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Thu, 16 Jul 2020 09:57:01 -0700
+Date: Thu, 16 Jul 2020 18:26:09 -0700
 Subject: [PATCH] compatibility
 
 ---
@@ -11,6 +11,7 @@ Subject: [PATCH] compatibility
  src/extensions/gc-extension.cc                |   4 +-
  src/extensions/statistics-extension.cc        |   6 +-
  .../vtunedomain-support-extension.cc          |   2 +-
+ src/flags/flag-definitions.h                  |   2 +-
  src/handles/handles.h                         |   1 +
  src/heap/factory.cc                           |   4 +-
  src/interpreter/interpreter.cc                |   4 +-
@@ -18,7 +19,7 @@ Subject: [PATCH] compatibility
  src/objects/string.cc                         |   4 +-
  src/parsing/scanner-character-streams.cc      |  34 +--
  src/snapshot/snapshot.cc                      |   4 +-
- 14 files changed, 475 insertions(+), 110 deletions(-)
+ 15 files changed, 476 insertions(+), 111 deletions(-)
 
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index c7ea4c2bd3..5be8c72849 100644
@@ -1188,6 +1189,19 @@ index 793ffec716..aafb48d5f6 100644
              .ToLocalChecked());
    }
  }
+diff --git a/src/flags/flag-definitions.h b/src/flags/flag-definitions.h
+index 30d5f09180..c009129760 100644
+--- a/src/flags/flag-definitions.h
++++ b/src/flags/flag-definitions.h
+@@ -909,7 +909,7 @@ DEFINE_BOOL(parallel_scavenge, true, "parallel scavenge")
+ DEFINE_BOOL(scavenge_task, true, "schedule scavenge tasks")
+ DEFINE_INT(scavenge_task_trigger, 80,
+            "scavenge task trigger in percent of the current heap limit")
+-DEFINE_BOOL(scavenge_separate_stack_scanning, true,
++DEFINE_BOOL(scavenge_separate_stack_scanning, false,
+             "use a separate phase for stack scanning in scavenge")
+ DEFINE_BOOL(trace_parallel_scavenge, false, "trace parallel scavenge")
+ DEFINE_BOOL(write_protect_code_memory, true, "write protect code memory")
 diff --git a/src/handles/handles.h b/src/handles/handles.h
 index aa9e522c0e..d14cc84321 100644
 --- a/src/handles/handles.h
