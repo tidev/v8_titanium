@@ -48,18 +48,18 @@ def build(scm, arch, mode, buildTarget) {
           // Apply patch to retain backwards-compatible APIs (to avoid breaking module api changes)
           sh 'git apply ../compat.patch'
           // Link our specified NDK
-          sh "ln -s ${env.ANDROID_NDK_R20} third_party/android_ndk"
+          sh "ln -s ${env.ANDROID_NDK_R21D} third_party/android_ndk"
           // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       } // withEnv
 
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R21D} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R20} -s ${env.ANDROID_SDK} -l ${arch} -m ${mode} -x ${buildTarget}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R21D} -s ${env.ANDROID_SDK} -l ${arch} -m ${mode} -x ${buildTarget}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
       for (int l = 0; l < expectedOutput.size(); l++) {
