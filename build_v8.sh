@@ -32,7 +32,7 @@ MODE=release
 LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
-PLATFORM_VERSION=android-23
+PLATFORM_VERSION=android-29
 
 while getopts "hts:cn:j:m:l:p:x:" OPTION; do
 	case $OPTION in
