@@ -1,6 +1,6 @@
-From 4f68d72cc043d19b16f106d3866f30ca73bd8a35 Mon Sep 17 00:00:00 2001
+From 1d4d33c24a5d8c20bb41eb850435d98742307e96 Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Fri, 17 Jul 2020 01:05:52 -0700
+Date: Thu, 23 Jul 2020 12:45:16 -0700
 Subject: [PATCH] compatibility
 
 ---
@@ -8,6 +8,8 @@ Subject: [PATCH] compatibility
  include/v8-internal.h                         |   3 +
  include/v8.h                                  | 228 +++++++++++----
  src/api/api.cc                                | 274 +++++++++++++++++-
+ src/execution/frames.cc                       |   6 +-
+ src/execution/frames.h                        |   2 -
  src/extensions/gc-extension.cc                |   4 +-
  src/extensions/statistics-extension.cc        |   6 +-
  .../vtunedomain-support-extension.cc          |   2 +-
@@ -19,7 +21,7 @@ Subject: [PATCH] compatibility
  src/objects/string.cc                         |   4 +-
  src/parsing/scanner-character-streams.cc      |  34 +--
  src/snapshot/snapshot.cc                      |   4 +-
- 15 files changed, 477 insertions(+), 112 deletions(-)
+ 17 files changed, 480 insertions(+), 117 deletions(-)
 
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index c7ea4c2bd3..5be8c72849 100644
@@ -1125,6 +1127,47 @@ index 93780bceec..7dfded8310 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
+diff --git a/src/execution/frames.cc b/src/execution/frames.cc
+index b6fc4cb754..6866362081 100644
+--- a/src/execution/frames.cc
++++ b/src/execution/frames.cc
+@@ -633,11 +633,9 @@ StackFrame::Type StackFrame::ComputeType(const StackFrameIteratorBase* iterator,
+   }
+ }
+ 
+-#ifdef DEBUG
+ bool StackFrame::can_access_heap_objects() const {
+   return iterator_->can_access_heap_objects_;
+ }
+-#endif
+ 
+ StackFrame::Type StackFrame::GetCallerState(State* state) const {
+   ComputeCallerState(state);
+@@ -909,7 +907,9 @@ void StandardFrame::Summarize(std::vector<FrameSummary>* functions) const {
+ void StandardFrame::IterateCompiledFrame(RootVisitor* v) const {
+   // Make sure that we're not doing "safe" stack frame iteration. We cannot
+   // possibly find pointers in optimized frames in that state.
+-  DCHECK(can_access_heap_objects());
++  if (!can_access_heap_objects()) {
++    return;
++  }
+ 
+   // Find the code and compute the safepoint information.
+   Address inner_pointer = pc();
+diff --git a/src/execution/frames.h b/src/execution/frames.h
+index cd0156a887..c6c6bc673d 100644
+--- a/src/execution/frames.h
++++ b/src/execution/frames.h
+@@ -282,9 +282,7 @@ class StackFrame {
+   // Compute the stack frame type for the given state.
+   static Type ComputeType(const StackFrameIteratorBase* iterator, State* state);
+ 
+-#ifdef DEBUG
+   bool can_access_heap_objects() const;
+-#endif
+ 
+  private:
+   const StackFrameIteratorBase* iterator_;
 diff --git a/src/extensions/gc-extension.cc b/src/extensions/gc-extension.cc
 index fd0cf91333..a8cf9dc5ad 100644
 --- a/src/extensions/gc-extension.cc
