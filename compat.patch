@@ -1127,47 +1127,6 @@ index 93780bceec..7dfded8310 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
-diff --git a/src/execution/frames.cc b/src/execution/frames.cc
-index b6fc4cb754..6866362081 100644
---- a/src/execution/frames.cc
-+++ b/src/execution/frames.cc
-@@ -633,11 +633,9 @@ StackFrame::Type StackFrame::ComputeType(const StackFrameIteratorBase* iterator,
-   }
- }
- 
--#ifdef DEBUG
- bool StackFrame::can_access_heap_objects() const {
-   return iterator_->can_access_heap_objects_;
- }
--#endif
- 
- StackFrame::Type StackFrame::GetCallerState(State* state) const {
-   ComputeCallerState(state);
-@@ -909,7 +907,9 @@ void StandardFrame::Summarize(std::vector<FrameSummary>* functions) const {
- void StandardFrame::IterateCompiledFrame(RootVisitor* v) const {
-   // Make sure that we're not doing "safe" stack frame iteration. We cannot
-   // possibly find pointers in optimized frames in that state.
--  DCHECK(can_access_heap_objects());
-+  if (!can_access_heap_objects()) {
-+    return;
-+  }
- 
-   // Find the code and compute the safepoint information.
-   Address inner_pointer = pc();
-diff --git a/src/execution/frames.h b/src/execution/frames.h
-index cd0156a887..c6c6bc673d 100644
---- a/src/execution/frames.h
-+++ b/src/execution/frames.h
-@@ -282,9 +282,7 @@ class StackFrame {
-   // Compute the stack frame type for the given state.
-   static Type ComputeType(const StackFrameIteratorBase* iterator, State* state);
- 
--#ifdef DEBUG
-   bool can_access_heap_objects() const;
--#endif
- 
-  private:
-   const StackFrameIteratorBase* iterator_;
 diff --git a/src/extensions/gc-extension.cc b/src/extensions/gc-extension.cc
 index fd0cf91333..a8cf9dc5ad 100644
 --- a/src/extensions/gc-extension.cc
@@ -1236,15 +1195,6 @@ diff --git a/src/flags/flag-definitions.h b/src/flags/flag-definitions.h
 index 30d5f09180..ea3c123f71 100644
 --- a/src/flags/flag-definitions.h
 +++ b/src/flags/flag-definitions.h
-@@ -909,7 +909,7 @@ DEFINE_BOOL(parallel_scavenge, true, "parallel scavenge")
- DEFINE_BOOL(scavenge_task, true, "schedule scavenge tasks")
- DEFINE_INT(scavenge_task_trigger, 80,
-            "scavenge task trigger in percent of the current heap limit")
--DEFINE_BOOL(scavenge_separate_stack_scanning, true,
-+DEFINE_BOOL(scavenge_separate_stack_scanning, false,
-             "use a separate phase for stack scanning in scavenge")
- DEFINE_BOOL(trace_parallel_scavenge, false, "trace parallel scavenge")
- DEFINE_BOOL(write_protect_code_memory, true, "write protect code memory")
 @@ -1416,7 +1416,7 @@ DEFINE_BOOL(minor_mc_parallel_marking, true,
              "use parallel marking for the young generation")
  DEFINE_BOOL(trace_minor_mc_parallel_marking, false,
