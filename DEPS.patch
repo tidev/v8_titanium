@@ -1,26 +1,17 @@
-From 67bad306d5d6c3260636fe728c0de67643de54cb Mon Sep 17 00:00:00 2001
-From: Gary Mathews <contact@garymathews.com>
-Date: Thu, 16 Jul 2020 09:15:57 -0700
-Subject: [PATCH] DEPS
-
----
- DEPS | 46 ----------------------------------------------
- 1 file changed, 46 deletions(-)
-
 diff --git a/DEPS b/DEPS
-index 7b38c3dcd0..94b353ac9c 100644
+index 4c02904d70..5cd11ecdb7 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -121,52 +121,6 @@ deps = {
+@@ -123,52 +123,6 @@ deps = {
    },
    'v8/base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'dab187b372fc17e51f5b9fad8201813d0aed5129',
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'ef3586804494b7e402b6c1791d5dccdf2971afff',
 -  'v8/third_party/android_ndk': {
 -    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '27c0a8d090c666a50e40fceb4ee5b40b1a2d3f87',
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_platform': {
--    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + '716366f5685ad8aaf1208c64941e440e8e117441',
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'c1f84dcf41795fba13a53c86de608fc0cf6f813e',
 -    'condition': 'checkout_android',
 -  },
 -  'v8/third_party/android_sdk/public': {
@@ -62,8 +53,5 @@ index 7b38c3dcd0..94b353ac9c 100644
 -      'dep_type': 'cipd',
 -  },
    'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + 'e9a8d378c950ee44beec5dd5207e151f48e5b5be',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + '95c1f426155576790a73778571c34a0f3cd6d608',
      'condition': 'checkout_android',
--- 
-2.25.1
-
