@@ -1,23 +1,23 @@
 diff --git a/DEPS b/DEPS
-index 4c02904d70..5cd11ecdb7 100644
+index 7726a6973e..6d9d287224 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -123,52 +123,6 @@ deps = {
+@@ -131,52 +131,6 @@ deps = {
    },
-   'v8/base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'ef3586804494b7e402b6c1791d5dccdf2971afff',
--  'v8/third_party/android_ndk': {
+   'base/trace_event/common':
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '23ef5333a357fc7314630ef88b44c3a545881dee',
+-  'third_party/android_ndk': {
 -    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '27c0a8d090c666a50e40fceb4ee5b40b1a2d3f87',
 -    'condition': 'checkout_android',
 -  },
--  'v8/third_party/android_platform': {
--    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'c1f84dcf41795fba13a53c86de608fc0cf6f813e',
+-  'third_party/android_platform': {
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'fc6c6840eeb254ac4fd199c548c54178ce3545bb',
 -    'condition': 'checkout_android',
 -  },
--  'v8/third_party/android_sdk/public': {
+-  'third_party/android_sdk/public': {
 -      'packages': [
 -          {
--              'package': 'chromium/third_party/android_sdk/public/build-tools/29.0.2',
+-              'package': 'chromium/third_party/android_sdk/public/build-tools/30.0.1',
 -              'version': Var('android_sdk_build-tools_version'),
 -          },
 -          {
@@ -37,7 +37,7 @@ index 4c02904d70..5cd11ecdb7 100644
 -              'version': Var('android_sdk_platform-tools_version'),
 -          },
 -          {
--              'package': 'chromium/third_party/android_sdk/public/platforms/android-29',
+-              'package': 'chromium/third_party/android_sdk/public/platforms/android-30',
 -              'version': Var('android_sdk_platforms_version'),
 -          },
 -          {
@@ -52,6 +52,6 @@ index 4c02904d70..5cd11ecdb7 100644
 -      'condition': 'checkout_android',
 -      'dep_type': 'cipd',
 -  },
-   'v8/third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '95c1f426155576790a73778571c34a0f3cd6d608',
+   'third_party/catapult': {
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'abfdfbb6683802d3a46ed515246573729ea147ff',
      'condition': 'checkout_android',
