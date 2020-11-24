@@ -17,10 +17,22 @@ index 1c874ba29b..e6ddee01ae 100644
   * Returns a new instance of the default v8::JobHandle implementation.
   *
 diff --git a/include/v8-internal.h b/include/v8-internal.h
-index fcc36595ba..c2e39f89d6 100644
+index fcc36595ba..9a2c7e3fa3 100644
 --- a/include/v8-internal.h
 +++ b/include/v8-internal.h
-@@ -199,6 +199,9 @@ class Internals {
+@@ -178,8 +178,10 @@ class Internals {
+ 
+   // IsolateData layout guarantees.
+   static const int kIsolateEmbedderDataOffset = 0;
+-  static const int kIsolateFastCCallCallerFpOffset =
++  static const int kCompatibilityPaddingOffset =
+       kNumIsolateDataSlots * kApiSystemPointerSize;
++  static const int kIsolateFastCCallCallerFpOffset =
++      kCompatibilityPaddingOffset + (kApiInt64Size * 3);
+   static const int kIsolateFastCCallCallerPcOffset =
+       kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
+   static const int kIsolateStackGuardOffset =
+@@ -199,6 +201,9 @@ class Internals {
    static const int kNodeStateMask = 0x7;
    static const int kNodeStateIsWeakValue = 2;
    static const int kNodeStateIsPendingValue = 3;
@@ -1104,6 +1116,27 @@ index 6a43bc7de6..825a55f52c 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
+diff --git a/src/execution/isolate-data.h b/src/execution/isolate-data.h
+index 26acf4253c..9799e9bd07 100644
+--- a/src/execution/isolate-data.h
++++ b/src/execution/isolate-data.h
+@@ -123,6 +123,7 @@ class IsolateData final {
+   // beginning of IsolateData.
+ #define FIELDS(V)                                                             \
+   V(kEmbedderDataOffset, Internals::kNumIsolateDataSlots* kSystemPointerSize) \
++  V(kCompatibilityPaddingOffset, kInt64Size* 3)                               \
+   V(kFastCCallCallerFPOffset, kSystemPointerSize)                             \
+   V(kFastCCallCallerPCOffset, kSystemPointerSize)                             \
+   V(kStackGuardOffset, StackGuard::kSizeInBytes)                              \
+@@ -147,6 +148,8 @@ class IsolateData final {
+   // runtime checks.
+   void* embedder_data_[Internals::kNumIsolateDataSlots] = {};
+ 
++  int64_t compatibility_padding_[3];
++
+   // Stores the state of the caller for TurboAssembler::CallCFunction so that
+   // the sampling CPU profiler can iterate the stack during such calls. These
+   // are stored on IsolateData so that they can be stored to with only one move
 diff --git a/src/extensions/gc-extension.cc b/src/extensions/gc-extension.cc
 index fd0cf91333..a8cf9dc5ad 100644
 --- a/src/extensions/gc-extension.cc
