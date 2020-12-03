@@ -1,5 +1,14 @@
+From 8fd664a9e6acf59beabac97b1c0c846bfc82d90b Mon Sep 17 00:00:00 2001
+From: Gary Mathews <contact@garymathews.com>
+Date: Wed, 2 Dec 2020 19:32:52 -0800
+Subject: [PATCH] a
+
+---
+ DEPS | 46 ----------------------------------------------
+ 1 file changed, 46 deletions(-)
+
 diff --git a/DEPS b/DEPS
-index 7726a6973e..6d9d287224 100644
+index 6bddd2cc9f..e1d83c5f04 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -131,52 +131,6 @@ deps = {
@@ -53,5 +62,8 @@ index 7726a6973e..6d9d287224 100644
 -      'dep_type': 'cipd',
 -  },
    'third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + 'abfdfbb6683802d3a46ed515246573729ea147ff',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + '18d69fb4e7b2225974dfc306ca0c11a58fe4e917',
      'condition': 'checkout_android',
+-- 
+2.24.3 (Apple Git-128)
+
