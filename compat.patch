@@ -1,3 +1,16 @@
+diff --git a/BUILD.gn b/BUILD.gn
+index 94b598bc9a..3a52ed1b10 100644
+--- a/BUILD.gn
++++ b/BUILD.gn
+@@ -113,7 +113,7 @@ declare_args() {
+   v8_disable_arguments_adaptor = false
+ 
+   # Reverse JS arguments order in the stack (sets -dV8_REVERSE_JSARGS).
+-  v8_enable_reverse_jsargs = true
++  v8_enable_reverse_jsargs = false
+ 
+   # Sets -dOBJECT_PRINT.
+   v8_enable_object_print = ""
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 1c874ba29b..e6ddee01ae 100644
 --- a/include/libplatform/libplatform.h
