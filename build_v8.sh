@@ -134,8 +134,12 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
+	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false cc_wrapper=\"ccache\"
 
+	# Set ccache variables
+	export CCACHE_CPP2=yes
+	export CCACHE_SLOPPINESS=time_macros
+	export PATH=$V8_DIR/third_party/llvm-build/Release+Asserts/bin:$PATH
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
