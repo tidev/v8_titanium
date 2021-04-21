@@ -1,13 +1,14 @@
-From fe3d04febfd940b78616676f9faa8fe4ba9f1506 Mon Sep 17 00:00:00 2001
+From b53cf1380ae3882dbebd00d5845bd3a9ac52404d Mon Sep 17 00:00:00 2001
 From: Gary Mathews <contact@garymathews.com>
-Date: Tue, 20 Apr 2021 18:30:51 -0700
+Date: Wed, 21 Apr 2021 20:08:13 -0700
 Subject: [PATCH] compat
 
 ---
  include/libplatform/libplatform.h             |   7 +
  include/v8-internal.h                         |   7 +-
- include/v8.h                                  | 228 ++++++--
- src/api/api.cc                                | 500 +++++++++++++++++-
+ include/v8.h                                  | 228 +++++++---
+ src/api/api.cc                                | 408 +++++++++++++++++-
+ src/debug/debug-wasm-objects.cc               |   2 +-
  src/execution/isolate-data.h                  |   3 +
  src/extensions/gc-extension.cc                |   4 +-
  src/extensions/statistics-extension.cc        |   6 +-
@@ -17,10 +18,11 @@ Subject: [PATCH] compat
  src/heap/factory.cc                           |   4 +-
  src/interpreter/interpreter.cc                |   4 +-
  src/libplatform/default-platform.cc           |  10 +
+ src/objects/string-inl.h                      |   8 +-
  src/objects/string.cc                         |   4 +-
- src/parsing/scanner-character-streams.cc      |   7 +-
+ src/parsing/scanner-character-streams.cc      |  34 +-
  src/snapshot/snapshot.cc                      |   4 +-
- 16 files changed, 709 insertions(+), 86 deletions(-)
+ 18 files changed, 618 insertions(+), 122 deletions(-)
 
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 00de81df88..f519aecbdf 100644
@@ -638,10 +640,10 @@ index 7cb19bbede..02ba32837d 100644
  #else
    return SlowGetEmbedderData(index);
 diff --git a/src/api/api.cc b/src/api/api.cc
-index a56b7e1a7d..2bdbaaea6f 100644
+index a56b7e1a7d..1d2ac91365 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
-@@ -143,6 +143,230 @@
+@@ -143,6 +143,141 @@
  
  namespace v8 {
  
@@ -767,12 +769,6 @@ index a56b7e1a7d..2bdbaaea6f 100644
 +  return reinterpret_cast<v8::Isolate*>(obj->GetIsolate())->GetCurrentContext();
 +}
 +
-+class InternalEscapableScope : public v8::EscapableHandleScope {
-+ public:
-+  explicit inline InternalEscapableScope(i::Isolate* isolate)
-+      : v8::EscapableHandleScope(reinterpret_cast<v8::Isolate*>(isolate)) {}
-+};
-+
 +// TODO(jochen): This should be #ifdef DEBUG
 +#ifdef V8_CHECK_MICROTASKS_SCOPES_CONSISTENCY
 +void CheckMicrotasksScopesConsistency(i::MicrotaskQueue* microtask_queue) {
@@ -784,109 +780,15 @@ index a56b7e1a7d..2bdbaaea6f 100644
 +}
 +#endif
 +
-+template <bool do_callback>
-+class CallDepthScope {
-+ public:
-+  CallDepthScope(i::Isolate* isolate, Local<Context> context)
-+      : isolate_(isolate),
-+        context_(context),
-+        escaped_(false),
-+        safe_for_termination_(isolate->next_v8_call_is_safe_for_termination()),
-+        interrupts_scope_(isolate_, i::StackGuard::TERMINATE_EXECUTION,
-+                          isolate_->only_terminate_in_safe_scope()
-+                              ? (safe_for_termination_
-+                                     ? i::InterruptsScope::kRunInterrupts
-+                                     : i::InterruptsScope::kPostponeInterrupts)
-+                              : i::InterruptsScope::kNoop) {
-+    isolate_->thread_local_top()->IncrementCallDepth(this);
-+    isolate_->set_next_v8_call_is_safe_for_termination(false);
-+    if (!context.IsEmpty()) {
-+      i::Handle<i::Context> env = Utils::OpenHandle(*context);
-+      i::HandleScopeImplementer* impl = isolate->handle_scope_implementer();
-+      if (!isolate->context().is_null() &&
-+          isolate->context().native_context() == env->native_context()) {
-+        context_ = Local<Context>();
-+      } else {
-+        impl->SaveContext(isolate->context());
-+        isolate->set_context(*env);
-+      }
-+    }
-+    if (do_callback) isolate_->FireBeforeCallEnteredCallback();
-+  }
-+  ~CallDepthScope() {
-+    i::MicrotaskQueue* microtask_queue = isolate_->default_microtask_queue();
-+    if (!context_.IsEmpty()) {
-+      i::HandleScopeImplementer* impl = isolate_->handle_scope_implementer();
-+      isolate_->set_context(impl->RestoreContext());
-+
-+      i::Handle<i::Context> env = Utils::OpenHandle(*context_);
-+      microtask_queue = env->native_context().microtask_queue();
-+    }
-+    if (!escaped_) isolate_->thread_local_top()->DecrementCallDepth(this);
-+    if (do_callback) isolate_->FireCallCompletedCallback(microtask_queue);
-+// TODO(jochen): This should be #ifdef DEBUG
-+#ifdef V8_CHECK_MICROTASKS_SCOPES_CONSISTENCY
-+    if (do_callback) CheckMicrotasksScopesConsistency(microtask_queue);
-+#endif
-+    DCHECK(CheckKeptObjectsClearedAfterMicrotaskCheckpoint(microtask_queue));
-+    isolate_->set_next_v8_call_is_safe_for_termination(safe_for_termination_);
-+  }
-+
-+  void Escape() {
-+    DCHECK(!escaped_);
-+    escaped_ = true;
-+    auto thread_local_top = isolate_->thread_local_top();
-+    thread_local_top->DecrementCallDepth(this);
-+    bool clear_exception = thread_local_top->CallDepthIsZero() &&
-+                           thread_local_top->try_catch_handler_ == nullptr;
-+    isolate_->OptionalRescheduleException(clear_exception);
-+  }
-+
-+ private:
-+  bool CheckKeptObjectsClearedAfterMicrotaskCheckpoint(
-+      i::MicrotaskQueue* microtask_queue) {
-+    bool did_perform_microtask_checkpoint =
-+        isolate_->thread_local_top()->CallDepthIsZero() &&
-+        do_callback && microtask_queue &&
-+        microtask_queue->microtasks_policy() == MicrotasksPolicy::kAuto;
-+    return !did_perform_microtask_checkpoint ||
-+           isolate_->heap()->weak_refs_keep_during_job().IsUndefined(isolate_);
-+  }
-+
-+  i::Isolate* const isolate_;
-+  Local<Context> context_;
-+  bool escaped_;
-+  bool do_callback_;
-+  bool safe_for_termination_;
-+  i::InterruptsScope interrupts_scope_;
-+  i::Address previous_stack_height_;
-+
-+  friend class i::ThreadLocalTop;
-+
-+  DISALLOW_NEW_AND_DELETE()
-+  DISALLOW_COPY_AND_ASSIGN(CallDepthScope);
-+};
-+
 +}  // namespace
 +
  static ScriptOrigin GetScriptOriginForScript(i::Isolate* isolate,
                                               i::Handle<i::Script> script) {
    i::Handle<i::Object> scriptName(script->GetNameOrSourceURL(), isolate);
-@@ -727,6 +951,37 @@ void ResourceConstraints::ConfigureDefaults(uint64_t physical_memory,
+@@ -727,6 +862,26 @@ void ResourceConstraints::ConfigureDefaults(uint64_t physical_memory,
    }
  }
  
-+size_t ResourceConstraints::max_semi_space_size_in_kb() const {
-+  return i::Heap::SemiSpaceSizeFromYoungGenerationSize(
-+             max_young_generation_size_) /
-+         i::KB;
-+}
-+
-+void ResourceConstraints::set_max_semi_space_size_in_kb(size_t limit_in_kb) {
-+  set_max_young_generation_size_in_bytes(
-+      i::Heap::YoungGenerationSizeFromSemiSpaceSize(limit_in_kb * i::KB));
-+}
-+
 +i::Object** V8::GlobalizeReference(i::Isolate* isolate, i::Object** obj) {
 +  return reinterpret_cast<i::Object**>(GlobalizeReference(isolate, reinterpret_cast<i::Address*>(obj)));
 +}
@@ -910,7 +812,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  i::Address* V8::GlobalizeReference(i::Isolate* isolate, i::Address* obj) {
    LOG_API(isolate, Persistent, New);
    i::Handle<i::Object> result = isolate->global_handles()->Create(*obj);
-@@ -869,6 +1124,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
+@@ -869,6 +1024,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
        reinterpret_cast<i::Isolate*>(isolate));
  }
  
@@ -920,7 +822,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  i::Address* HandleScope::CreateHandle(i::Isolate* isolate, i::Address value) {
    return i::HandleScope::CreateHandle(isolate, value);
  }
-@@ -880,6 +1138,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
+@@ -880,6 +1038,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
    Initialize(v8_isolate);
  }
  
@@ -930,7 +832,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  i::Address* EscapableHandleScope::Escape(i::Address* escape_value) {
    i::Heap* heap = reinterpret_cast<i::Isolate*>(GetIsolate())->heap();
    Utils::ApiCheck(i::Object(*escape_slot_).IsTheHole(heap->isolate()),
-@@ -1227,6 +1488,11 @@ static Local<FunctionTemplate> FunctionTemplateNew(
+@@ -1227,6 +1388,11 @@ static Local<FunctionTemplate> FunctionTemplateNew(
    return Utils::ToLocal(obj);
  }
  
@@ -942,7 +844,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  Local<FunctionTemplate> FunctionTemplate::New(
      Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
      v8::Local<Signature> signature, int length, ConstructorBehavior behavior,
-@@ -1539,6 +1805,16 @@ void ObjectTemplate::SetAccessor(v8::Local<String> name,
+@@ -1539,6 +1705,16 @@ void ObjectTemplate::SetAccessor(v8::Local<String> name,
                        getter_side_effect_type, setter_side_effect_type);
  }
  
@@ -959,7 +861,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  void ObjectTemplate::SetAccessor(v8::Local<Name> name,
                                   AccessorNameGetterCallback getter,
                                   AccessorNameSetterCallback setter,
-@@ -1632,6 +1908,13 @@ static void ObjectTemplateSetNamedPropertyHandler(
+@@ -1632,6 +1808,13 @@ static void ObjectTemplateSetNamedPropertyHandler(
    i::FunctionTemplateInfo::SetNamedPropertyHandler(isolate, cons, obj);
  }
  
@@ -973,7 +875,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  void ObjectTemplate::SetHandler(
      const NamedPropertyHandlerConfiguration& config) {
    ObjectTemplateSetNamedPropertyHandler(
-@@ -1918,6 +2201,26 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
+@@ -1918,6 +2101,26 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
    RETURN_ESCAPED(result);
  }
  
@@ -993,14 +895,14 @@ index a56b7e1a7d..2bdbaaea6f 100644
 +Local<Script> Script::Compile(v8::Local<String> source, v8::Local<String> file_name) {
 +  auto str = Utils::OpenHandle(*source);
 +  auto context = UnsafeContextFromHeapObject(str);
-+  ScriptOrigin origin(file_name);
++  ScriptOrigin origin(context->GetIsolate(), file_name);
 +  return Compile(context, source, &origin).FromMaybe(Local<Script>());
 +}
 +
  Local<Value> ScriptOrModule::GetResourceName() {
    i::Handle<i::Script> obj = Utils::OpenHandle(this);
    i::Isolate* isolate = obj->GetIsolate();
-@@ -2607,7 +2910,18 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
+@@ -2607,7 +2810,18 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
  }
  
  // --- E x c e p t i o n s ---
@@ -1020,7 +922,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
      : isolate_(reinterpret_cast<i::Isolate*>(isolate)),
        next_(isolate_->try_catch_handler()),
-@@ -2705,6 +3019,11 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
+@@ -2705,6 +2919,11 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
    return StackTrace(context, Exception());
  }
  
@@ -1032,7 +934,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  v8::Local<v8::Message> v8::TryCatch::Message() const {
    i::Object message(reinterpret_cast<i::Address>(message_obj_));
    DCHECK(message.IsJSMessageObject() || message.IsTheHole(isolate_));
-@@ -2788,6 +3107,16 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
+@@ -2788,6 +3007,16 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
    return Just(self->GetLineNumber());
  }
  
@@ -1049,7 +951,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  int Message::GetStartPosition() const {
    auto self = Utils::OpenHandle(this);
    i::Isolate* isolate = self->GetIsolate();
-@@ -3435,6 +3764,10 @@ MaybeLocal<String> Value::ToString(Local<Context> context) const {
+@@ -3435,6 +3664,10 @@ MaybeLocal<String> Value::ToString(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1060,7 +962,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<String> Value::ToDetailString(Local<Context> context) const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    if (obj->IsString()) return ToApiHandle<String>(obj);
-@@ -3456,6 +3789,10 @@ MaybeLocal<Object> Value::ToObject(Local<Context> context) const {
+@@ -3456,6 +3689,10 @@ MaybeLocal<Object> Value::ToObject(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1071,7 +973,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    if (obj->IsBigInt()) return ToApiHandle<BigInt>(obj);
-@@ -3467,11 +3804,20 @@ MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
+@@ -3467,11 +3704,20 @@ MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1092,7 +994,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  Local<Boolean> Value::ToBoolean(Isolate* v8_isolate) const {
    auto isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
    ASSERT_NO_SCRIPT_NO_EXCEPTION(isolate);
-@@ -3490,6 +3836,10 @@ MaybeLocal<Number> Value::ToNumber(Local<Context> context) const {
+@@ -3490,6 +3736,10 @@ MaybeLocal<Number> Value::ToNumber(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1103,7 +1005,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Integer>(obj);
-@@ -3501,6 +3851,10 @@ MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
+@@ -3501,6 +3751,10 @@ MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1114,7 +1016,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Int32>(obj);
-@@ -3512,6 +3866,10 @@ MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
+@@ -3512,6 +3766,10 @@ MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -1125,7 +1027,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<Uint32> Value::ToUint32(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Uint32>(obj);
-@@ -3964,6 +4322,61 @@ Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context,
+@@ -3964,6 +4222,61 @@ Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context,
    return Just(true);
  }
  
@@ -1187,7 +1089,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context, uint32_t index,
                              v8::Local<Value> value) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4497,6 +4910,29 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4497,6 +4810,29 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
                             getter_side_effect_type, setter_side_effect_type);
  }
  
@@ -1217,7 +1119,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
                                   PropertyAttribute attribute,
-@@ -4826,6 +5262,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -4826,6 +5162,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
@@ -1230,7 +1132,33 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -6233,6 +6675,13 @@ MaybeLocal<v8::Function> FunctionTemplate::GetFunction(Local<Context> context) {
+@@ -5454,21 +5796,21 @@ String::ExternalStringResource* String::GetExternalStringResourceSlow() const {
+ }
+ 
+ void String::ExternalStringResource::UpdateDataCache() {
+-  DCHECK(IsCacheable());
++  DCHECK(!IsCompressible());
+   cached_data_ = data();
+ }
+ 
+ void String::ExternalStringResource::CheckCachedDataInvariants() const {
+-  DCHECK(IsCacheable() && cached_data_ != nullptr);
++  DCHECK(!IsCompressible() && cached_data_ != nullptr);
+ }
+ 
+ void String::ExternalOneByteStringResource::UpdateDataCache() {
+-  DCHECK(IsCacheable());
++  DCHECK(!IsCompressible());
+   cached_data_ = data();
+ }
+ 
+ void String::ExternalOneByteStringResource::CheckCachedDataInvariants() const {
+-  DCHECK(IsCacheable() && cached_data_ != nullptr);
++  DCHECK(!IsCompressible() && cached_data_ != nullptr);
+ }
+ 
+ String::ExternalStringResourceBase* String::GetExternalStringResourceBaseSlow(
+@@ -6233,6 +6575,13 @@ MaybeLocal<v8::Function> FunctionTemplate::GetFunction(Local<Context> context) {
    RETURN_ESCAPED(result);
  }
  
@@ -1244,7 +1172,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  MaybeLocal<v8::Object> FunctionTemplate::NewRemoteInstance() {
    auto self = Utils::OpenHandle(this);
    i::Isolate* isolate = self->GetIsolate();
-@@ -6314,9 +6763,9 @@ inline int StringLength(const uint16_t* string) {
+@@ -6314,9 +6663,9 @@ inline int StringLength(const uint16_t* string) {
  
  V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
@@ -1256,7 +1184,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
      return factory->InternalizeUtf8String(string);
    }
    return factory->NewStringFromUtf8(string);
-@@ -6324,9 +6773,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
+@@ -6324,9 +6673,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
  
  V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
@@ -1268,7 +1196,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
      return factory->InternalizeString(string);
    }
    return factory->NewStringFromOneByte(string);
-@@ -6334,9 +6783,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
+@@ -6334,9 +6683,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
  
  V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
@@ -1280,7 +1208,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
      return factory->InternalizeString(string);
    }
    return factory->NewStringFromTwoByte(string);
-@@ -6367,7 +6816,7 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
+@@ -6367,7 +6716,7 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
    }
  
  Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
@@ -1289,7 +1217,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
    DCHECK_LE(length, i::String::kMaxLength);
    i::Isolate* i_isolate = reinterpret_cast<internal::Isolate*>(isolate);
    ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-@@ -6379,21 +6828,39 @@ Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
+@@ -6379,21 +6728,39 @@ Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
    return Utils::ToLocal(handle_result);
  }
  
@@ -1332,7 +1260,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
    NEW_STRING(isolate, String, NewFromTwoByte, uint16_t, data, type, length);
    return result;
  }
-@@ -6763,6 +7230,11 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
+@@ -6763,6 +7130,11 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
    RETURN_ESCAPED(result);
  }
  
@@ -1344,7 +1272,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  double v8::Date::ValueOf() const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    i::Handle<i::JSDate> jsdate = i::Handle<i::JSDate>::cast(obj);
-@@ -9294,6 +9766,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9294,6 +9666,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -1354,7 +1282,7 @@ index a56b7e1a7d..2bdbaaea6f 100644
  String::Utf8Value::~Utf8Value() { i::DeleteArray(str_); }
  
  String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
-@@ -9311,6 +9786,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9311,6 +9686,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  
@@ -1364,6 +1292,19 @@ index a56b7e1a7d..2bdbaaea6f 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
+diff --git a/src/debug/debug-wasm-objects.cc b/src/debug/debug-wasm-objects.cc
+index c3560a4d15..20522f65a8 100644
+--- a/src/debug/debug-wasm-objects.cc
++++ b/src/debug/debug-wasm-objects.cc
+@@ -140,7 +140,7 @@ struct IndexedDebugProxy {
+   static v8::Local<v8::FunctionTemplate> CreateTemplate(v8::Isolate* isolate) {
+     Local<v8::FunctionTemplate> templ = v8::FunctionTemplate::New(isolate);
+     templ->SetClassName(
+-        v8::String::NewFromUtf8(isolate, T::kClassName).ToLocalChecked());
++        v8::String::NewFromUtf8(isolate, T::kClassName, v8::NewStringType::kNormal).ToLocalChecked());
+     templ->InstanceTemplate()->SetInternalFieldCount(T::kFieldCount);
+     templ->InstanceTemplate()->SetHandler(
+         v8::IndexedPropertyHandlerConfiguration(
 diff --git a/src/execution/isolate-data.h b/src/execution/isolate-data.h
 index a6610c12f0..a56efad6c0 100644
 --- a/src/execution/isolate-data.h
@@ -1548,6 +1489,46 @@ index 66057e1a39..454026b12f 100644
  V8_PLATFORM_EXPORT std::unique_ptr<JobHandle> NewDefaultJobHandle(
      Platform* platform, TaskPriority priority,
      std::unique_ptr<JobTask> job_task, size_t num_worker_threads) {
+diff --git a/src/objects/string-inl.h b/src/objects/string-inl.h
+index 5be0141ab8..87f7a4734a 100644
+--- a/src/objects/string-inl.h
++++ b/src/objects/string-inl.h
+@@ -875,7 +875,7 @@ DEF_GETTER(ExternalOneByteString, mutable_resource,
+ void ExternalOneByteString::update_data_cache(Isolate* isolate) {
+   DisallowGarbageCollection no_gc;
+   if (is_uncached()) {
+-    if (resource()->IsCacheable()) mutable_resource()->UpdateDataCache();
++    if (!resource()->IsCompressible()) mutable_resource()->UpdateDataCache();
+   } else {
+     WriteExternalPointerField(kResourceDataOffset, isolate,
+                               reinterpret_cast<Address>(resource()->data()),
+@@ -903,7 +903,7 @@ void ExternalOneByteString::set_resource(
+ const uint8_t* ExternalOneByteString::GetChars() {
+   DisallowGarbageCollection no_gc;
+   if (is_uncached()) {
+-    if (resource()->IsCacheable()) {
++    if (!resource()->IsCompressible()) {
+       // TODO(solanes): Teach TurboFan/CSA to not bailout to the runtime to
+       // avoid this call.
+       return reinterpret_cast<const uint8_t*>(resource()->cached_data());
+@@ -940,7 +940,7 @@ DEF_GETTER(ExternalTwoByteString, mutable_resource,
+ void ExternalTwoByteString::update_data_cache(Isolate* isolate) {
+   DisallowGarbageCollection no_gc;
+   if (is_uncached()) {
+-    if (resource()->IsCacheable()) mutable_resource()->UpdateDataCache();
++    if (!resource()->IsCompressible()) mutable_resource()->UpdateDataCache();
+   } else {
+     WriteExternalPointerField(kResourceDataOffset, isolate,
+                               reinterpret_cast<Address>(resource()->data()),
+@@ -968,7 +968,7 @@ void ExternalTwoByteString::set_resource(
+ const uint16_t* ExternalTwoByteString::GetChars() {
+   DisallowGarbageCollection no_gc;
+   if (is_uncached()) {
+-    if (resource()->IsCacheable()) {
++    if (!resource()->IsCompressible()) {
+       // TODO(solanes): Teach TurboFan/CSA to not bailout to the runtime to
+       // avoid this call.
+       return resource()->cached_data();
 diff --git a/src/objects/string.cc b/src/objects/string.cc
 index b9413618ee..90e336acd8 100644
 --- a/src/objects/string.cc
@@ -1571,10 +1552,44 @@ index b9413618ee..90e336acd8 100644
    if (FLAG_enable_slow_asserts) {
      // Assert that the resource and the string are equivalent.
 diff --git a/src/parsing/scanner-character-streams.cc b/src/parsing/scanner-character-streams.cc
-index 7eedc0c05c..fb9a0751ff 100644
+index 7eedc0c05c..aa637a9105 100644
 --- a/src/parsing/scanner-character-streams.cc
 +++ b/src/parsing/scanner-character-streams.cc
-@@ -99,13 +99,11 @@ class ExternalStringStream {
+@@ -18,33 +18,6 @@
+ namespace v8 {
+ namespace internal {
+ 
+-class V8_NODISCARD ScopedExternalStringLock {
+- public:
+-  explicit ScopedExternalStringLock(ExternalString string) {
+-    DCHECK(!string.is_null());
+-    if (string.IsExternalOneByteString()) {
+-      resource_ = ExternalOneByteString::cast(string).resource();
+-    } else {
+-      DCHECK(string.IsExternalTwoByteString());
+-      resource_ = ExternalTwoByteString::cast(string).resource();
+-    }
+-    DCHECK(resource_);
+-    resource_->Lock();
+-  }
+-
+-  // Copying a lock increases the locking depth.
+-  ScopedExternalStringLock(const ScopedExternalStringLock& other) V8_NOEXCEPT
+-      : resource_(other.resource_) {
+-    resource_->Lock();
+-  }
+-
+-  ~ScopedExternalStringLock() { resource_->Unlock(); }
+-
+- private:
+-  // Not nullptr.
+-  const v8::String::ExternalStringResourceBase* resource_;
+-};
+-
+ namespace {
+ const unibrow::uchar kUtf8Bom = 0xFEFF;
+ }  // namespace
+@@ -99,13 +72,11 @@ class ExternalStringStream {
   public:
    ExternalStringStream(ExternalString string, size_t start_offset,
                         size_t length)
@@ -1590,7 +1605,7 @@ index 7eedc0c05c..fb9a0751ff 100644
          length_(other.length_) {}
  
    // The no_gc argument is only here because of the templated way this class
-@@ -119,7 +117,6 @@ class ExternalStringStream {
+@@ -119,7 +90,6 @@ class ExternalStringStream {
    static const bool kCanAccessHeap = false;
  
   private:

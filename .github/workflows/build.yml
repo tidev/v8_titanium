@@ -52,7 +52,7 @@ jobs:
     - name: Checkout depot_tools repo
       run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 
-    - name: Add depot_tools to PATH!
+    - name: Add depot_tools to PATH
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
 
           # // Force a git clean on everything under v8
