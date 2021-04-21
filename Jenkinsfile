@@ -48,7 +48,7 @@ def build(scm, arch, mode, buildTarget) {
           // Apply patch to retain backwards-compatible APIs (to avoid breaking module api changes)
           sh 'git apply ../compat.patch'
           // Apply patch for breaking reverse jsargs change.
-          sh 'git apply ../compat_jsargs.patch'
+          // sh 'git apply ../compat_jsargs.patch'
           // Link our specified NDK
           sh "ln -s ${env.ANDROID_NDK_R21D} third_party/android_ndk"
           // Now let gclient get the dependencies.
