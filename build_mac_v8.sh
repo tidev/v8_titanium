@@ -11,7 +11,7 @@ fi
 
 rm -rf build/
 
-export PATH=`pwd`/depot_tools:"$PATH"
+export PATH="`pwd`/depot_tools:$PATH"
 cd v8
 git checkout -- . # "clean" the v8 directory
 rm -rf out.gn/
