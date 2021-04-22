@@ -45,9 +45,9 @@ jobs:
       name: Apply compat patch
       working-directory: ./v8
 
-    # - run: git apply ../compat_jsargs.patch
-    #   name: Apply patch for breaking reverse jsargs change
-    #   working-directory: ./v8
+    - run: git apply ../compat_jsargs.patch
+      name: Apply patch for breaking reverse jsargs change
+      working-directory: ./v8
 
     - name: Checkout depot_tools repo
       run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git

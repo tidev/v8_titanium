@@ -1,29 +1,3 @@
-From b53cf1380ae3882dbebd00d5845bd3a9ac52404d Mon Sep 17 00:00:00 2001
-From: Gary Mathews <contact@garymathews.com>
-Date: Wed, 21 Apr 2021 20:08:13 -0700
-Subject: [PATCH] compat
-
----
- include/libplatform/libplatform.h             |   7 +
- include/v8-internal.h                         |   7 +-
- include/v8.h                                  | 228 +++++++---
- src/api/api.cc                                | 408 +++++++++++++++++-
- src/debug/debug-wasm-objects.cc               |   2 +-
- src/execution/isolate-data.h                  |   3 +
- src/extensions/gc-extension.cc                |   4 +-
- src/extensions/statistics-extension.cc        |   6 +-
- .../vtunedomain-support-extension.cc          |   2 +-
- src/flags/flag-definitions.h                  |   4 +-
- src/handles/handles.h                         |   1 +
- src/heap/factory.cc                           |   4 +-
- src/interpreter/interpreter.cc                |   4 +-
- src/libplatform/default-platform.cc           |  10 +
- src/objects/string-inl.h                      |   8 +-
- src/objects/string.cc                         |   4 +-
- src/parsing/scanner-character-streams.cc      |  34 +-
- src/snapshot/snapshot.cc                      |   4 +-
- 18 files changed, 618 insertions(+), 122 deletions(-)
-
 diff --git a/include/libplatform/libplatform.h b/include/libplatform/libplatform.h
 index 00de81df88..f519aecbdf 100644
 --- a/include/libplatform/libplatform.h
@@ -1631,6 +1605,3 @@ index 360bddc4b9..309ea80a98 100644
    v8::ScriptOrigin origin(isolate, resource_name);
    v8::ScriptCompiler::Source source(source_string, origin);
    v8::Local<v8::Script> script;
--- 
-2.25.1
-
