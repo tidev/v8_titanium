@@ -45,9 +45,9 @@ jobs:
       name: Apply compat patch
       working-directory: ./v8
 
-    - run: git apply ../compat_jsargs.patch
-      name: Apply patch for breaking reverse jsargs change
-      working-directory: ./v8
+    # - run: git apply ../compat_jsargs.patch
+    #   name: Apply patch for breaking reverse jsargs change
+    #   working-directory: ./v8
 
     - name: Checkout depot_tools repo
       run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -136,8 +136,8 @@ jobs:
 
     - name: Move built libraries to final folder
       run: |
-        mv libv8-release-arm/libs build/release/libs/arm
-        mv libv8-release-arm64/libs/ build/release/libs/arm64
+        mv libv8-release-arm/libs/arm build/release/libs/arm
+        mv libv8-release-arm64/libs/arm64 build/release/libs/arm64
         mv libv8-release-ia32/libs/x86 build/release/libs/x86
         mv libv8-release-x64/libs/x86_64 build/release/libs/x86_64
       
