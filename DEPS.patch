@@ -1,8 +1,17 @@
+From 38170949e83fa3f6953fbcfc6a31482af23b7f3e Mon Sep 17 00:00:00 2001
+From: Gary Mathews <contact@garymathews.com>
+Date: Sat, 24 Apr 2021 11:40:41 -0700
+Subject: [PATCH] DEPS
+
+---
+ DEPS | 46 ----------------------------------------------
+ 1 file changed, 46 deletions(-)
+
 diff --git a/DEPS b/DEPS
-index 3e3fed387d..e5e006eba6 100644
+index e6c2e762e0..ec1b62486f 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -140,52 +140,6 @@ deps = {
+@@ -137,52 +137,6 @@ deps = {
    },
    'base/trace_event/common':
      Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'eb94f1c7aa96207f469008f29989a43feb2718f8',
@@ -53,5 +62,8 @@ index 3e3fed387d..e5e006eba6 100644
 -      'dep_type': 'cipd',
 -  },
    'third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '434681c2378b686117c2b003a58c54d78f22185f',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'd1a3011cd91205aa96b74b5dfc227d391e88108d',
      'condition': 'checkout_android',
+-- 
+2.25.1
+
