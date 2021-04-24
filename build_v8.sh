@@ -139,7 +139,7 @@ buildV8()
 	# Set ccache variables
 	export CCACHE_CPP2=yes
 	export CCACHE_SLOPPINESS=time_macros
-	export PATH=$V8_DIR/third_party/llvm-build/Release+Asserts/bin:$PATH
+	export PATH="$V8_DIR/third_party/llvm-build/Release+Asserts/bin:$PATH"
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
