@@ -1214,15 +1214,6 @@ index 00fcf712d6..b859b5e5cc 100644
  DEFINE_BOOL(harmony_shipping, true, "enable all shipped harmony features")
  DEFINE_IMPLICATION(es_staging, harmony)
  // Enabling FinalizationRegistry#cleanupSome also enables weak refs
-@@ -1564,7 +1564,7 @@ DEFINE_BOOL(minor_mc_parallel_marking, true,
-             "use parallel marking for the young generation")
- DEFINE_BOOL(trace_minor_mc_parallel_marking, false,
-             "trace parallel marking for the young generation")
--DEFINE_BOOL(minor_mc, false, "perform young generation mark compact GCs")
-+DEFINE_BOOL(minor_mc, true, "perform young generation mark compact GCs")
- #else
- DEFINE_BOOL_READONLY(minor_mc, false,
-                      "perform young generation mark compact GCs")
 diff --git a/src/handles/handles.h b/src/handles/handles.h
 index 62f06ce232..961cc6a16c 100644
 --- a/src/handles/handles.h
