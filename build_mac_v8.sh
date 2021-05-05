@@ -21,6 +21,7 @@ echo "Applying patches"
 git apply ../DEPS.patch
 git apply ../compat.patch
 git apply ../compat_jsargs.patch
+git apply ../version.patch
 ln -s $ANDROID_NDK third_party/android_ndk
 echo "Asking gclient to update v8 dependencies"
 ../depot_tools/gclient sync --shallow --no-history --reset --force

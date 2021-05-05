@@ -49,6 +49,10 @@ jobs:
       name: Apply patch for breaking reverse jsargs change
       working-directory: ./v8
 
+    - run: git apply ../version.patch
+      name: Adjust version
+      working-directory: ./v8
+
     - name: Checkout depot_tools repo
       run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
 
