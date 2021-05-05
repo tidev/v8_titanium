@@ -35,8 +35,6 @@ jobs:
     - run: sudo update-alternatives --install /usr/bin/python python /usr/bin/python2 1
       name: set python2 as primary
 
-    - run: python -V
-
     - run: git apply ../DEPS.patch
       name: Apply DEPS patch
       working-directory: ./v8
@@ -47,10 +45,6 @@ jobs:
 
     - run: git apply ../compat_jsargs.patch
       name: Apply patch for breaking reverse jsargs change
-      working-directory: ./v8
-
-    - run: git apply ../version.patch
-      name: Adjust version
       working-directory: ./v8
 
     - name: Checkout depot_tools repo
@@ -77,6 +71,10 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-ccache-${{ matrix.arch }}-
           ${{ runner.os }}-ccache-
+
+    - run: git apply ../version.patch
+      name: Adjust V8 version
+      working-directory: ./v8
 
     - run: ./build_v8.sh -n /usr/local/lib/android/sdk/ndk-bundle -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
       name: Build
@@ -135,7 +133,7 @@ jobs:
     - name: Download all workflow run artifacts
       uses: actions/download-artifact@v2
 
-    - name: list files
+    - name: List files
       run: ls -la
 
     - name: Move built libraries to final folder
