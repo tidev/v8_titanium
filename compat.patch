@@ -547,8 +547,7 @@ index 835178204a..8578f81a8b 100644
  template <class T>
  Global<T>::Global(Global&& other) : PersistentBase<T>(other.val_) {
    if (other.val_ != nullptr) {
-@@ -11363,6 +11477,10 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
-   return Local<Value>(reinterpret_cast<Value*>(values_ + i));
+@@ -11363,5 +11477,9 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
  }
  
 +template<typename T>
