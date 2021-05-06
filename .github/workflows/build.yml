@@ -67,20 +67,20 @@ jobs:
       name: Install GClient Dependencies
       working-directory: ./v8
 
-    - name: Retrieve ccache
-      uses: actions/cache@v2
-      with:
-        path: ${{ env.CCACHE_DIR }}
-        key: ${{ runner.os }}-ccache-${{ matrix.arch }}-${{ github.sha }}
-        restore-keys: |
-          ${{ runner.os }}-ccache-${{ matrix.arch }}-
-          ${{ runner.os }}-ccache-
+    #- name: Retrieve ccache
+    #  uses: actions/cache@v2
+    #  with:
+    #    path: ${{ env.CCACHE_DIR }}
+    #    key: ${{ runner.os }}-ccache-${{ matrix.arch }}-${{ github.sha }}
+    #    restore-keys: |
+    #      ${{ runner.os }}-ccache-${{ matrix.arch }}-
+    #      ${{ runner.os }}-ccache-
 
     - run: ./build_v8.sh -n /usr/local/lib/android/sdk/ndk-bundle -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
       name: Build
 
-    - name: Show summary of ccache configuration and statistics counters
-      run: ccache --show-stats
+    #- name: Show summary of ccache configuration and statistics counters
+    #  run: ccache --show-stats
 
     - name: Archive Build
       uses: actions/upload-artifact@v2
