@@ -1,17 +1,17 @@
 diff --git a/DEPS b/DEPS
-index 3e3fed387d..e5e006eba6 100644
+index d3de2c5ddc..d7aae8b8a6 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -140,52 +140,6 @@ deps = {
+@@ -134,52 +134,6 @@ deps = {
    },
    'base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'eb94f1c7aa96207f469008f29989a43feb2718f8',
+     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + 'd5bb24e5d9802c8c917fcaa4375d5239a586c168',
 -  'third_party/android_ndk': {
--    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '27c0a8d090c666a50e40fceb4ee5b40b1a2d3f87',
+-    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '401019bf85744311b26c88ced255cd53401af8b7',
 -    'condition': 'checkout_android',
 -  },
 -  'third_party/android_platform': {
--    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'ef64306e7772dea22df5f98102e6288da3510843',
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'fdaa5e5b9f6384c3011ca8479d672e47528f743f',
 -    'condition': 'checkout_android',
 -  },
 -  'third_party/android_sdk/public': {
@@ -53,5 +53,5 @@ index 3e3fed387d..e5e006eba6 100644
 -      'dep_type': 'cipd',
 -  },
    'third_party/catapult': {
-     'url': Var('chromium_url') + '/catapult.git' + '@' + '434681c2378b686117c2b003a58c54d78f22185f',
+     'url': Var('chromium_url') + '/catapult.git' + '@' + 'c1e1d559b46476584ec0eb1d83bd7f43fa5a1b36',
      'condition': 'checkout_android',
