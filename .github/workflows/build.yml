@@ -39,9 +39,9 @@ jobs:
       name: Apply compat patch
       working-directory: ./v8
 
-    - run: git apply ../compat_jsargs.patch
-      name: Apply patch for breaking reverse jsargs change
-      working-directory: ./v8
+    #- run: git apply ../compat_jsargs.patch
+    #  name: Apply patch for breaking reverse jsargs change
+    #  working-directory: ./v8
 
     - run: git apply ../version.patch
       name: Adjust V8 version
@@ -97,9 +97,9 @@ jobs:
       name: Apply compat patch
       working-directory: ./v8
 
-    - run: git apply ../compat_jsargs.patch
-      name: Apply patch for breaking reverse jsargs change
-      working-directory: ./v8
+    #- run: git apply ../compat_jsargs.patch
+    #  name: Apply patch for breaking reverse jsargs change
+    #  working-directory: ./v8
 
     - run: git apply ../version.patch
       name: Adjust V8 version
