@@ -63,12 +63,14 @@ config("compiler") {
   if (current_cpu == "arm") {
     abi_target = "arm-linux-androideabi"
     compile_api_level = android32_ndk_api_level
+    cflags += [ "-mno-outline-atomics" ]
   } else if (current_cpu == "x86") {
     abi_target = "i686-linux-android"
     compile_api_level = android32_ndk_api_level
   } else if (current_cpu == "arm64") {
     abi_target = "aarch64-linux-android"
     compile_api_level = android64_ndk_api_level
+    cflags += [ "-mno-outline-atomics" ]
   } else if (current_cpu == "x64") {
     # Place holder for x64 support, not tested.
     # TODO: Enable clang support for Android x64. http://crbug.com/539781
