@@ -7,6 +7,10 @@ import("//build/config/c++/c++.gni")
 import("//build/config/compiler/compiler.gni")
 import("//build/config/sanitizers/sanitizers.gni")
 
+if (current_toolchain == default_toolchain) {
+  import("//build/toolchain/concurrent_links.gni")
+}
+
 assert(is_android)
 
 # This is included by reference in the //build/config/compiler config that
@@ -27,9 +31,6 @@ config("compiler") {
     # Forces full rebuilds on NDK rolls. To rebuild everything when NDK version
     # stays the same, increment the suffix number.
     "ANDROID_NDK_VERSION_ROLL=${android_ndk_version}_1",
-
-    # Force the libc++ stl namespace to be __ndk1 to match NDK expectations!
-    "_LIBCPP_ABI_NAMESPACE=__ndk1",
   ]
 
   if (current_cpu == "mips64el") {
@@ -50,51 +51,27 @@ config("compiler") {
     "-Wl,--exclude-libs=libvpx_assembly_arm.a",
   ]
 
-  # libc++
-  # cflags += [
-  #     "-stdlib=libc++",
-  #     "-isystem" + rebase_path("$android_ndk_root/sources/cxx-stl/llvm-libc++/include", root_build_dir),
-  #     "-isystem" + rebase_path("$android_ndk_root/sources/cxx-stl/llvm-libc++abi/include", root_build_dir)
-  # ]
-  # ldflags += [ "-stdlib=libc++" ]
+  # TODO(crbug.com/1184398): Move to compiler-rt when we are ready.
+  ldflags += [ "--rtlib=libgcc" ]
+  if (current_cpu == "arm64") {
+    # For outline atomics on AArch64 (can't pass this unconditionally
+    # due to unused flag warning on other targets).
+    cflags += [ "-mno-outline-atomics" ]
+    if (arm_control_flow_integrity == "standard") {
+      cflags += [ "-mbranch-protection=standard" ]
+    }
+  }
 
   # $compile_api_level corresponds to the API level used for the sysroot path
   # calculation in //build/config/android/config.gni
-  if (current_cpu == "arm") {
-    abi_target = "arm-linux-androideabi"
-    compile_api_level = android32_ndk_api_level
-    cflags += [ "-mno-outline-atomics" ]
-  } else if (current_cpu == "x86") {
-    abi_target = "i686-linux-android"
-    compile_api_level = android32_ndk_api_level
-  } else if (current_cpu == "arm64") {
-    abi_target = "aarch64-linux-android"
-    compile_api_level = android64_ndk_api_level
-    cflags += [ "-mno-outline-atomics" ]
-  } else if (current_cpu == "x64") {
-    # Place holder for x64 support, not tested.
-    # TODO: Enable clang support for Android x64. http://crbug.com/539781
-    abi_target = "x86_64-linux-android"
-    compile_api_level = android64_ndk_api_level
-  } else if (current_cpu == "mipsel") {
-    abi_target = "mipsel-linux-android"
-    compile_api_level = android32_ndk_api_level
-  } else if (current_cpu == "mips64el") {
-    # Place holder for mips64 support, not tested.
-    abi_target = "mips64el-linux-android"
+  if (android_64bit_target_cpu) {
     compile_api_level = android64_ndk_api_level
   } else {
-    assert(false, "Architecture not supported")
+    compile_api_level = android32_ndk_api_level
   }
-  cflags += [ "--target=$abi_target$compile_api_level" ]
-  ldflags += [ "--target=$abi_target$compile_api_level" ]
 
-  # TODO(crbug.com/771171): Remove this define once code that uses it has been
-  # updated to no longer need it. This is leftover from older Android NDK
-  # versions.
-  if (compile_api_level < 21) {
-    cflags += [ "-DHAVE_PTHREAD_COND_TIMEDWAIT_MONOTONIC=1" ]
-  }
+  cflags += [ "--target=$android_abi_target$compile_api_level" ]
+  ldflags += [ "--target=$android_abi_target$compile_api_level" ]
 
   # Assign any flags set for the C compiler to asmflags so that they are sent
   # to the assembler.
@@ -107,7 +84,8 @@ config("compiler") {
 # :runtime_library vs. :compiler.
 config("runtime_library") {
   # Let the linker find libgcc.a.
-  ldflags = [ "-B" + rebase_path(android_toolchain_root, root_build_dir) ]
+  ldflags = [ "--gcc-toolchain=" +
+              rebase_path(android_toolchain_root, root_build_dir) ]
 
   libs = []
 
@@ -163,6 +141,21 @@ config("default_orderfile_instrumentation") {
       # TODO(pcc): This should not be necessary. Remove once
       # https://reviews.llvm.org/D50016 lands and gets rolled in.
       ldflags = [ "-Wl,-u,__cyg_profile_func_enter_bare" ]
+    }
+  }
+}
+
+if (current_toolchain == default_toolchain) {
+  pool("goma_javac_pool") {
+    # Override action_pool when goma is enabled for javac.
+    depth = 10000
+  }
+
+  # When defined, this pool should be used instead of link_pool for command
+  # that need 1-2GB of RAM. https://crbug.com/1078460
+  if (defined(java_cmd_pool_size)) {
+    pool("java_cmd_pool") {
+      depth = java_cmd_pool_size
     }
   }
 }
