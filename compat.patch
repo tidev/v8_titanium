@@ -654,6 +654,20 @@ index 78c454e334..412214da11 100644
    return Local<Value>(reinterpret_cast<Value*>(result));
  #else
    return SlowGetEmbedderData(index);
+diff --git a/src/api/api-arguments-inl.h b/src/api/api-arguments-inl.h
+index 786f849be6..81f5cd0efb 100644
+--- a/src/api/api-arguments-inl.h
++++ b/src/api/api-arguments-inl.h
+@@ -44,6 +42,9 @@ Handle<V> CustomArguments<T>::GetReturnValue(Isolate* isolate) {
+   // Nothing was set, return empty handle as per previous behaviour.
+   if ((*slot).IsTheHole(isolate)) return Handle<V>();
+   Handle<V> result = Handle<V>::cast(Handle<Object>(slot.location()));
++  if (result->IsUninitialized(isolate)) {
++    return Handle<V>::cast(isolate->factory()->undefined_value());
++  }
+   result->VerifyApiCallResultType();
+   return result;
+ }
 diff --git a/src/api/api.cc b/src/api/api.cc
 index a8af304a53..f01e97f10b 100644
 --- a/src/api/api.cc
