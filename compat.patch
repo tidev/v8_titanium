@@ -610,7 +610,7 @@ index 78c454e334..412214da11 100644
    // know where to find the internal fields and can return the value directly.
    int instance_type = I::GetInstanceType(obj);
 -  if (v8::internal::CanHaveInternalField(instance_type)) {
-+  if (instance_type == I::kJSObjectType || instance_type == I::kJSApiObjectType || instance_type == I::kJSSpecialApiObjectType) {
++  if (instance_type == I::kJSObjectType || instance_type == 0x420 || instance_type == I::kJSSpecialApiObjectType) {
      int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
 -    A value = I::ReadRawField<A>(obj, offset);
 +    O value = I::ReadRawField<O>(obj, offset);
