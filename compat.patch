@@ -600,7 +600,7 @@ index 78c454e334..412214da11 100644
  
  template<typename T>
  Local<Object> FunctionCallbackInfo<T>::This() const {
-@@ -11621,31 +11740,33 @@ Local<Value> Object::GetInternalField(int index) {
+@@ -11621,33 +11740,35 @@ Local<Value> Object::GetInternalField(int index) {
  #ifndef V8_ENABLE_CHECKS
    using A = internal::Address;
    using I = internal::Internals;
