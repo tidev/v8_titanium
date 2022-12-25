@@ -7,7 +7,7 @@ jobs:
       matrix:
 # TODO: make mode matrix of ['release', 'debug']?
         arch: ['arm', 'arm64', 'ia32', 'x64']
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-20.04
     name: ${{ matrix.arch }}
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
