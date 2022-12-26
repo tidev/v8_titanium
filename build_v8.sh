@@ -128,8 +128,10 @@ buildV8()
 		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
 	fi
 	# Force building with libc++ from Android NDK
+	mkdir -p $V8_DIR/build/config/android/
 	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
 	# Copy NDK build config
+	mkdir -p $V8_DIR/third_party/android_ndk/
 	cp -f ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
 
 	# Build V8
