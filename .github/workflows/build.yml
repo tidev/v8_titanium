@@ -33,6 +33,10 @@ jobs:
       name: Apply DEPS patch
       working-directory: ./v8
 
+    - run: git apply ../DEPS_2.patch
+      name: Apply DEPS patch
+      working-directory: ./v8
+
     # Apply compatibility patches
     # NOTE: These also need to be applied in the package step
     - run: git apply ../compat.patch
