@@ -60,7 +60,7 @@ jobs:
       working-directory: ./v8
 
     - name: Checkout depot_tools repo
-      run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  && cd depot_tools && git checkout b0a190348a740cb063eb98ba6eb9d18ccd573ae7
+      run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  && cd depot_tools && git -c advice.detachedHead=false checkout b0a190348a740cb063eb98ba6eb9d18ccd573ae7
 
     - name: Add depot_tools to PATH!
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
