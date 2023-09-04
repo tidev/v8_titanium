@@ -69,7 +69,7 @@ jobs:
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
 
     - name: Link Android NDK
-      run: ln -s /usr/local/lib/android/sdk/ndk-bundle v8/third_party/android_ndk && chmod 777 v8/third_party/android_ndk
+      run: ln -s ${{ steps.setup-ndk.outputs.ndk-path }} v8/third_party/android_ndk && chmod 777 v8/third_party/android_ndk
 
     - run: ../depot_tools/gclient sync --shallow --no-history --reset --force
       name: Install GClient Dependencies
