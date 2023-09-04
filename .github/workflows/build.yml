@@ -17,8 +17,10 @@ jobs:
       with:
         submodules: true
     - uses: nttld/setup-ndk@v1
+      id: setup-ndk
       with:
         ndk-version: r16b
+        add-to-path: true
         
     - run: wget https://github.com/chromium/chromium/raw/master/build/install-build-deps.sh
 
