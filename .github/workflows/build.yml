@@ -6,7 +6,7 @@ jobs:
     strategy:
       matrix:
 # TODO: make mode matrix of ['release', 'debug']?
-        arch: ['arm', 'arm64', 'ia32', 'x64']
+        arch: ['arm64']
     runs-on: ubuntu-20.04
     name: ${{ matrix.arch }}
     env:
@@ -21,6 +21,7 @@ jobs:
       with:
         ndk-version: r16b
         add-to-path: true
+        local-cache: true
         
     - run: wget https://github.com/chromium/chromium/raw/master/build/install-build-deps.sh
 
@@ -70,8 +71,8 @@ jobs:
     - name: Add depot_tools to PATH!
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
 
-    - name: Link Android NDK
-      run: ln -s ${{ steps.setup-ndk.outputs.ndk-path }}/../ v8/third_party/android_ndk && chmod 777 v8/third_party/android_ndk
+    # - name: Link Android NDK
+    #   run: ln -s ${{ steps.setup-ndk.outputs.ndk-path }}/../ v8/third_party/android_ndk && chmod 777 v8/third_party/android_ndk
 
     - run: ../depot_tools/gclient sync --shallow --no-history --reset --force
       name: Install GClient Dependencies
@@ -86,7 +87,7 @@ jobs:
           ${{ runner.os }}-ccache-${{ matrix.arch }}-
           ${{ runner.os }}-ccache-
 
-    - run: ./build_v8.sh -n /usr/local/lib/android/sdk/ndk-bundle -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
+    - run: ./build_v8.sh -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
       name: Build
 
     - name: Show summary of ccache configuration and statistics counters
