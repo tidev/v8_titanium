@@ -6,17 +6,29 @@ jobs:
     strategy:
       matrix:
 # TODO: make mode matrix of ['release', 'debug']?
-        arch: ['arm', 'arm64', 'ia32', 'x64']
-    runs-on: ubuntu-latest
+# arch: ['arm', 'arm64', 'ia32', 'x64']
+        arch: ['arm64']
+    runs-on: ubuntu-20.04
     name: ${{ matrix.arch }}
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       USE_CCACHE: 1
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
+    - uses: nttld/setup-ndk@v1
+      id: setup-ndk
+      with:
+        ndk-version: r16b
+        add-to-path: true
+        local-cache: true
 
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
+      
+    - run: echo "ANDROID_SDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+        
     - run: wget https://github.com/chromium/chromium/raw/master/build/install-build-deps.sh
 
     - run: sudo bash ./install-build-deps.sh --no-syms --lib32 --no-arm --no-chromeos-fonts --no-nacl --no-prompt
@@ -30,6 +42,10 @@ jobs:
       name: set python2 as primary
 
     - run: git apply ../DEPS.patch
+      name: Apply DEPS patch
+      working-directory: ./v8
+
+    - run: git apply ../DEPS_2.patch
       name: Apply DEPS patch
       working-directory: ./v8
 
@@ -56,13 +72,13 @@ jobs:
       working-directory: ./v8
 
     - name: Checkout depot_tools repo
-      run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+      run: git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git  && cd depot_tools && git -c advice.detachedHead=false checkout b0a190348a740cb063eb98ba6eb9d18ccd573ae7
 
     - name: Add depot_tools to PATH!
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
 
-    - name: Link Android NDK
-      run: ln -s /usr/local/lib/android/sdk/ndk-bundle v8/third_party/android_ndk
+    # - name: Link Android NDK
+    #   run: ln -s ${{ steps.setup-ndk.outputs.ndk-path }}/../ v8/third_party/android_ndk && chmod 777 v8/third_party/android_ndk
 
     - run: ../depot_tools/gclient sync --shallow --no-history --reset --force
       name: Install GClient Dependencies
@@ -77,7 +93,7 @@ jobs:
           ${{ runner.os }}-ccache-${{ matrix.arch }}-
           ${{ runner.os }}-ccache-
 
-    - run: ./build_v8.sh -n /usr/local/lib/android/sdk/ndk-bundle -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
+    - run: ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith
       name: Build
 
     - name: Show summary of ccache configuration and statistics counters
@@ -96,7 +112,7 @@ jobs:
     name: Package
     needs: build
     steps:
-    - uses: actions/checkout@v2
+    - uses: actions/checkout@v3
       with:
         submodules: true
 

@@ -1,0 +1,11 @@
+--- v8/DEPS	2022-12-25 19:07:18.396683888 +0100
++++ v8/DEPS_new	2022-12-26 15:57:09.847886843 +0100
+@@ -279,7 +279,7 @@
+       'dep_type': 'cipd',
+   },
+   'third_party/requests': {
+-      'url': Var('chromium_url') + '/external/github.com/kennethreitz/requests.git' + '@' + '2c2138e811487b13020eb331482fb991fd399d4e',
++      'url': Var('chromium_url') + '/external/github.com/kennethreitz/requests.git' + '@' + 'refs/tags/v2.23.0',
+       'condition': 'checkout_android',
+   },
+   'third_party/zlib':

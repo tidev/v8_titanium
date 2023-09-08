@@ -609,7 +609,8 @@ index 78c454e334..412214da11 100644
    // Fast path: If the object is a plain JSObject, which is the common case, we
    // know where to find the internal fields and can return the value directly.
    int instance_type = I::GetInstanceType(obj);
-   if (v8::internal::CanHaveInternalField(instance_type)) {
+-  if (v8::internal::CanHaveInternalField(instance_type)) {
++  if (instance_type == I::kJSObjectType || instance_type == 0x420 || instance_type == I::kJSSpecialApiObjectType) {
      int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
 -    A value = I::ReadRawField<A>(obj, offset);
 +    O value = I::ReadRawField<O>(obj, offset);
@@ -627,6 +628,15 @@ index 78c454e334..412214da11 100644
      return Local<Value>(reinterpret_cast<Value*>(result));
    }
  #endif
+@@ -11651,7 +11772,7 @@ void* Object::GetAlignedPointerFromInternalField(int index) {
+   // Fast path: If the object is a plain JSObject, which is the common case, we
+   // know where to find the internal fields and can return the value directly.
+   auto instance_type = I::GetInstanceType(obj);
+-  if (v8::internal::CanHaveInternalField(instance_type)) {
++  if (instance_type == I::kJSObjectType || instance_type == 0x420 || instance_type == I::kJSSpecialApiObjectType) {
+     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
+ #ifdef V8_HEAP_SANDBOX
+     offset += I::kEmbedderDataSlotRawPayloadOffset;
 @@ -12262,21 +12383,23 @@ Local<Value> Context::GetEmbedderData(int index) {
  #ifndef V8_ENABLE_CHECKS
    using A = internal::Address;
