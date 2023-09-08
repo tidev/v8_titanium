@@ -26,8 +26,7 @@ jobs:
 
     - name: Setup Android SDK
       uses: android-actions/setup-android@v2
-      env:
-        ANDROID_SDK: /root/.android/sdk
+      run: export ANDROID_SDK=/root/.android/sdk
         
     - run: wget https://github.com/chromium/chromium/raw/master/build/install-build-deps.sh
 
