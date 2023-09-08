@@ -6,6 +6,7 @@ jobs:
     strategy:
       matrix:
 # TODO: make mode matrix of ['release', 'debug']?
+# arch: ['arm', 'arm64', 'ia32', 'x64']
         arch: ['arm64']
     runs-on: ubuntu-20.04
     name: ${{ matrix.arch }}
@@ -22,6 +23,9 @@ jobs:
         ndk-version: r16b
         add-to-path: true
         local-cache: true
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v2
         
     - run: wget https://github.com/chromium/chromium/raw/master/build/install-build-deps.sh
 
@@ -87,7 +91,7 @@ jobs:
           ${{ runner.os }}-ccache-${{ matrix.arch }}-
           ${{ runner.os }}-ccache-
 
-    - run: ./build_v8.sh -s /usr/local/lib/android/sdk -l ${{ matrix.arch }} -m release -x v8_monolith
+    - run: ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith
       name: Build
 
     - name: Show summary of ccache configuration and statistics counters
