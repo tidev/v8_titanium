@@ -163,7 +163,7 @@ is_component_build = false
 is_official_build = true
 use_goma = false
 target_os = "android"
-target_cpu = "$ARCH"
+target_cpu = "$GN_ARCH"
 v8_enable_pointer_compression = false
 v8_enable_minor_mc = false
 v8_use_external_startup_data = false
@@ -288,31 +288,37 @@ if [ "$THIRDPARTY" = "0" ]; then
 		case $build_lib_version in
 			arm)
 				ARCH=arm
+				GN_ARCH=arm
 				BUILDER_NAME="V8 Android Arm - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			ia32)
 				ARCH=x86
+				GN_ARCH=x86
 				BUILDER_NAME="V8 Win32 - builder"
 				BUILDER_GROUP="client.v8"
 				;;
 			mipsel)
 				ARCH=mips
+				GN_ARCH=mips
 				BUILDER_NAME="V8 Mips - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			arm64)
 				ARCH=arm64
+				GN_ARCH=arm64
 				BUILDER_NAME="V8 Android Arm64 - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			x64)
 				ARCH=x86_64
+				GN_ARCH=x64
 				BUILDER_NAME="V8 Win64"
 				BUILDER_GROUP="client.v8"
 				;;
 			x87)
 				ARCH=x86
+				GN_ARCH=x86
 				;;
 			*)
 				echo "Invalid -l"
