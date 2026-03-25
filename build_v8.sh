@@ -210,10 +210,8 @@ EOF
 	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" "$DEST_DIR/include/cppgc" 2>/dev/null
 	find "$V8_DIR/include" -maxdepth 1 -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
 	find "$V8_DIR/include/libplatform" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/libplatform" ';'
-	find "$V8_DIR/include/cppgc" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/cppgc" ';'
-
-	cd "$DEST_DIR"
-	rm -f include/atomic-entry-flag.h include/caged-heap-local-data.h include/compiler-specific.h include/finalizer-trait.h include/gc-info.h include/logging.h include/persistent-node.h include/pointer-policies.h include/prefinalizer-handler.h include/write-barrier.h include/api-constants.h 2>/dev/null
+	find "$V8_DIR/include/cppgc" -maxdepth 1 -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/cppgc" ';'
+	cp -r "$V8_DIR/include/cppgc/internal" "$DEST_DIR/include/cppgc/"
 
 	cd "$DEST_DIR"
 	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
