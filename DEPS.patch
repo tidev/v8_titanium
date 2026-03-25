@@ -1,12 +1,66 @@
 diff --git a/DEPS b/DEPS
-index 439f45c..372d78e 100644
+index 439f45ca58..5ad605c82a 100644
 --- a/DEPS
 +++ b/DEPS
-@@ -88,6 +88,7 @@ vars = {
-   'android_sdk_cmdline-tools_version': 'ZT3JmI6GMG4YVcZ1OtECRVMOLLJAWAdPbi-OclubJLMC',
- }
- 
-+# Note: android_ndk, android_platform, and android_sdk entries removed upstream
- deps = {
-   'base/trace_event/common':
-     Var('chromium_url') + '/chromium/src/base/trace_event/common.git' + '@' + '3da1e2fcf66acd5c7194497b4285ac163f32e239',
+@@ -171,56 +171,6 @@ deps = {
+       'condition': 'host_os == "mac" and checkout_fuchsia',
+       'dep_type': 'cipd',
+   },
+-  'third_party/android_ndk': {
+-    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '401019bf85744311b26c88ced255cd53401af8b7',
+-    'condition': 'checkout_android',
+-  },
+-  'third_party/android_platform': {
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'e98c753917587d320f4e7a24f1c7474535adac3f',
+-    'condition': 'checkout_android',
+-  },
+-  'third_party/android_sdk/public': {
+-      'packages': [
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/build-tools/31.0.0',
+-              'version': Var('android_sdk_build-tools_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/emulator',
+-              'version': Var('android_sdk_emulator_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/extras',
+-              'version': Var('android_sdk_extras_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/patcher',
+-              'version': Var('android_sdk_patcher_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/platform-tools',
+-              'version': Var('android_sdk_platform-tools_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/platforms/android-31',
+-              'version': Var('android_sdk_platforms_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/sources/android-30',
+-              'version': Var('android_sdk_sources_version'),
+-          },
+-          {
+-              'package': 'chromium/third_party/android_sdk/public/cmdline-tools',
+-              'version': Var('android_sdk_cmdline-tools_version'),
+-          },
+-      ],
+-      'condition': 'checkout_android',
+-      'dep_type': 'cipd',
+-  },
+-  'third_party/catapult': {
+-    'url': Var('chromium_url') + '/catapult.git' + '@' + 'abc7ba7d871fe3c25b0a1bec7fc84fb309034cb7',
+-    'condition': 'checkout_android',
+-  },
+   'third_party/colorama/src': {
+     'url': Var('chromium_url') + '/external/colorama.git' + '@' + '799604a1041e9b3bc5d2789ecbd7e8db2e18e6b8',
+     'condition': 'checkout_android',
+@@ -594,3 +544,4 @@ hooks = [
+     ],
+   },
+ ]
++# Note: android_ndk, android_platform, and android_sdk entries removed upstream (not needed for V8 build)

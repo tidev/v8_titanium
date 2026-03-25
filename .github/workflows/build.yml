@@ -45,9 +45,6 @@ jobs:
       run: patch -p1 < ../DEPS.patch
       working-directory: ./v8
     - name: Apply patches
-      run: patch -p1 < ../DEPS_2.patch
-      working-directory: ./v8
-    - name: Apply patches
       run: patch -p1 < ../compat.patch
       working-directory: ./v8
     - name: Apply patches
@@ -127,7 +124,6 @@ jobs:
       run: |
         cd v8
         patch -p1 < ../DEPS.patch
-        patch -p1 < ../DEPS_2.patch
         patch -p1 < ../compat.patch
         patch -p1 < ../compat_sparkplug.patch
         patch -p1 < ../version.patch
