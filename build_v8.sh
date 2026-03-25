@@ -129,17 +129,16 @@ buildV8()
 	fi
 	# Force building with libc++ from Android NDK
 	cp -fvv ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	# Copy NDK build config
+	# Copy NDK build config and sources
 	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
+	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
+		mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
+		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false cc_wrapper=\"ccache\"
-
-	# Set ccache variables
-	export CCACHE_CPP2=yes
-	export CCACHE_SLOPPINESS=time_macros
-	export PATH="$V8_DIR/third_party/llvm-build/Release+Asserts/bin:$PATH"
+	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
@@ -208,9 +207,13 @@ cat <<EOF > "$DEST_DIR/libv8.json"
 }
 EOF
 
-	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" 2>/dev/null
-	find "$V8_DIR/include" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
+	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" "$DEST_DIR/include/cppgc" 2>/dev/null
+	find "$V8_DIR/include" -maxdepth 1 -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
 	find "$V8_DIR/include/libplatform" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/libplatform" ';'
+	find "$V8_DIR/include/cppgc" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/cppgc" ';'
+
+	cd "$DEST_DIR"
+	rm -f include/atomic-entry-flag.h include/caged-heap-local-data.h include/compiler-specific.h include/finalizer-trait.h include/gc-info.h include/logging.h include/persistent-node.h include/pointer-policies.h include/prefinalizer-handler.h include/write-barrier.h include/api-constants.h 2>/dev/null
 
 	cd "$DEST_DIR"
 	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
