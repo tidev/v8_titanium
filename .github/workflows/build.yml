@@ -98,7 +98,16 @@ jobs:
       working-directory: ./v8
       env:
         VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
-      run: ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks
+      run: |
+        ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks
+        
+        # Verify gclient sync completed
+        if [ ! -f "infra/mb/mb_config.pyl" ]; then
+          echo "ERROR: gclient sync did not complete successfully - mb_config.pyl not found"
+          ls -la infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
+          exit 1
+        fi
+        echo "gclient sync completed successfully"
 
     - name: Fix Python 3.10+ compat in gclient-synced files
       working-directory: ./v8
@@ -120,7 +129,26 @@ jobs:
           ${{ runner.os }}-ccache-
 
     - name: Build
-      run: ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith
+      run: |
+        cd v8
+        
+        # Verify necessary files exist before building
+        if [ ! -f "infra/mb/mb_config.pyl" ]; then
+          echo "ERROR: infra/mb/mb_config.pyl not found. gclient sync may have failed."
+          ls -la infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
+          exit 1
+        fi
+        
+        if [ ! -d "third_party/android_ndk" ]; then
+          echo "ERROR: third_party/android_ndk not linked"
+          exit 1
+        fi
+        
+        echo "=== Listing available builders ==="
+        python tools/mb/mb.py list -f infra/mb/mb_config.pyl 2>&1 | head -50
+        
+        echo "Starting build..."
+        ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith 2>&1
 
     - name: Show ccache stats
       run: ccache --show-stats
