@@ -1,0 +1,180 @@
+name: Build
+on: [push, pull_request, workflow_dispatch]
+
+jobs:
+  build:
+    strategy:
+      matrix:
+        arch: ['arm64', 'x64']
+    runs-on: ubuntu-latest
+    name: ${{ matrix.arch }}
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      USE_CCACHE: 1
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+
+    - name: Install httplib2
+      run: pip install 'httplib2==0.18.1'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - run: echo "ANDROID_SDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ccache ninja-build patch
+
+    - name: Download Android NDK r25c
+      run: |
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+        unzip -q android-ndk-r25c-linux.zip
+        echo "ANDROID_NDK=/tmp/android-ndk-r25c" >> $GITHUB_ENV
+
+    - name: Apply patches
+      run: |
+        cd v8
+        git apply ../DEPS.patch
+        git apply ../DEPS_2.patch
+        git apply ../compat.patch
+        git apply ../compat_sparkplug.patch
+        git apply ../version.patch
+        git apply ../python3_fixes.patch
+        # These patches need patch command for line-offset fuzz tolerance
+        patch -p1 < ../compat_jsargs.patch
+        patch -p1 < ../compat_adaptor.patch
+
+    - name: Checkout depot_tools repo
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+        cd depot_tools
+        ln -sf vpython3 vpython
+        ln -sf .cipd_bin/vpython3 .cipd_bin/vpython
+
+    - name: Add depot_tools to PATH
+      run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
+
+    - name: Install GClient Dependencies
+      working-directory: ./v8
+      env:
+        VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
+      run: ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks
+
+    - name: Fix Python 3.10+ compat in gclient-synced files
+      working-directory: ./v8
+      run: |
+        sed -i 's/from collections import Mapping/from collections.abc import Mapping/g' third_party/jinja2/runtime.py third_party/jinja2/tests.py third_party/jinja2/sandbox.py
+        sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/g' third_party/jinja2/utils.py third_party/jinja2/sandbox.py
+        sed -i 's/from collections import MutableSet, MutableMapping, MutableSequence/from collections.abc import MutableSet, MutableMapping, MutableSequence/g' third_party/jinja2/sandbox.py
+
+    - name: Link Android NDK
+      run: ln -sf ${{ env.ANDROID_NDK }} v8/third_party/android_ndk
+
+    - name: Retrieve ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.CCACHE_DIR }}
+        key: ${{ runner.os }}-ccache-${{ matrix.arch }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ matrix.arch }}-
+          ${{ runner.os }}-ccache-
+
+    - name: Build
+      run: ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith
+
+    - name: Show ccache stats
+      run: ccache --show-stats
+
+    - name: Archive Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: libv8-release-${{ matrix.arch }}
+        path: |
+          build/release/**
+
+  package:
+    runs-on: ubuntu-latest
+    name: Package
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Apply patches (for headers)
+      run: |
+        cd v8
+        git apply ../DEPS.patch
+        git apply ../DEPS_2.patch
+        git apply ../compat.patch
+        git apply ../compat_sparkplug.patch
+        git apply ../version.patch
+        git apply ../python3_fixes.patch
+        patch -p1 < ../compat_jsargs.patch
+        patch -p1 < ../compat_adaptor.patch
+
+    - run: mkdir -p 'build/release/libs' 'build/release/include' 2>/dev/null
+    - run: cp -R 'v8/include' 'build/release'
+
+    - name: Get branch name (merge)
+      if: github.event_name != 'pull_request'
+      shell: bash
+      run: echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/} | tr / -)" >> $GITHUB_ENV
+
+    - name: Get branch name (pull request)
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: echo "BRANCH_NAME=$(echo ${GITHUB_HEAD_REF} | tr / -)" >> $GITHUB_ENV
+
+    - name: Create libv8.json
+      run: |
+        gitRevision=$(git ls-tree HEAD -- v8 | cut -c15-54)
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        MAJOR=$(grep "#define V8_MAJOR_VERSION" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        MINOR=$(grep "#define V8_MINOR_VERSION" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        BUILD=$(grep "#define V8_BUILD_NUMBER" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        PATCH=$(grep "#define V8_PATCH_LEVEL" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        v8Version="$MAJOR.$MINOR.$BUILD.$PATCH"
+        echo "v8Version=$v8Version" >> $GITHUB_ENV
+        echo "{
+          \"version\": \"$v8Version\",
+          \"git_revision\": \"$gitRevision\",
+          \"git_branch\": \"${{ env.BRANCH_NAME }}\",
+          \"svn_revision\": \"\",
+          \"timestamp\": \"$timestamp\"
+        }" >> build/release/libv8.json
+
+    - name: Download all workflow run artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Move built libraries to final folder
+      run: |
+        mv libv8-release-arm64/libs/arm64 build/release/libs/arm64
+        mv libv8-release-x64/libs/x86_64 build/release/libs/x86_64
+
+    - name: Building tarball
+      run: tar -cvj -f libv8-${{ env.v8Version }}-release.tar.bz2 libv8.json libs include
+      working-directory: ./build/release
+
+    - name: Archive Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: libv8-${{ env.v8Version }}-release
+        path: |
+          build/release/libv8-*-release.tar.bz2
+
+    - uses: geekyeggo/delete-artifact@v5
+      with:
+        name: |
+          libv8-release-arm64
+          libv8-release-x64

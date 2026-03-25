@@ -22,18 +22,19 @@ Options:
 	-l <lib-version>  Architectures to build for (arm, x64, ia32, arm64, mipsel, x87, all. default: arm)
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-c                Clean the V8 build
-	-p <api-level>		The Android SDK version to support (android-8, android-9, etc.)
+	-p <api-level>    The Android SDK version to support (android-8, android-9, etc. default: android-23)
+	-x <target>       Target to build (v8_snapshot || v8_monolith. default: v8_monolith)
 EOF
 }
 
-NUM_CPUS=1
+# NUM_CPUS=0
 MODE=release
 LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
-PLATFORM_VERSION=android-23
+PLATFORM_VERSION=android-29
 
-while getopts "hts:cn:j:m:l:p:" OPTION; do
+while getopts "hts:cn:j:m:l:p:x:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -62,6 +63,9 @@ while getopts "hts:cn:j:m:l:p:" OPTION; do
 			;;
 		p)
 			PLATFORM_VERSION=$OPTARG
+			;;
+		x)
+			TARGET=$OPTARG
 			;;
 		?)
 			usage
@@ -92,6 +96,11 @@ if [ "$SDK_DIR" = "" ]; then
 fi
 echo "Building against Android SDK: $SDK_DIR"
 
+# build target
+if [ "$TARGET" = "" ]; then
+	TARGET=v8_monolith
+fi
+
 THIS_DIR=$(cd "$(dirname "$0")"; pwd)
 BUILD_DIR=$THIS_DIR/build
 
@@ -101,6 +110,8 @@ fi
 
 V8_DIR=$THIS_DIR/v8
 
+OS=$(uname)
+
 buildV8()
 {
 	BUILD_MODE=$1
@@ -108,23 +119,40 @@ buildV8()
 	BUILDER_NAME=$3
 	BUILDER_GROUP=$4
 
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
+	echo "Building $TARGET - mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
 
+	# Hack one of the toolchain items to fix AR executable used for android
+	if [ "$OS" = "Darwin" ]; then
+		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
+	fi
+	# Force building with libc++ from Android NDK
+	cp -fvv ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
+	# Copy NDK build config
+	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
+
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=true v8_enable_embedded_builtins=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=19 android_ndk_version=\"r19c\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
-	# Hack one of the toolchain items to fix AR executable used for android
-	cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
-	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
-	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
+	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false cc_wrapper=\"ccache\"
+
+	# Set ccache variables
+	export CCACHE_CPP2=yes
+	export CCACHE_SLOPPINESS=time_macros
+	export PATH="$V8_DIR/third_party/llvm-build/Release+Asserts/bin:$PATH"
+	# Build using ninja
+	if [ ! -z "$NUM_CPUS" ]; then
+		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
+	else
+		ninja -v -C out.gn/$MAKE_TARGET $TARGET
+	fi
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	if [ "$TARGET" = "v8_monolith" ]; then
+		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	fi
 
 	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
 	if [ -f $MKSNAPSHOT_X86 ]; then
@@ -141,6 +169,12 @@ buildV8()
 	MKSNAPSHOT_ARM64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64_v8_arm64/mksnapshot"
 	if [ -f $MKSNAPSHOT_ARM64 ]; then
 		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+
+	# Copy embedded blob.
+	EMBEDDED="$V8_DIR/out.gn/$MAKE_TARGET/gen/embedded.S"
+	if [ -f $EMBEDDED ]; then
+		cp $EMBEDDED "$DEST_DIR/libs/$ARCH/embedded.S"
 	fi
 }
 

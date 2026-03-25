@@ -1,3 +1,5 @@
 /build/
 depot_tools/
 .DS_Store
+.cipd/
+.vscode/
