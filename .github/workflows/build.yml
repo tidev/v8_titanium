@@ -42,16 +42,29 @@ jobs:
         echo "ANDROID_NDK=/tmp/android-ndk-r25c" >> $GITHUB_ENV
 
     - name: Apply patches
-      run: |
-        cd v8
-        patch -p1 < ../DEPS.patch
-        patch -p1 < ../DEPS_2.patch
-        patch -p1 < ../compat.patch
-        patch -p1 < ../compat_sparkplug.patch
-        patch -p1 < ../version.patch
-        patch -p1 < ../python3_fixes.patch
-        patch -p1 < ../compat_jsargs.patch
-        patch -p1 < ../compat_adaptor.patch
+      run: git apply ../DEPS.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../DEPS_2.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../compat.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../compat_sparkplug.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../version.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../python3_fixes.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../compat_jsargs.patch
+      working-directory: ./v8
+    - name: Apply patches
+      run: git apply ../compat_adaptor.patch
+      working-directory: ./v8
 
     - name: Checkout depot_tools repo
       run: |
