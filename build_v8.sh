@@ -129,10 +129,10 @@ buildV8()
 	fi
 	# Force building with libc++ from Android NDK
 	cp -fvv ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	# Copy NDK build config and sources
+	# Create NDK build config directory and copy files
+	mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
 	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
 	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
-		mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
 

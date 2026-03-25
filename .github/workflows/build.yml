@@ -118,8 +118,7 @@ jobs:
         sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/g' third_party/jinja2/utils.py third_party/jinja2/sandbox.py
         sed -i 's/from collections import MutableSet, MutableMapping, MutableSequence/from collections.abc import MutableSet, MutableMapping, MutableSequence/g' third_party/jinja2/sandbox.py
 
-    - name: Link Android NDK
-      run: ln -sf ${{ env.ANDROID_NDK }} v8/third_party/android_ndk
+    # Note: Don't create symlink here - build_v8.sh handles NDK setup
 
     - name: Retrieve ccache
       uses: actions/cache@v4
@@ -141,27 +140,15 @@ jobs:
           exit 1
         fi
         
-        if [ ! -d "third_party/android_ndk" ]; then
-          echo "ERROR: third_party/android_ndk not linked"
-          exit 1
-        fi
-        
         # Show some info about the environment
         echo "=== Environment ==="
         echo "ANDROID_NDK: $ANDROID_NDK"
         echo "ANDROID_SDK: $ANDROID_SDK"
         
-        echo "=== Testing mb.py directly (capture full error) ==="
-        python -u tools/mb/mb.py gen -f infra/mb/mb_config.pyl -m client.v8.ports -b "V8 Android Arm64 - builder" out.gn/android_arm64.release 2>&1 | tee /tmp/mb_output.txt
-        MB_EXIT=$?
-        if [ $MB_EXIT -ne 0 ]; then
-          echo "mb.py failed with exit code $MB_EXIT"
-          cat /tmp/mb_output.txt
-          exit 1
-        fi
-        
         echo "Starting build from parent directory..."
         cd ..
+        export ANDROID_NDK=/tmp/android-ndk-r25c
+        export ANDROID_SDK=/usr/local/lib/android/sdk
         ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith 2>&1
 
     - name: Show ccache stats
