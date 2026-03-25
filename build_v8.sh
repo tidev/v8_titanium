@@ -122,6 +122,14 @@ buildV8()
 	echo "Building $TARGET - mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
+	
+	# Debug info
+	echo "=== Build Configuration ==="
+	echo "MAKE_TARGET: $MAKE_TARGET"
+	echo "ARCH: $ARCH"
+	echo "NDK_DIR: $NDK_DIR"
+	echo "SDK_DIR: $SDK_DIR"
+	echo "TARGET: $TARGET"
 
 	# Hack one of the toolchain items to fix AR executable used for android
 	if [ "$OS" = "Darwin" ]; then
@@ -136,10 +144,18 @@ buildV8()
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
 
+	# Verify NDK files exist
+	echo "=== Verifying NDK setup ==="
+	echo "Checking: $V8_DIR/third_party/android_ndk/BUILD.gn"
+	ls -la "$V8_DIR/third_party/android_ndk/BUILD.gn" || echo "ERROR: BUILD.gn not found!"
+	echo "Checking: $V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c"
+	ls -la "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" || echo "ERROR: cpu-features.c not found!"
+
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
 	
 	# Generate args.gn manually to avoid mb.py issues
+	echo "=== Generating args.gn ==="
 	mkdir -p out.gn/$MAKE_TARGET
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
 is_debug = false
@@ -159,9 +175,20 @@ v8_android_log_stdout = false
 android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
 EOF
+	cat out.gn/$MAKE_TARGET/args.gn
 	
 	# Run gn gen
-	buildtools/linux64/gn gen out.gn/$MAKE_TARGET
+	echo "=== Running gn gen ==="
+	buildtools/linux64/gn gen out.gn/$MAKE_TARGET 2>&1 || { echo "ERROR: gn gen failed!"; cat out.gn/$MAKE_TARGET/args.gn; exit 1; }
+	
+	# Verify build.ninja was created
+	if [ -f "out.gn/$MAKE_TARGET/build.ninja" ]; then
+		echo "=== build.ninja created successfully ==="
+	else
+		echo "ERROR: build.ninja was NOT created!"
+		exit 1
+	fi
+	
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET

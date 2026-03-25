@@ -99,17 +99,7 @@ jobs:
       env:
         VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
       run: |
-        # Try to sync - might fail on some optional deps but should get main files
         ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks || true
-        
-        # Verify gclient sync completed - check for main required files
-        if [ ! -f "infra/mb/mb_config.pyl" ]; then
-          echo "WARNING: infra/mb/mb_config.pyl not found, checking what was synced..."
-          ls -la infra/ 2>/dev/null || echo "infra/ directory does not exist"
-          ls -la build/ 2>/dev/null || echo "build/ directory does not exist"
-        else
-          echo "gclient sync completed - mb_config.pyl found"
-        fi
 
     - name: Fix Python 3.10+ compat in gclient-synced files
       working-directory: ./v8
@@ -131,12 +121,10 @@ jobs:
 
     - name: Build
       run: |
-        cd v8
-        
         # Verify necessary files exist before building
-        if [ ! -f "infra/mb/mb_config.pyl" ]; then
+        if [ ! -f "v8/infra/mb/mb_config.pyl" ]; then
           echo "ERROR: infra/mb/mb_config.pyl not found. gclient sync may have failed."
-          ls -la infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
+          ls -la v8/infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
           exit 1
         fi
         
@@ -145,24 +133,7 @@ jobs:
         echo "ANDROID_NDK: $ANDROID_NDK"
         echo "ANDROID_SDK: $ANDROID_SDK"
         
-        # Check the NDK files we copied
-        echo "=== NDK BUILD.gn contents ==="
-        cat third_party/android_ndk/BUILD.gn
-        
-        # Run gn gen directly with verbose output to see full error
-        echo "=== Running gn directly ==="
-        buildtools/linux64/gn gen out.gn/android_arm64.release --check 2>&1 || echo "GN gen failed"
-        
-        # Check if build.ninja was created
-        if [ -f "out.gn/android_arm64.release/build.ninja" ]; then
-          echo "build.ninja was created successfully"
-        else
-          echo "build.ninja was NOT created - checking args.gn"
-          cat out.gn/android_arm64.release/args.gn 2>/dev/null || echo "No args.gn found"
-        fi
-        
-        echo "Starting build from parent directory..."
-        cd ..
+        # Run the build script from the repo root
         export ANDROID_NDK=/tmp/android-ndk-r25c
         export ANDROID_SDK=/usr/local/lib/android/sdk
         ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith 2>&1
