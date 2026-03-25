@@ -1,6 +1,8 @@
---- v8/DEPS	2022-12-25 19:07:18.396683888 +0100
-+++ v8/DEPS_new	2022-12-26 15:57:09.847886843 +0100
-@@ -279,7 +279,7 @@
+diff --git a/DEPS b/DEPS
+index 439f45c..42f94c2 100644
+--- a/DEPS
++++ b/DEPS
+@@ -279,7 +279,7 @@ deps = {
        'dep_type': 'cipd',
    },
    'third_party/requests': {
