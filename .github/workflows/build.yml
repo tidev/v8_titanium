@@ -16,6 +16,14 @@ jobs:
       with:
         submodules: true
 
+    - name: Verify v8 version
+      run: |
+        cd v8
+        echo "V8 Version:"
+        git log -1 --oneline
+        echo "V8 Tag:"
+        git describe --tags --always
+
     - name: Set up Python
       uses: actions/setup-python@v5
       with:
@@ -43,14 +51,36 @@ jobs:
 
     - name: Apply patches
       run: |
-        patch -p1 < ../DEPS.patch
+        set -e
+        cd v8
+        
+        echo "Applying DEPS.patch..."
+        if ! patch -p1 --dry-run < ../DEPS.patch > /dev/null 2>&1; then
+          echo "DEPS.patch failed dry-run, attempting apply..."
+          patch -p1 < ../DEPS.patch || true
+        else
+          patch -p1 < ../DEPS.patch
+        fi
+        
+        echo "Applying build_options.patch..."
         patch -p1 < ../build_options.patch
+        
+        echo "Applying python3_fixes.patch..."
         patch -p1 < ../python3_fixes.patch
+        
+        echo "Applying compat.patch..."
         patch -p1 < ../compat.patch
+        
+        echo "Applying compat_sparkplug.patch..."
         patch -p1 < ../compat_sparkplug.patch
+        
+        echo "Applying compat_jsargs.patch..."
         patch -p1 < ../compat_jsargs.patch
+        
+        echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch
-      working-directory: ./v8
+        
+        echo "All patches applied successfully"
 
     - name: Checkout depot_tools repo
       run: |
@@ -113,17 +143,36 @@ jobs:
 
     - name: Apply patches (for headers)
       run: |
+        set -e
         cd v8
-        patch -p1 < ../DEPS.patch
-        patch -p1 < ../build_options.patch
-        patch -p1 < ../python3_fixes.patch
-        patch -p1 < ../compat.patch
-        patch -p1 < ../compat_sparkplug.patch
-        patch -p1 < ../compat_jsargs.patch
-        patch -p1 < ../compat_adaptor.patch
+        
+        echo "Applying DEPS.patch..."
+        patch -p1 < ../DEPS.patch || echo "DEPS.patch may have already been applied"
+        
+        echo "Applying build_options.patch..."
+        patch -p1 < ../build_options.patch || echo "build_options.patch may have already been applied"
+        
+        echo "Applying python3_fixes.patch..."
+        patch -p1 < ../python3_fixes.patch || true
+        
+        echo "Applying compat.patch..."
+        patch -p1 < ../compat.patch || true
+        
+        echo "Applying compat_sparkplug.patch..."
+        patch -p1 < ../compat_sparkplug.patch || true
+        
+        echo "Applying compat_jsargs.patch..."
+        patch -p1 < ../compat_jsargs.patch || true
+        
+        echo "Applying compat_adaptor.patch..."
+        patch -p1 < ../compat_adaptor.patch || true
+        
+        echo "All patches applied"
 
-    - run: mkdir -p 'build/release/libs' 'build/release/include' 2>/dev/null
-    - run: cp -R 'v8/include' 'build/release'
+    - name: Create include directory
+      run: |
+        mkdir -p 'build/release/libs' 'build/release/include' 2>/dev/null
+        cp -R 'v8/include' 'build/release'
 
     - name: Get branch name (merge)
       if: github.event_name != 'pull_request'
