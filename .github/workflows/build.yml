@@ -42,25 +42,14 @@ jobs:
         echo "ANDROID_NDK=/tmp/android-ndk-r25c" >> $GITHUB_ENV
 
     - name: Apply patches
-      run: patch -p1 < ../DEPS.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../compat.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../compat_sparkplug.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../version.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../python3_fixes.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../compat_jsargs.patch
-      working-directory: ./v8
-    - name: Apply patches
-      run: patch -p1 < ../compat_adaptor.patch
+      run: |
+        patch -p1 < ../DEPS.patch
+        patch -p1 < ../build_options.patch
+        patch -p1 < ../python3_fixes.patch
+        patch -p1 < ../compat.patch
+        patch -p1 < ../compat_sparkplug.patch
+        patch -p1 < ../compat_jsargs.patch
+        patch -p1 < ../compat_adaptor.patch
       working-directory: ./v8
 
     - name: Checkout depot_tools repo
@@ -126,10 +115,10 @@ jobs:
       run: |
         cd v8
         patch -p1 < ../DEPS.patch
+        patch -p1 < ../build_options.patch
+        patch -p1 < ../python3_fixes.patch
         patch -p1 < ../compat.patch
         patch -p1 < ../compat_sparkplug.patch
-        patch -p1 < ../version.patch
-        patch -p1 < ../python3_fixes.patch
         patch -p1 < ../compat_jsargs.patch
         patch -p1 < ../compat_adaptor.patch
 

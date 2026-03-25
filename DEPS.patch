@@ -3,9 +3,9 @@ index 439f45ca58..5ad605c82a 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -171,56 +171,6 @@ deps = {
-       'condition': 'host_os == "mac" and checkout_fuchsia',
-       'dep_type': 'cipd',
-   },
+        'condition': 'host_os == "mac" and checkout_fuchsia',
+        'dep_type': 'cipd',
+    },
 -  'third_party/android_ndk': {
 -    'url': Var('chromium_url') + '/android_ndk.git' + '@' + '401019bf85744311b26c88ced255cd53401af8b7',
 -    'condition': 'checkout_android',
@@ -56,11 +56,20 @@ index 439f45ca58..5ad605c82a 100644
 -    'url': Var('chromium_url') + '/catapult.git' + '@' + 'abc7ba7d871fe3c25b0a1bec7fc84fb309034cb7',
 -    'condition': 'checkout_android',
 -  },
-   'third_party/colorama/src': {
-     'url': Var('chromium_url') + '/external/colorama.git' + '@' + '799604a1041e9b3bc5d2789ecbd7e8db2e18e6b8',
-     'condition': 'checkout_android',
-@@ -594,3 +544,4 @@ hooks = [
+    'third_party/colorama/src': {
+      'url': Var('chromium_url') + '/external/colorama.git' + '@' + '799604a1041e9b3bc5d2789ecbd7e8db2e18e6b8',
+      'condition': 'checkout_android',
+@@ -279,7 +279,7 @@ deps = {
+        'dep_type': 'cipd',
+    },
+    'third_party/requests': {
+-      'url': Var('chromium_url') + '/external/github.com/kennethreitz/requests.git' + '@' + '2c2138e811487b13020eb331482fb991fd399d4e',
++      'url': Var('chromium_url') + '/external/github.com/kennethreitz/requests.git' + '@' + 'refs/tags/v2.23.0',
+        'condition': 'checkout_android',
+    },
+    'third_party/zlib':
+@@ -594,3 +594,4 @@ hooks = [
      ],
-   },
+   }
  ]
 +# Note: android_ndk, android_platform, and android_sdk entries removed upstream (not needed for V8 build)
