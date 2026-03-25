@@ -145,6 +145,22 @@ jobs:
         echo "ANDROID_NDK: $ANDROID_NDK"
         echo "ANDROID_SDK: $ANDROID_SDK"
         
+        # Check the NDK files we copied
+        echo "=== NDK BUILD.gn contents ==="
+        cat third_party/android_ndk/BUILD.gn
+        
+        # Run gn gen directly with verbose output to see full error
+        echo "=== Running gn directly ==="
+        buildtools/linux64/gn gen out.gn/android_arm64.release --check 2>&1 || echo "GN gen failed"
+        
+        # Check if build.ninja was created
+        if [ -f "out.gn/android_arm64.release/build.ninja" ]; then
+          echo "build.ninja was created successfully"
+        else
+          echo "build.ninja was NOT created - checking args.gn"
+          cat out.gn/android_arm64.release/args.gn 2>/dev/null || echo "No args.gn found"
+        fi
+        
         echo "Starting build from parent directory..."
         cd ..
         export ANDROID_NDK=/tmp/android-ndk-r25c

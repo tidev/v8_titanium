@@ -138,7 +138,30 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_enable_pointer_compression=false v8_enable_minor_mc=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
+	
+	# Generate args.gn manually to avoid mb.py issues
+	mkdir -p out.gn/$MAKE_TARGET
+	cat > out.gn/$MAKE_TARGET/args.gn << EOF
+is_debug = false
+is_component_build = false
+is_official_build = true
+use_goma = false
+target_os = "android"
+target_cpu = "$ARCH"
+v8_enable_pointer_compression = false
+v8_enable_minor_mc = false
+v8_use_external_startup_data = false
+v8_static_library = true
+v8_enable_i18n_support = false
+v8_monolithic = true
+use_custom_libcxx = false
+v8_android_log_stdout = false
+android_sdk_root = "$SDK_DIR"
+android_ndk_root = "$NDK_DIR"
+EOF
+	
+	# Run gn gen
+	buildtools/linux64/gn gen out.gn/$MAKE_TARGET
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
