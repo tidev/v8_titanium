@@ -68,7 +68,9 @@ jobs:
         git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
         cd depot_tools
         ln -sf vpython3 vpython
-        ln -sf .cipd_bin/vpython3 .cipd_bin/vpython
+        if [ -f .cipd_bin/vpython3 ]; then
+            ln -sf .cipd_bin/vpython3 .cipd_bin/vpython
+        fi
 
     - name: Add depot_tools to PATH
       run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
