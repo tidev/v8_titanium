@@ -31,15 +31,13 @@ git submodule update --depth 1
 ```bash
 cd v8
 
-# Patches that work with git apply
-git apply ../DEPS.patch
-git apply ../DEPS_2.patch
-git apply ../compat.patch
-git apply ../compat_sparkplug.patch
-git apply ../version.patch
-git apply ../python3_fixes.patch
-
-# Patches that need patch command (fuzz factor for line offsets)
+# Apply all patches (patch -p1 handles line-offset fuzz tolerance)
+patch -p1 < ../DEPS.patch
+patch -p1 < ../DEPS_2.patch
+patch -p1 < ../compat.patch
+patch -p1 < ../compat_sparkplug.patch
+patch -p1 < ../version.patch
+patch -p1 < ../python3_fixes.patch
 patch -p1 < ../compat_jsargs.patch
 patch -p1 < ../compat_adaptor.patch
 ```
