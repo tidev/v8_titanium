@@ -1,12 +1,11 @@
 diff --git a/gni/v8.gni b/gni/v8.gni
-index 1ed8e0382a..2e3dfabbd7 100644
+index a334651797..410e7d41d3 100644
 --- a/gni/v8.gni
 +++ b/gni/v8.gni
-@@ -96,14 +96,7 @@ if (is_debug && !v8_optimized_debug) {
-   v8_add_configs += [ "//build/config/compiler:no_optimize" ]
+@@ -147,13 +147,7 @@ if (is_debug && !v8_optimized_debug) {
  } else {
    v8_remove_configs += [ "//build/config/compiler:default_optimization" ]
--
+ 
 -  # TODO(crbug.com/621335) Rework this so that we don't have the confusion
 -  # between "optimize_speed" and "optimize_max".
 -  if (((is_posix && !is_android) || is_fuchsia) && !using_sanitizer) {
@@ -14,10 +13,10 @@ index 1ed8e0382a..2e3dfabbd7 100644
 -  } else {
 -    v8_add_configs += [ "//build/config/compiler:optimize_max" ]
 -  }
-+
-   v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
++  v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
  }
  
+ if (!is_debug) {
 diff --git a/include/v8-version.h b/include/v8-version.h
 index 8b88700b5c..760d2631da 100644
 --- a/include/v8-version.h
