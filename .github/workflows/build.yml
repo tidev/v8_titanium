@@ -42,11 +42,6 @@ jobs:
         sudo apt-get update
         sudo apt-get -y install ccache ninja-build patch
 
-    - name: Install sysroot
-      run: |
-        cd v8
-        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
-
     - name: Download Android NDK r25c
       run: |
         cd /tmp
@@ -105,6 +100,11 @@ jobs:
         VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
       run: |
         ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks || true
+
+    - name: Install sysroot
+      working-directory: ./v8
+      run: |
+        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
 
     - name: Fix Python 3.10+ compat in gclient-synced files
       working-directory: ./v8
