@@ -80,6 +80,9 @@ jobs:
         echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch
         
+        echo "Applying bit-field-fix.patch..."
+        patch -p1 < ../bit-field-fix.patch || true
+        
         echo "All patches applied successfully"
 
     - name: Checkout depot_tools repo

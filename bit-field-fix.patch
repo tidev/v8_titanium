@@ -1,0 +1,14 @@
+diff --git a/src/base/bit-field.h b/src/base/bit-field.h
+index 7b2796e3df..6bcabc2dd9 100644
+--- a/src/base/bit-field.h
++++ b/src/base/bit-field.h
+@@ -40,7 +40,8 @@ class BitField final {
+   static constexpr U kNumValues = U{1} << kSize;
+ 
+   // Value for the field with all bits set.
+-  static constexpr T kMax = static_cast<T>(kNumValues - 1);
++  // Use intermediate cast to unsigned to avoid enum constexpr conversion errors
++  static constexpr T kMax = static_cast<T>(static_cast<U>(kNumValues - 1));
+ 
+   template <class T2, int size2>
+   using Next = BitField<T2, kShift + kSize, size2, U>;
