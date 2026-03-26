@@ -193,18 +193,14 @@ android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
 host_os = "linux"
 clang_base_path = "$CLANG_BASE"
-is_clang = true
-clang_use_chrome_plugins = false
+is_clang = false
+use_gold = false
 treat_warnings_as_errors = false
 use_thin_lto = false
 is_cfi = false
 
 # Disable v8 internal plugins that require special clang
 v8_enable_verify_heap = false
-
-# Suppress newer clang warnings that V8 9.4 code triggers
-cflags = [ "-Wno-error=enum-constexpr-conversion" ]
-cflags_cc = [ "-Wno-error=enum-constexpr-conversion" ]
 EOF
 	cat out.gn/$MAKE_TARGET/args.gn
 	
