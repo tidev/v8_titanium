@@ -161,14 +161,19 @@ buildV8()
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
 	
-	# Use NDK clang for both target and host tools
-	NDK_CLANG="$NDK_DIR/toolchains/llvm/prebuilt/linux-x86_64"
-	echo "=== Using NDK clang: $NDK_CLANG ==="
-	
 	# Generate args.gn manually to avoid mb.py issues
-	# Use NDK clang for both target and host
+	# Use gclient clang for host tools if available, otherwise empty to use system
 	echo "=== Generating args.gn ==="
 	mkdir -p out.gn/$MAKE_TARGET
+	
+	if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
+		CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
+		echo "Using gclient clang: $CLANG_BASE"
+	else
+		CLANG_BASE=""
+		echo "No gclient clang found, will use system clang"
+	fi
+	
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
 is_debug = false
 is_component_build = false
@@ -187,8 +192,11 @@ v8_android_log_stdout = false
 android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
 host_os = "linux"
-clang_base_path = "$NDK_CLANG"
+clang_base_path = "$CLANG_BASE"
 is_clang = true
+
+# Disable v8 internal plugins that require special clang
+v8_enable_verify_heap = false
 EOF
 	cat out.gn/$MAKE_TARGET/args.gn
 	
