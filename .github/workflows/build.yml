@@ -42,6 +42,11 @@ jobs:
         sudo apt-get update
         sudo apt-get -y install ccache ninja-build patch
 
+    - name: Install sysroot
+      run: |
+        cd v8
+        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
+
     - name: Download Android NDK r25c
       run: |
         cd /tmp
