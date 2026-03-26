@@ -195,6 +195,9 @@ host_os = "linux"
 clang_base_path = "$CLANG_BASE"
 is_clang = true
 clang_use_chrome_plugins = false
+treat_warnings_as_errors = false
+use_thin_lto = false
+is_cfi = false
 
 # Disable v8 internal plugins that require special clang
 v8_enable_verify_heap = false
