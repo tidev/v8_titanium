@@ -201,6 +201,10 @@ is_cfi = false
 
 # Disable v8 internal plugins that require special clang
 v8_enable_verify_heap = false
+
+# Suppress newer clang warnings that V8 9.4 code triggers
+cflags = [ "-Wno-error=enum-constexpr-conversion" ]
+cflags_cc = [ "-Wno-error=enum-constexpr-conversion" ]
 EOF
 	cat out.gn/$MAKE_TARGET/args.gn
 	
