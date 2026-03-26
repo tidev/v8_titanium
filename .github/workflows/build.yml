@@ -40,7 +40,7 @@ jobs:
     - name: Install build dependencies
       run: |
         sudo apt-get update
-        sudo apt-get -y install ccache ninja-build patch clang
+        sudo apt-get -y install ccache ninja-build patch clang llvm binutils make xz-utils
 
     - name: Download Android NDK r25c
       run: |
