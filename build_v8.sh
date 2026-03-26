@@ -143,6 +143,13 @@ buildV8()
 	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
+	
+	# Remove catapult dependencies from build/android/BUILD.gn (not in original v8, added by gclient)
+	if [ -f "$V8_DIR/build/android/BUILD.gn" ]; then
+		sed -i 's|"//third_party/catapult/third_party/gsutil/",||' "$V8_DIR/build/android/BUILD.gn"
+		sed -i 's|"//third_party/catapult/devil/devil/devil_dependencies.json",||' "$V8_DIR/build/android/BUILD.gn"
+		sed -i 's|"//third_party/catapult/tracing:convert_chart_json",||' "$V8_DIR/build/android/BUILD.gn"
+	fi
 
 	# Verify NDK files exist
 	echo "=== Verifying NDK setup ==="

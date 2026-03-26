@@ -80,9 +80,6 @@ jobs:
         echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch
         
-        echo "Applying catapult_fix.patch..."
-        patch -p1 < ../catapult_fix.patch
-        
         echo "All patches applied successfully"
 
     - name: Checkout depot_tools repo
@@ -185,9 +182,6 @@ jobs:
         
         echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch || true
-        
-        echo "Applying catapult_fix.patch..."
-        patch -p1 < ../catapult_fix.patch || true
         
         echo "All patches applied"
 
