@@ -99,7 +99,14 @@ jobs:
       env:
         VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
       run: |
-        ../depot_tools/gclient sync --shallow --no-history --reset --force --nohooks || true
+        # Try with more complete sync - include all dependencies
+        ../depot_tools/gclient sync --with_branch_heads --with_tags --nohooks || true
+        
+        # Check what was synced
+        echo "=== Checking gclient sync results ==="
+        ls -la third_party/llvm-build/ 2>/dev/null || echo "llvm-build not found!"
+        ls -la third_party/clang/ 2>/dev/null || echo "clang not found!"
+        ls -la buildtools/ 2>/dev/null || echo "buildtools not found!"
 
     - name: Install sysroot
       working-directory: ./v8
@@ -112,6 +119,15 @@ jobs:
         sed -i 's/from collections import Mapping/from collections.abc import Mapping/g' third_party/jinja2/runtime.py third_party/jinja2/tests.py third_party/jinja2/sandbox.py
         sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/g' third_party/jinja2/utils.py third_party/jinja2/sandbox.py
         sed -i 's/from collections import MutableSet, MutableMapping, MutableSequence/from collections.abc import MutableSet, MutableMapping, MutableSequence/g' third_party/jinja2/sandbox.py
+
+    - name: Verify clang toolchain
+      working-directory: ./v8
+      run: |
+        echo "=== Checking for clang ==="
+        ls -la third_party/llvm-build/Release+Asserts/bin/clang++ 2>/dev/null || echo "clang++ not found in llvm-build!"
+        ls -la third_party/clang/ 2>/dev/null || echo "clang not found!"
+        ls -la buildtools/linux64/ 2>/dev/null || echo "buildtools not found!"
+        ls -la buildtools/clang/ 2>/dev/null || echo "clang in buildtools not found!"
 
     # Note: Don't create symlink here - build_v8.sh handles NDK setup
 
