@@ -161,7 +161,12 @@ buildV8()
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
 	
+	# Use system clang as host compiler
+	HOST_CLANG=$(which clang++ 2>/dev/null || echo "/usr/bin/clang++")
+	echo "=== Using host clang: $HOST_CLANG ==="
+	
 	# Generate args.gn manually to avoid mb.py issues
+	# Use system clang for host tools
 	echo "=== Generating args.gn ==="
 	mkdir -p out.gn/$MAKE_TARGET
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
@@ -181,6 +186,8 @@ use_custom_libcxx = false
 v8_android_log_stdout = false
 android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
+host_os = "linux"
+clang_base_path = "/usr"
 EOF
 	cat out.gn/$MAKE_TARGET/args.gn
 	
