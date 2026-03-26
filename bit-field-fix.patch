@@ -1,8 +1,8 @@
 diff --git a/src/base/bit-field.h b/src/base/bit-field.h
-index 7b2796e3df..5e6f7a8b9c 100644
+index 7b2796e3df..ae99235dc4 100644
 --- a/src/base/bit-field.h
 +++ b/src/base/bit-field.h
-@@ -38,14 +38,18 @@ class BitField final {
+@@ -38,9 +38,14 @@ class BitField final {
    static constexpr U kMask = ((U{1} << kShift) << kSize) - (U{1} << kShift);
    static constexpr int kLastUsedBit = kShift + kSize - 1;
    static constexpr U kNumValues = U{1} << kSize;
@@ -10,25 +10,20 @@ index 7b2796e3df..5e6f7a8b9c 100644
  
    // Value for the field with all bits set.
 -  static constexpr T kMax = static_cast<T>(kNumValues - 1);
-+  // kMax removed - causes enum constexpr conversion errors in newer clang
-+  // Use kNumValuesMinusOne directly in is_valid() instead.
++  // Suppress enum-constexpr-conversion warning for newer clang versions
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wenum-constexpr-conversion"
++  static constexpr T kMax = static_cast<T>(kNumValuesMinusOne);
++#pragma clang diagnostic pop
  
    template <class T2, int size2>
    using Next = BitField<T2, kShift + kSize, size2, U>;
- 
-   // Tells whether the provided value fits into the bit field.
-   static constexpr bool is_valid(T value) {
--    return (static_cast<U>(value) & ~static_cast<U>(kMax)) == 0;
-+    return (static_cast<U>(value) & ~static_cast<U>(kNumValuesMinusOne)) == 0;
-   }
- 
+@@ -53,7 +58,7 @@ class BitField final {
    // Returns a type U with the bit field value encoded.
-@@ -53,7 +57,7 @@ class BitField final {
    static constexpr U encode(T value) {
-     // Use inline check - removed kMax to avoid enum constexpr conversion error
-     // in newer clang versions
+     DCHECK(is_valid(value));
 -    return static_cast<U>(value) << kShift;
 +    return (static_cast<U>(value) & kNumValuesMinusOne) << kShift;
    }
  
-   // Extracts the bit field from the value.
+   // Returns a type U with the bit field value updated.

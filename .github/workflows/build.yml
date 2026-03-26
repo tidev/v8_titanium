@@ -29,6 +29,14 @@ jobs:
       with:
         python-version: '3.11'
 
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
+
     - name: Install httplib2
       run: pip install 'httplib2==0.18.1'
 
@@ -81,8 +89,8 @@ jobs:
         patch -p1 < ../compat_adaptor.patch
         
         echo "Applying bit-field-fix.patch..."
-        patch -p1 < ../bit-field-fix.patch || true
-        
+        patch --batch --forward -p1 < ../bit-field-fix.patch || true
+
         echo "All patches applied successfully"
 
     - name: Checkout depot_tools repo

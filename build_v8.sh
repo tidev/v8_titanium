@@ -140,8 +140,20 @@ buildV8()
 	# Create NDK build config directory and copy files
 	mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
 	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
+	
+	# Copy cpu-features.c if it doesn't exist or needs update
 	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
+	# Copy cpu-features.h if it exists in NDK
+	if [ -f "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" ]; then
+		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
+	
+	# Verify cpu-features.h exists (might be in v8 already)
+	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.h" ]; then
+		echo "ERROR: cpu-features.h not found in v8/third_party/android_ndk/sources/android/cpufeatures/"
+		ls -la "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
 	
 	# Remove catapult dependencies from build/android/BUILD.gn (not in original v8, added by gclient)
@@ -166,13 +178,17 @@ buildV8()
 	echo "=== Generating args.gn ==="
 	mkdir -p out.gn/$MAKE_TARGET
 	
-	if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
-		CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
-		echo "Using gclient clang: $CLANG_BASE"
-	else
-		CLANG_BASE=""
-		echo "No gclient clang found, will use system clang"
-	fi
+if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
+	CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
+	echo "Using gclient clang: $CLANG_BASE"
+else
+	CLANG_BASE=""
+	echo "No gclient clang found, will use system clang"
+fi
+
+# Use system clang instead of gclient clang to avoid newer clang issues
+CLANG_BASE=""
+echo "Overriding to use system clang to avoid newer gclient clang issues"
 	
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
 is_debug = false
@@ -193,8 +209,10 @@ android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
 host_os = "linux"
 clang_base_path = "$CLANG_BASE"
-is_clang = false
+is_clang = true
+clang_use_chrome_plugins = false
 use_gold = false
+use_lld = false
 treat_warnings_as_errors = false
 use_thin_lto = false
 is_cfi = false
