@@ -69,25 +69,25 @@ jobs:
         else
           patch -p1 < ../DEPS.patch
         fi
-        
+
         echo "Applying build_options.patch..."
         patch -p1 < ../build_options.patch
-        
+
         echo "Applying python3_fixes.patch..."
         patch -p1 < ../python3_fixes.patch
-        
+
         echo "Applying compat.patch..."
         patch -p1 < ../compat.patch
-        
+
         echo "Applying compat_sparkplug.patch..."
         patch -p1 < ../compat_sparkplug.patch
-        
+
         echo "Applying compat_jsargs.patch..."
         patch -p1 < ../compat_jsargs.patch
-        
+
         echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch
-        
+
         echo "Applying bit-field-fix.patch..."
         patch --batch --forward -p1 < ../bit-field-fix.patch || true
 
@@ -112,7 +112,7 @@ jobs:
       run: |
         # Try with more complete sync - include all dependencies
         ../depot_tools/gclient sync --with_branch_heads --with_tags --nohooks || true
-        
+
         # Check what was synced
         echo "=== Checking gclient sync results ==="
         ls -la third_party/llvm-build/ 2>/dev/null || echo "llvm-build not found!"
@@ -123,6 +123,7 @@ jobs:
       working-directory: ./v8
       run: |
         python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
+        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=i386
 
     - name: Fix Python 3.10+ compat in gclient-synced files
       working-directory: ./v8
@@ -159,12 +160,12 @@ jobs:
           ls -la v8/infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
           exit 1
         fi
-        
+
         # Show some info about the environment
         echo "=== Environment ==="
         echo "ANDROID_NDK: $ANDROID_NDK"
         echo "ANDROID_SDK: $ANDROID_SDK"
-        
+
         # Run the build script from the repo root
         export ANDROID_NDK=/tmp/android-ndk-r25c
         export ANDROID_SDK=/usr/local/lib/android/sdk
@@ -193,28 +194,28 @@ jobs:
       run: |
         set -e
         cd v8
-        
+
         echo "Applying DEPS.patch..."
         patch -p1 < ../DEPS.patch || echo "DEPS.patch may have already been applied"
-        
+
         echo "Applying build_options.patch..."
         patch -p1 < ../build_options.patch || echo "build_options.patch may have already been applied"
-        
+
         echo "Applying python3_fixes.patch..."
         patch -p1 < ../python3_fixes.patch || true
-        
+
         echo "Applying compat.patch..."
         patch -p1 < ../compat.patch || true
-        
+
         echo "Applying compat_sparkplug.patch..."
         patch -p1 < ../compat_sparkplug.patch || true
-        
+
         echo "Applying compat_jsargs.patch..."
         patch -p1 < ../compat_jsargs.patch || true
-        
+
         echo "Applying compat_adaptor.patch..."
         patch -p1 < ../compat_adaptor.patch || true
-        
+
         echo "All patches applied"
 
     - name: Create include directory
