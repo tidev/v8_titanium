@@ -6,7 +6,7 @@ This repository stores the patches and revision of the V8 JavaScript engine used
 
 - Linux (64-bit)
 - Python 3 (tested with 3.10+)
-- Android NDK r25c (recommended) or r16b (original target)
+- Android NDK r25c
 - Android SDK
 - ~20GB free disk space
 
@@ -59,13 +59,6 @@ wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
 unzip android-ndk-r25c-linux.zip
 export ANDROID_NDK=$PWD/android-ndk-r25c
 
-# Option B: NDK r16b (original target)
-wget https://dl.google.com/android/repository/android-ndk-r16b-linux-x86_64.zip
-unzip android-ndk-r16b-linux-x86_64.zip
-export ANDROID_NDK=$PWD/android-ndk-r16b
-# For r16b, also create the sysroot symlink:
-ln -sf $ANDROID_NDK/sysroot $ANDROID_NDK/toolchains/llvm/prebuilt/linux-x86_64/sysroot
-```
 
 ### 6. Link NDK into V8
 

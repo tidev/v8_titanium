@@ -122,7 +122,7 @@ buildV8()
 	echo "Building $TARGET - mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
-	
+
 	# Debug info
 	echo "=== Build Configuration ==="
 	echo "MAKE_TARGET: $MAKE_TARGET"
@@ -140,7 +140,7 @@ buildV8()
 	# Create NDK build config directory and copy files
 	mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
 	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
-	
+
 	# Copy cpu-features.c if it doesn't exist or needs update
 	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
@@ -149,13 +149,13 @@ buildV8()
 	if [ -f "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" ]; then
 		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
-	
+
 	# Verify cpu-features.h exists (might be in v8 already)
 	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.h" ]; then
 		echo "ERROR: cpu-features.h not found in v8/third_party/android_ndk/sources/android/cpufeatures/"
 		ls -la "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
 	fi
-	
+
 	# Remove catapult dependencies from build/android/BUILD.gn (not in original v8, added by gclient)
 	if [ -f "$V8_DIR/build/android/BUILD.gn" ]; then
 		sed -i 's|"//third_party/catapult/third_party/gsutil/",||' "$V8_DIR/build/android/BUILD.gn"
@@ -172,12 +172,12 @@ buildV8()
 
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	
+
 	# Generate args.gn manually to avoid mb.py issues
 	# Use gclient clang for host tools if available, otherwise empty to use system
 	echo "=== Generating args.gn ==="
 	mkdir -p out.gn/$MAKE_TARGET
-	
+
 if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
 	CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
 	echo "Using gclient clang: $CLANG_BASE"
@@ -186,10 +186,15 @@ else
 	echo "No gclient clang found, will use system clang"
 fi
 
-# Use system clang instead of gclient clang to avoid newer clang issues
-CLANG_BASE=""
-echo "Overriding to use system clang to avoid newer gclient clang issues"
-	
+# Use gclient clang for host tools to avoid GLIBC compatibility issues
+if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
+	CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
+	echo "Using gclient clang: $CLANG_BASE"
+else
+	CLANG_BASE=""
+	echo "No gclient clang found, will use system clang"
+fi
+
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
 is_debug = false
 is_component_build = false
@@ -205,6 +210,8 @@ v8_enable_i18n_support = false
 v8_monolithic = true
 use_custom_libcxx = false
 v8_android_log_stdout = false
+v8_use_snapshot = true
+v8_enable_embedded_builtins = false
 android_sdk_root = "$SDK_DIR"
 android_ndk_root = "$NDK_DIR"
 host_os = "linux"
@@ -221,11 +228,11 @@ is_cfi = false
 v8_enable_verify_heap = false
 EOF
 	cat out.gn/$MAKE_TARGET/args.gn
-	
+
 	# Run gn gen
 	echo "=== Running gn gen ==="
 	buildtools/linux64/gn gen out.gn/$MAKE_TARGET 2>&1 || { echo "ERROR: gn gen failed!"; cat out.gn/$MAKE_TARGET/args.gn; exit 1; }
-	
+
 	# Verify build.ninja was created
 	if [ -f "out.gn/$MAKE_TARGET/build.ninja" ]; then
 		echo "=== build.ninja created successfully ==="
@@ -233,7 +240,7 @@ EOF
 		echo "ERROR: build.ninja was NOT created!"
 		exit 1
 	fi
-	
+
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
 		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
@@ -247,6 +254,14 @@ EOF
 	if [ "$TARGET" = "v8_monolith" ]; then
 		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
 	fi
+
+	# Strip debug symbols from mksnapshot binaries to reduce size
+	echo "=== Stripping mksnapshot binaries ==="
+	for mksnap in "$V8_DIR/out.gn/$MAKE_TARGET"/clang_*/mksnapshot; do
+		if [ -f "$mksnap" ]; then
+			strip -s "$mksnap" && echo "Stripped: $mksnap ($(du -h "$mksnap" | cut -f1))"
+		fi
+	done
 
 	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
 	if [ -f $MKSNAPSHOT_X86 ]; then
