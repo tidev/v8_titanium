@@ -33,13 +33,13 @@ cd v8
 
 # Apply all patches (patch -p1 handles line-offset fuzz tolerance)
 patch -p1 < ../DEPS.patch
-patch -p1 < ../DEPS_2.patch
 patch -p1 < ../compat.patch
 patch -p1 < ../compat_sparkplug.patch
-patch -p1 < ../version.patch
 patch -p1 < ../python3_fixes.patch
 patch -p1 < ../compat_jsargs.patch
 patch -p1 < ../compat_adaptor.patch
+patch -p1 < ../build_options.patch
+patch -p1 < ../bit-field-fix.patch
 ```
 
 ### 4. Sync V8 dependencies
@@ -116,12 +116,12 @@ with `sudo apt-get install gcc-multilib g++-multilib` on Debian/Ubuntu.
 | Patch | Purpose |
 |-------|---------|
 | `DEPS.patch` | Modify V8 dependency versions |
-| `DEPS_2.patch` | Additional dependency modifications |
 | `compat.patch` | API compatibility for Titanium |
 | `compat_jsargs.patch` | Revert V8 reverse jsargs argument ordering |
 | `compat_adaptor.patch` | Revert V8 arguments adaptor removal |
 | `compat_sparkplug.patch` | Sparkplug compiler compatibility |
-| `version.patch` | V8 version adjustment |
+| `build_options.patch` | Simplify build optimization config |
+| `bit-field-fix.patch` | Fix clang enum-constexpr-conversion warning |
 | `python3_fixes.patch` | Python 3.10+ compatibility for build tools |
 
 ## GitHub Actions
