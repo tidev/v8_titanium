@@ -76,18 +76,6 @@ jobs:
         echo "Applying python3_fixes.patch..."
         patch -p1 < ../python3_fixes.patch
 
-        echo "Applying compat.patch..."
-        patch -p1 < ../compat.patch
-
-        echo "Applying compat_sparkplug.patch..."
-        patch -p1 < ../compat_sparkplug.patch
-
-        echo "Applying compat_jsargs.patch..."
-        patch -p1 < ../compat_jsargs.patch
-
-        echo "Applying compat_adaptor.patch..."
-        patch -p1 < ../compat_adaptor.patch
-
         echo "Applying bit-field-fix.patch..."
         patch --batch --forward -p1 < ../bit-field-fix.patch || true
 
@@ -203,18 +191,6 @@ jobs:
 
         echo "Applying python3_fixes.patch..."
         patch -p1 < ../python3_fixes.patch || true
-
-        echo "Applying compat.patch..."
-        patch -p1 < ../compat.patch || true
-
-        echo "Applying compat_sparkplug.patch..."
-        patch -p1 < ../compat_sparkplug.patch || true
-
-        echo "Applying compat_jsargs.patch..."
-        patch -p1 < ../compat_jsargs.patch || true
-
-        echo "Applying compat_adaptor.patch..."
-        patch -p1 < ../compat_adaptor.patch || true
 
         echo "All patches applied"
 
