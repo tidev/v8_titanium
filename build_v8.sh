@@ -186,15 +186,6 @@ else
 	echo "No gclient clang found, will use system clang"
 fi
 
-# Use gclient clang for host tools to avoid GLIBC compatibility issues
-if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
-	CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
-	echo "Using gclient clang: $CLANG_BASE"
-else
-	CLANG_BASE=""
-	echo "No gclient clang found, will use system clang"
-fi
-
 	cat > out.gn/$MAKE_TARGET/args.gn << EOF
 is_debug = false
 is_component_build = false

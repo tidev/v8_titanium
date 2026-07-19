@@ -58,7 +58,7 @@ gclient sync --shallow --no-history --reset --force --nohooks
 wget https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
 unzip android-ndk-r25c-linux.zip
 export ANDROID_NDK=$PWD/android-ndk-r25c
-
+```
 
 ### 6. Link NDK into V8
 
