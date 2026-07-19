@@ -36,8 +36,6 @@ patch -p1 < ../DEPS.patch
 patch -p1 < ../compat.patch
 patch -p1 < ../compat_sparkplug.patch
 patch -p1 < ../python3_fixes.patch
-patch -p1 < ../compat_jsargs.patch
-patch -p1 < ../compat_adaptor.patch
 patch -p1 < ../build_options.patch
 patch -p1 < ../bit-field-fix.patch
 ```
@@ -110,8 +108,6 @@ with `sudo apt-get install gcc-multilib g++-multilib` on Debian/Ubuntu.
 |-------|---------|
 | `DEPS.patch` | Modify V8 dependency versions |
 | `compat.patch` | API compatibility for Titanium |
-| `compat_jsargs.patch` | Revert V8 reverse jsargs argument ordering |
-| `compat_adaptor.patch` | Revert V8 arguments adaptor removal |
 | `compat_sparkplug.patch` | Sparkplug compiler compatibility |
 | `build_options.patch` | Simplify build optimization config |
 | `bit-field-fix.patch` | Fix clang enum-constexpr-conversion warning |
