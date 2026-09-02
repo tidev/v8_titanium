@@ -2085,7 +2085,7 @@ index 02b9eb410e..76f874f36d 100644
      ExternalReference isolate_root = ExternalReference::isolate_root(isolate());
      Move(kRootRegister, isolate_root);
 diff --git a/src/compiler/backend/arm/code-generator-arm.cc b/src/compiler/backend/arm/code-generator-arm.cc
-index 29c7897ec9..dea0dd334b 100644
+index 29c7897ec9..6ec2ee8396 100644
 --- a/src/compiler/backend/arm/code-generator-arm.cc
 +++ b/src/compiler/backend/arm/code-generator-arm.cc
 @@ -551,6 +551,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
@@ -2119,13 +2119,15 @@ index 29c7897ec9..dea0dd334b 100644
  namespace {
  
  void FlushPendingPushRegisters(TurboAssembler* tasm,
-@@ -771,7 +795,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -771,7 +795,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
 +    case kArchTailCallCodeObjectFromJSFunction:
      case kArchTailCallCodeObject: {
-+      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction) {
++      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction &&
++          !instr->HasCallDescriptorFlag(
++              CallDescriptor::kIsTailCallForTierUp)) {
 +        AssemblePopArgumentsAdaptorFrame(kJavaScriptCallArgCountRegister,
 +                                         i.TempRegister(0), i.TempRegister(1),
 +                                         i.TempRegister(2));
@@ -2133,7 +2135,7 @@ index 29c7897ec9..dea0dd334b 100644
        if (instr->InputAt(0)->IsImmediate()) {
          __ Jump(i.InputCode(0), RelocInfo::CODE_TARGET);
        } else {
-@@ -3919,13 +3949,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -3919,13 +3951,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = r3;
@@ -2162,7 +2164,7 @@ index 2698d45ae7..c0758aadc2 100644
  
  // Shared routine for multiple compare operations.
 diff --git a/src/compiler/backend/arm64/code-generator-arm64.cc b/src/compiler/backend/arm64/code-generator-arm64.cc
-index c121383426..1e0800add0 100644
+index c121383426..c4f67aafbd 100644
 --- a/src/compiler/backend/arm64/code-generator-arm64.cc
 +++ b/src/compiler/backend/arm64/code-generator-arm64.cc
 @@ -643,6 +643,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
@@ -2196,13 +2198,15 @@ index c121383426..1e0800add0 100644
  namespace {
  
  void AdjustStackPointerForTailCall(TurboAssembler* tasm,
-@@ -798,7 +822,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -798,7 +822,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
 +    case kArchTailCallCodeObjectFromJSFunction:
      case kArchTailCallCodeObject: {
-+      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction) {
++      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction &&
++          !instr->HasCallDescriptorFlag(
++              CallDescriptor::kIsTailCallForTierUp)) {
 +        AssemblePopArgumentsAdaptorFrame(kJavaScriptCallArgCountRegister,
 +                                         i.TempRegister(0), i.TempRegister(1),
 +                                         i.TempRegister(2));
@@ -2210,7 +2214,7 @@ index c121383426..1e0800add0 100644
        if (instr->InputAt(0)->IsImmediate()) {
          __ Jump(i.InputCode(0), RelocInfo::CODE_TARGET);
        } else {
-@@ -3309,13 +3339,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -3309,13 +3341,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = x3;
@@ -2254,7 +2258,7 @@ index 7ccb09d5ac..e16962734d 100644
      kImmediatePush = 0x1,
      kRegisterPush = 0x2,
 diff --git a/src/compiler/backend/ia32/code-generator-ia32.cc b/src/compiler/backend/ia32/code-generator-ia32.cc
-index 5db3f20fa4..a1cc7e3e1c 100644
+index 5db3f20fa4..1a9c59059a 100644
 --- a/src/compiler/backend/ia32/code-generator-ia32.cc
 +++ b/src/compiler/backend/ia32/code-generator-ia32.cc
 @@ -572,6 +572,43 @@ void CodeGenerator::AssemblePrepareTailCall() {
@@ -2301,20 +2305,22 @@ index 5db3f20fa4..a1cc7e3e1c 100644
  namespace {
  
  void AdjustStackPointerForTailCall(TurboAssembler* tasm,
-@@ -774,7 +811,12 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -774,7 +811,14 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
 +    case kArchTailCallCodeObjectFromJSFunction:
      case kArchTailCallCodeObject: {
-+      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction) {
++      if (arch_opcode == kArchTailCallCodeObjectFromJSFunction &&
++          !instr->HasCallDescriptorFlag(
++              CallDescriptor::kIsTailCallForTierUp)) {
 +        AssemblePopArgumentsAdaptorFrame(kJavaScriptCallArgCountRegister,
 +                                         no_reg, no_reg, no_reg);
 +      }
        if (HasImmediateInput(instr, 0)) {
          Handle<Code> code = i.InputCode(0);
          __ Jump(code, RelocInfo::CODE_TARGET);
-@@ -4613,14 +4655,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -4613,14 +4657,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = ecx;
@@ -2368,46 +2374,28 @@ index c46d263bae..bc06608090 100644
      case kArchTailCallAddress:
  #if V8_ENABLE_WEBASSEMBLY
 diff --git a/src/compiler/backend/instruction-selector.cc b/src/compiler/backend/instruction-selector.cc
-index f279ea1590..3faa9b2fdc 100644
+index f279ea1590..96343c069b 100644
 --- a/src/compiler/backend/instruction-selector.cc
 +++ b/src/compiler/backend/instruction-selector.cc
-@@ -2927,6 +2927,7 @@ void InstructionSelector::UpdateMaxPushedArgumentCount(size_t count) {
- void InstructionSelector::VisitCall(Node* node, BasicBlock* handler) {
-   OperandGenerator g(this);
-   auto call_descriptor = CallDescriptorOf(node->op());
-+  auto caller = linkage()->GetIncomingDescriptor();
-   SaveFPRegsMode mode = call_descriptor->NeedsCallerSavedFPRegisters()
-                             ? SaveFPRegsMode::kSave
-                             : SaveFPRegsMode::kIgnore;
-@@ -2965,6 +2966,7 @@ void InstructionSelector::VisitCall(Node* node, BasicBlock* handler) {
- 
-   // Select the appropriate opcode based on the call type.
-   InstructionCode opcode;
-+  InstructionOperandVector temps(zone());
-   switch (call_descriptor->kind()) {
-     case CallDescriptor::kCallAddress: {
-       int misc_field = static_cast<int>(call_descriptor->ParameterCount());
-@@ -2982,9 +2984,18 @@ void InstructionSelector::VisitCall(Node* node, BasicBlock* handler) {
+@@ -3040,7 +3040,17 @@ void InstructionSelector::VisitTailCall(Node* node) {
+   InstructionOperandVector temps(zone());
+   switch (callee->kind()) {
      case CallDescriptor::kCallCodeObject:
-       opcode = EncodeCallDescriptorFlags(kArchCallCodeObject, flags);
-       break;
--    case CallDescriptor::kCallJSFunction:
--      opcode = EncodeCallDescriptorFlags(kArchCallJSFunction, flags);
-+    case CallDescriptor::kCallJSFunction: {
+-      opcode = kArchTailCallCodeObject;
 +      if (caller->IsJSFunctionCall()) {
-+        opcode = EncodeCallDescriptorFlags(kArchTailCallCodeObjectFromJSFunction, flags);
++        // A tail call out of a function with JS linkage has to pop the
++        // arguments adaptor frame that may sit between it and its caller.
++        opcode = kArchTailCallCodeObjectFromJSFunction;
 +        int temps_count = GetTempsCountForTailCallFromJSFunction();
 +        for (int i = 0; i < temps_count; i++) {
 +          temps.push_back(g.TempRegister());
 +        }
 +      } else {
-+        opcode = EncodeCallDescriptorFlags(kArchCallJSFunction, flags);
++        opcode = kArchTailCallCodeObject;
 +      }
        break;
-+    }
- #if V8_ENABLE_WEBASSEMBLY
-     case CallDescriptor::kCallWasmCapiFunction:
-     case CallDescriptor::kCallWasmFunction:
+     case CallDescriptor::kCallAddress:
+       DCHECK(!caller->IsJSFunctionCall());
 diff --git a/src/compiler/backend/instruction-selector.h b/src/compiler/backend/instruction-selector.h
 index 11a329d1d6..45460183a0 100644
 --- a/src/compiler/backend/instruction-selector.h
@@ -2519,7 +2507,7 @@ index 53ee75064b..111bf172cc 100644
  
  void VisitCompareWithMemoryOperand(InstructionSelector* selector,
 diff --git a/src/compiler/effect-control-linearizer.cc b/src/compiler/effect-control-linearizer.cc
-index d7a0ca62dd..b95f48b2df 100644
+index d7a0ca62dd..758ba0ea17 100644
 --- a/src/compiler/effect-control-linearizer.cc
 +++ b/src/compiler/effect-control-linearizer.cc
 @@ -152,6 +152,7 @@ class EffectControlLinearizer {
@@ -2558,7 +2546,7 @@ index d7a0ca62dd..b95f48b2df 100644
 +  // We have to distinguish the case when there is an arguments adaptor frame
 +  // (i.e., arguments_frame != LoadFramePointer()).
 +  auto if_adaptor_frame = __ MakeLabel();
-+  __ GotoIf(__ TaggedEqual(arguments_frame, frame), &done,
++  __ GotoIf(__ WordEqual(arguments_frame, frame), &done,
 +            __ SmiConstant(formal_parameter_count));
 +  __ Goto(&if_adaptor_frame);
 +
@@ -2586,7 +2574,7 @@ index d7a0ca62dd..b95f48b2df 100644
 +  // We have to distinguish the case, when there is an arguments adaptor frame
 +  // (i.e., arguments_frame != LoadFramePointer()).
 +  auto if_adaptor_frame = __ MakeLabel();
-+  __ GotoIf(__ TaggedEqual(arguments_frame, frame), &done, __ SmiConstant(0));
++  __ GotoIf(__ WordEqual(arguments_frame, frame), &done, __ SmiConstant(0));
 +  __ Goto(&if_adaptor_frame);
 +
 +  __ Bind(&if_adaptor_frame);
@@ -2624,21 +2612,59 @@ index d7a0ca62dd..b95f48b2df 100644
  Node* EffectControlLinearizer::LowerNewDoubleElements(Node* node) {
    AllocationType const allocation = AllocationTypeOf(node->op());
    Node* length = node->InputAt(0);
+@@ -3820,8 +3875,11 @@ Node* EffectControlLinearizer::LowerNewArgumentsElements(Node* node) {
+   CreateArgumentsType type = parameters.arguments_type();
+   Operator::Properties const properties = node->op()->properties();
+   CallDescriptor::Flags const flags = CallDescriptor::kNoFlags;
+-  Node* frame = __ LoadFramePointer();
+-  Node* arguments_count = NodeProperties::GetValueInput(node, 0);
++  // The frame holding the actual arguments: the current frame, or the
++  // arguments adaptor frame above it when the call went through the
++  // ArgumentsAdaptorTrampoline (see LowerArgumentsFrame).
++  Node* frame = NodeProperties::GetValueInput(node, 0);
++  Node* arguments_count = NodeProperties::GetValueInput(node, 1);
+   Builtin builtin_name;
+   switch (type) {
+     case CreateArgumentsType::kMappedArguments:
 diff --git a/src/compiler/escape-analysis-reducer.cc b/src/compiler/escape-analysis-reducer.cc
-index 7b1de32a3f..1ea626adbf 100644
+index 7b1de32a3f..fa9adce9bc 100644
 --- a/src/compiler/escape-analysis-reducer.cc
 +++ b/src/compiler/escape-analysis-reducer.cc
-@@ -229,6 +229,8 @@ void EscapeAnalysisReducer::Finalize() {
+@@ -229,7 +229,9 @@ void EscapeAnalysisReducer::Finalize() {
                             ? params.formal_parameter_count()
                             : 0;
  
+-    Node* arguments_length = NodeProperties::GetValueInput(node, 0);
 +    Node* arguments_frame = NodeProperties::GetValueInput(node, 0);
 +    if (arguments_frame->opcode() != IrOpcode::kArgumentsFrame) continue;
-     Node* arguments_length = NodeProperties::GetValueInput(node, 0);
++    Node* arguments_length = NodeProperties::GetValueInput(node, 1);
      if (arguments_length->opcode() != IrOpcode::kArgumentsLength) continue;
  
+     Node* arguments_length_state = nullptr;
+@@ -318,9 +320,9 @@ void EscapeAnalysisReducer::Finalize() {
+                   jsgraph()->simplified()->NumberSubtract(), offset, formal_parameter_count);
+             }
+             NodeProperties::SetType(offset, TypeCache::Get()->kArgumentsLengthType);
+-            Node* frame = jsgraph()->graph()->NewNode(jsgraph()->machine()->LoadFramePointer());
+-            NodeProperties::SetType(frame, Type::ExternalPointer());
+-            NodeProperties::ReplaceValueInput(load, frame, 0);
++            // Load through the frame that actually holds the arguments
++            // (the adaptor frame if there is one), not the current frame.
++            NodeProperties::ReplaceValueInput(load, arguments_frame, 0);
+             NodeProperties::ReplaceValueInput(load, offset, 1);
+             NodeProperties::ChangeOp(load, jsgraph()->simplified()->LoadStackArgument());
+             break;
+@@ -328,7 +330,7 @@ void EscapeAnalysisReducer::Finalize() {
+           case IrOpcode::kLoadField: {
+             DCHECK_EQ(FieldAccessOf(load->op()).offset,
+                       FixedArray::kLengthOffset);
+-            Node* length = NodeProperties::GetValueInput(node, 0);
++            Node* length = NodeProperties::GetValueInput(node, 1);
+             ReplaceWithValue(load, length);
+             break;
+           }
 diff --git a/src/compiler/js-create-lowering.cc b/src/compiler/js-create-lowering.cc
-index 414977eb7d..508e2b434f 100644
+index 414977eb7d..b0dcf7b077 100644
 --- a/src/compiler/js-create-lowering.cc
 +++ b/src/compiler/js-create-lowering.cc
 @@ -164,15 +164,18 @@ Reduction JSCreateLowering::ReduceJSCreateArguments(Node* node) {
@@ -2655,8 +2681,10 @@ index 414977eb7d..508e2b434f 100644
          // Allocate the elements backing store.
          bool has_aliased_arguments = false;
          Node* const elements = effect = TryAllocateAliasedArguments(
-             effect, control, context, arguments_length, shared,
-             &has_aliased_arguments);
+-            effect, control, context, arguments_length, shared,
+-            &has_aliased_arguments);
++            effect, control, context, arguments_frame, arguments_length,
++            shared, &has_aliased_arguments);
          if (elements == nullptr) return NoChange();
 -
          // Load the arguments object map.
@@ -2683,7 +2711,7 @@ index 414977eb7d..508e2b434f 100644
          // Load the arguments object map.
          Node* const arguments_map =
              jsgraph()->Constant(native_context().strict_arguments_map());
-@@ -220,10 +227,15 @@ Reduction JSCreateLowering::ReduceJSCreateArguments(Node* node) {
+@@ -220,16 +227,21 @@ Reduction JSCreateLowering::ReduceJSCreateArguments(Node* node) {
        }
        case CreateArgumentsType::kRestParameter: {
          Node* effect = NodeProperties::GetEffectInput(node);
@@ -2701,6 +2729,55 @@ index 414977eb7d..508e2b434f 100644
          // Allocate the elements backing store.
          Node* const elements = effect =
              graph()->NewNode(simplified()->NewArgumentsElements(
+                                  CreateArgumentsType::kRestParameter,
+                                  shared.internal_formal_parameter_count()),
+-                             arguments_length, effect);
++                             arguments_frame, arguments_length, effect);
+         // Load the JSArray object map.
+         Node* const jsarray_map = jsgraph()->Constant(
+             native_context().js_array_packed_elements_map());
+@@ -1541,8 +1553,9 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+ // values can only be determined dynamically at run-time and are provided.
+ // Serves as backing store for JSCreateArguments nodes.
+ Node* JSCreateLowering::TryAllocateAliasedArguments(
+-    Node* effect, Node* control, Node* context, Node* arguments_length,
+-    const SharedFunctionInfoRef& shared, bool* has_aliased_arguments) {
++    Node* effect, Node* control, Node* context, Node* arguments_frame,
++    Node* arguments_length, const SharedFunctionInfoRef& shared,
++    bool* has_aliased_arguments) {
+   // If there is no aliasing, the arguments object elements are not
+   // special in any way, we can just return an unmapped backing store.
+   int parameter_count = shared.internal_formal_parameter_count();
+@@ -1550,7 +1563,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+     return graph()->NewNode(
+         simplified()->NewArgumentsElements(
+             CreateArgumentsType::kUnmappedArguments, parameter_count),
+-        arguments_length, effect);
++        arguments_frame, arguments_length, effect);
+   }
+ 
+   int mapped_count = parameter_count;
+@@ -1577,7 +1590,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+   Node* arguments = effect =
+       graph()->NewNode(simplified()->NewArgumentsElements(
+                            CreateArgumentsType::kMappedArguments, mapped_count),
+-                       arguments_length, effect);
++                       arguments_frame, arguments_length, effect);
+ 
+   // Actually allocate the backing store.
+   AllocationBuilder a(jsgraph(), effect, control);
+diff --git a/src/compiler/js-create-lowering.h b/src/compiler/js-create-lowering.h
+index 85a9a7bb58..55c09272cc 100644
+--- a/src/compiler/js-create-lowering.h
++++ b/src/compiler/js-create-lowering.h
+@@ -94,6 +94,7 @@ class V8_EXPORT_PRIVATE JSCreateLowering final
+                                     const SharedFunctionInfoRef& shared,
+                                     bool* has_aliased_arguments);
+   Node* TryAllocateAliasedArguments(Node* effect, Node* control, Node* context,
++                                    Node* arguments_frame,
+                                     Node* arguments_length,
+                                     const SharedFunctionInfoRef& shared,
+                                     bool* has_aliased_arguments);
 diff --git a/src/compiler/js-typed-lowering.cc b/src/compiler/js-typed-lowering.cc
 index 82b5d345e4..76a16104cf 100644
 --- a/src/compiler/js-typed-lowering.cc
@@ -2802,10 +2879,10 @@ index 912bd7b5ce..ac33fde957 100644
    V(AssertType)                         \
    V(BooleanNot)                         \
 diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc
-index 1c07a23dde..f925fac50f 100644
+index 1c07a23dde..881b23fbe9 100644
 --- a/src/compiler/simplified-lowering.cc
 +++ b/src/compiler/simplified-lowering.cc
-@@ -3717,6 +3717,10 @@ class RepresentationSelector {
+@@ -3717,9 +3717,15 @@ class RepresentationSelector {
          VisitObjectIs<T>(node, Type::Undetectable(), lowering);
          return;
        }
@@ -2815,9 +2892,27 @@ index 1c07a23dde..f925fac50f 100644
 +      }
        case IrOpcode::kArgumentsLength:
        case IrOpcode::kRestLength: {
-         SetOutput<T>(node, MachineRepresentation::kTaggedSigned);
+-        SetOutput<T>(node, MachineRepresentation::kTaggedSigned);
++        // The only input is the ArgumentsFrame pointer.
++        VisitUnop<T>(node, UseInfo::Word(),
++                     MachineRepresentation::kTaggedSigned);
+         return;
+       }
+       case IrOpcode::kNewDoubleElements:
+@@ -3729,8 +3735,9 @@ class RepresentationSelector {
+         return;
+       }
+       case IrOpcode::kNewArgumentsElements: {
+-        VisitUnop<T>(node, UseInfo::TaggedSigned(),
+-                     MachineRepresentation::kTaggedPointer);
++        // Inputs are the ArgumentsFrame pointer and the arguments length.
++        VisitBinop<T>(node, UseInfo::Word(), UseInfo::TaggedSigned(),
++                      MachineRepresentation::kTaggedPointer);
+         return;
+       }
+       case IrOpcode::kCheckFloat64Hole: {
 diff --git a/src/compiler/simplified-operator.cc b/src/compiler/simplified-operator.cc
-index 9c4f8f083a..bcbb59dfee 100644
+index 9c4f8f083a..b720d2e49d 100644
 --- a/src/compiler/simplified-operator.cc
 +++ b/src/compiler/simplified-operator.cc
 @@ -1005,6 +1005,13 @@ struct SimplifiedOperatorGlobalCache final {
@@ -2863,6 +2958,24 @@ index 9c4f8f083a..bcbb59dfee 100644
  }
  
  const Operator* SimplifiedOperatorBuilder::RestLength(
+@@ -1671,7 +1681,7 @@ const Operator* SimplifiedOperatorBuilder::RestLength(
+       IrOpcode::kRestLength,           // opcode
+       Operator::kPure,                 // flags
+       "RestLength",                    // name
+-      0, 0, 0, 1, 0, 0,                // counts
++      1, 0, 0, 1, 0, 0,                // counts
+       formal_parameter_count);         // parameter
+ }
+ 
+@@ -1802,7 +1812,7 @@ const Operator* SimplifiedOperatorBuilder::NewArgumentsElements(
+       IrOpcode::kNewArgumentsElements,                            // opcode
+       Operator::kEliminatable,                                    // flags
+       "NewArgumentsElements",                                     // name
+-      1, 1, 0, 1, 1, 0,                                           // counts
++      2, 1, 0, 1, 1, 0,                                           // counts
+       NewArgumentsElementsParameters(type,
+                                      formal_parameter_count));  // parameter
+ }
 diff --git a/src/compiler/simplified-operator.h b/src/compiler/simplified-operator.h
 index d7a5901448..3171f0d714 100644
 --- a/src/compiler/simplified-operator.h
@@ -2893,11 +3006,14 @@ index 529f1cc7bb..17089dd25c 100644
    return Type::OtherInternal();
  }
 diff --git a/src/compiler/verifier.cc b/src/compiler/verifier.cc
-index f33edaa6c0..7e3903ddcf 100644
+index f33edaa6c0..5d977a50e5 100644
 --- a/src/compiler/verifier.cc
 +++ b/src/compiler/verifier.cc
-@@ -1241,6 +1241,9 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
+@@ -1239,8 +1239,12 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
+       break;
+     case IrOpcode::kArgumentsLength:
      case IrOpcode::kRestLength:
++      CheckValueInputIs(node, 0, Type::ExternalPointer());
        CheckTypeIs(node, TypeCache::Get()->kArgumentsLengthType);
        break;
 +    case IrOpcode::kArgumentsFrame:
@@ -2906,6 +3022,16 @@ index f33edaa6c0..7e3903ddcf 100644
      case IrOpcode::kNewDoubleElements:
      case IrOpcode::kNewSmiOrObjectElements:
        CheckValueInputIs(node, 0,
+@@ -1248,7 +1252,8 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
+       CheckTypeIs(node, Type::OtherInternal());
+       break;
+     case IrOpcode::kNewArgumentsElements:
+-      CheckValueInputIs(node, 0,
++      CheckValueInputIs(node, 0, Type::ExternalPointer());
++      CheckValueInputIs(node, 1,
+                         Type::Range(0.0, FixedArray::kMaxLength, zone));
+       CheckTypeIs(node, Type::OtherInternal());
+       break;
 diff --git a/src/compiler/wasm-compiler.cc b/src/compiler/wasm-compiler.cc
 index 88ca600271..457609843d 100644
 --- a/src/compiler/wasm-compiler.cc

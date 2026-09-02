@@ -2632,56 +2632,6 @@ index d580671f6d..c22d61baac 100644
    V(int, StartPosition)                            \
    V(bool, is_compiled)                             \
    V(bool, IsUserJavaScript)                        \
-diff --git a/src/compiler/js-generic-lowering.cc b/src/compiler/js-generic-lowering.cc
-index bbc47e45ad..81439fee1a 100644
---- a/src/compiler/js-generic-lowering.cc
-+++ b/src/compiler/js-generic-lowering.cc
-@@ -845,10 +845,9 @@ void JSGenericLowering::LowerJSConstruct(Node* node) {
-   Node* stub_code = jsgraph()->HeapConstant(callable.code());
-   Node* stub_arity = jsgraph()->Int32Constant(arg_count);
-   Node* receiver = jsgraph()->UndefinedConstant();
--  node->RemoveInput(n.FeedbackVectorIndex());
-   node->InsertInput(zone(), 0, stub_code);
-   node->InsertInput(zone(), 3, stub_arity);
--  node->InsertInput(zone(), 4, receiver);
-+  node->InsertInput(zone(), 5, receiver);
- 
-   // After: {code, target, new_target, arity, receiver, ...args}.
- 
-@@ -876,9 +875,8 @@ void JSGenericLowering::LowerJSConstructWithArrayLike(Node* node) {
-       zone(), callable.descriptor(), stack_argument_count, flags);
-   Node* stub_code = jsgraph()->HeapConstant(callable.code());
-   Node* receiver = jsgraph()->UndefinedConstant();
--  node->RemoveInput(n.FeedbackVectorIndex());
-   node->InsertInput(zone(), 0, stub_code);
--  node->InsertInput(zone(), 4, receiver);
-+  node->InsertInput(zone(), 5, receiver);
- 
-   // After: {code, target, new_target, arguments_list, receiver}.
- 
-@@ -908,13 +906,9 @@ void JSGenericLowering::LowerJSConstructWithSpread(Node* node) {
-   // We pass the spread in a register, not on the stack.
-   Node* stub_arity = jsgraph()->Int32Constant(arg_count - kTheSpread);
-   Node* receiver = jsgraph()->UndefinedConstant();
--  DCHECK(n.FeedbackVectorIndex() > n.LastArgumentIndex());
--  node->RemoveInput(n.FeedbackVectorIndex());
--  Node* spread = node->RemoveInput(n.LastArgumentIndex());
- 
-   node->InsertInput(zone(), 0, stub_code);
-   node->InsertInput(zone(), 3, stub_arity);
--  node->InsertInput(zone(), 4, spread);
-   node->InsertInput(zone(), 5, receiver);
- 
-   // After: {code, target, new_target, arity, spread, receiver, ...args}.
-@@ -1013,8 +1007,6 @@ void JSGenericLowering::LowerJSCallWithSpread(Node* node) {
- 
-   // Shuffling inputs.
-   // Before: {target, receiver, ...args, spread, vector}.
--
--  node->RemoveInput(n.FeedbackVectorIndex());
-   Node* spread = node->RemoveInput(n.LastArgumentIndex());
- 
-   node->InsertInput(zone(), 0, stub_code);
 diff --git a/src/compiler/js-typed-lowering.cc b/src/compiler/js-typed-lowering.cc
 index e986ef1baf..82b5d345e4 100644
 --- a/src/compiler/js-typed-lowering.cc
