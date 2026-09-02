@@ -35,6 +35,8 @@ cd v8
 patch -p1 < ../DEPS.patch
 patch -p1 < ../compat.patch
 patch -p1 < ../compat_sparkplug.patch
+patch -p1 < ../compat_jsargs.patch
+patch -p1 < ../compat_adaptor.patch
 patch -p1 < ../python3_fixes.patch
 patch -p1 < ../build_options.patch
 patch -p1 < ../bit-field-fix.patch
@@ -109,6 +111,8 @@ with `sudo apt-get install gcc-multilib g++-multilib` on Debian/Ubuntu.
 | `DEPS.patch` | Modify V8 dependency versions |
 | `compat.patch` | API compatibility for Titanium |
 | `compat_sparkplug.patch` | Sparkplug compiler compatibility |
+| `compat_jsargs.patch` | Keep the pre-8.x JS argument stack layout so prebuilt modules (built against V8 8.8 headers) read call arguments correctly |
+| `compat_adaptor.patch` | Restore the arguments adaptor frame, required by `compat_jsargs.patch` |
 | `build_options.patch` | Simplify build optimization config |
 | `bit-field-fix.patch` | Fix clang enum-constexpr-conversion warning |
 | `python3_fixes.patch` | Python 3.10+ compatibility for build tools |

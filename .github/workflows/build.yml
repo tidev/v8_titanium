@@ -90,6 +90,12 @@ jobs:
         echo "Applying compat_sparkplug.patch..."
         patch -p1 < ../compat_sparkplug.patch
 
+        echo "Applying compat_jsargs.patch..."
+        patch -p1 < ../compat_jsargs.patch
+
+        echo "Applying compat_adaptor.patch..."
+        patch -p1 < ../compat_adaptor.patch
+
         echo "Applying bit-field-fix.patch..."
         patch --batch --forward -p1 < ../bit-field-fix.patch || true
 
@@ -213,6 +219,9 @@ jobs:
 
         echo "Applying compat_sparkplug.patch..."
         patch -p1 < ../compat_sparkplug.patch || true
+
+        echo "Applying compat_jsargs.patch..."
+        patch -p1 < ../compat_jsargs.patch || true
 
         echo "All patches applied"
 
