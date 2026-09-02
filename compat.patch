@@ -34,7 +34,7 @@ index 00de81df88..f519aecbdf 100644
   * Returns a new instance of the default v8::JobHandle implementation.
   *
 diff --git a/include/v8-internal.h b/include/v8-internal.h
-index 0222ab2f7e..89ed5ab123 100644
+index 0222ab2f7e..1761de970d 100644
 --- a/include/v8-internal.h
 +++ b/include/v8-internal.h
 @@ -230,8 +230,10 @@ class Internals {
@@ -49,7 +49,7 @@ index 0222ab2f7e..89ed5ab123 100644
    static const int kIsolateFastCCallCallerPcOffset =
        kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
    static const int kIsolateFastApiCallTargetOffset =
-@@ -263,6 +265,7 @@ class Internals {
+@@ -263,12 +265,17 @@ class Internals {
    static const int kNodeStateMask = 0x7;
    static const int kNodeStateIsWeakValue = 2;
    static const int kNodeStateIsPendingValue = 3;
@@ -57,8 +57,18 @@ index 0222ab2f7e..89ed5ab123 100644
  
    static const int kFirstNonstringType = 0x40;
    static const int kOddballType = 0x43;
+   static const int kForeignType = 0x46;
+   static const int kJSSpecialApiObjectType = 0x410;
+   static const int kJSObjectType = 0x421;
++  // ABI compat: JS_API_OBJECT_TYPE on V8 <= 8.8 (unassigned on 9.4). Used by
++  // the inline internal-field fast path so that binaries built against these
++  // headers behave on the 8.8 runtime as well.
++  static const int kJSApiObjectType = 0x420;
+   static const int kFirstJSApiObjectType = 0x422;
+   static const int kLastJSApiObjectType = 0x80A;
+ 
 diff --git a/include/v8.h b/include/v8.h
-index 78c454e334..fb20c7e8a3 100644
+index 78c454e334..8741e3a9e1 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -138,9 +138,9 @@ class HeapObject;
@@ -570,6 +580,33 @@ index 78c454e334..fb20c7e8a3 100644
  template <class T>
  Global<T>::Global(Global&& other) : PersistentBase<T>(other.val_) {
    if (other.val_ != nullptr) {
+@@ -11625,7 +11745,13 @@ Local<Value> Object::GetInternalField(int index) {
+   // Fast path: If the object is a plain JSObject, which is the common case, we
+   // know where to find the internal fields and can return the value directly.
+   int instance_type = I::GetInstanceType(obj);
+-  if (v8::internal::CanHaveInternalField(instance_type)) {
++  // ABI compat: do not call v8::internal::CanHaveInternalField(), which only
++  // V8 >= 9.1 exports, so modules built against these headers still load on
++  // the 8.8 runtime. The inline check covers the types whose meaning is the
++  // same on both; 9.4 API objects (kFirstJSApiObjectType) take the slow path.
++  if (instance_type == I::kJSObjectType ||
++      instance_type == I::kJSApiObjectType ||
++      instance_type == I::kJSSpecialApiObjectType) {
+     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
+     A value = I::ReadRawField<A>(obj, offset);
+ #ifdef V8_COMPRESS_POINTERS
+@@ -11651,7 +11777,10 @@ void* Object::GetAlignedPointerFromInternalField(int index) {
+   // Fast path: If the object is a plain JSObject, which is the common case, we
+   // know where to find the internal fields and can return the value directly.
+   auto instance_type = I::GetInstanceType(obj);
+-  if (v8::internal::CanHaveInternalField(instance_type)) {
++  // ABI compat: see GetInternalField() above.
++  if (instance_type == I::kJSObjectType ||
++      instance_type == I::kJSApiObjectType ||
++      instance_type == I::kJSSpecialApiObjectType) {
+     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
+ #ifdef V8_HEAP_SANDBOX
+     offset += I::kEmbedderDataSlotRawPayloadOffset;
 diff --git a/src/api/api-arguments-inl.h b/src/api/api-arguments-inl.h
 index 786f849be6..9c0269de92 100644
 --- a/src/api/api-arguments-inl.h
