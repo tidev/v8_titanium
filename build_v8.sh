@@ -218,6 +218,10 @@ is_cfi = false
 # Disable v8 internal plugins that require special clang
 v8_enable_verify_heap = false
 EOF
+	# Route compiles through ccache when requested (CI sets USE_CCACHE=1).
+	if [ "$USE_CCACHE" = "1" ] && command -v ccache >/dev/null 2>&1; then
+		echo 'cc_wrapper = "ccache"' >> out.gn/$MAKE_TARGET/args.gn
+	fi
 	cat out.gn/$MAKE_TARGET/args.gn
 
 	# Run gn gen

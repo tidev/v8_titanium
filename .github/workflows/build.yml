@@ -1,8 +1,16 @@
 name: Build
 on: [push, pull_request, workflow_dispatch]
 
+# A newer push to the same ref cancels the previous (~80 min) build of that ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   build:
+    # Every branch push already builds; only build pull_request events for PRs
+    # coming from forks, so a PR from a branch of this repo is not built twice.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
     strategy:
       matrix:
         arch: ['arm64', 'x64', 'arm', 'ia32']
@@ -159,6 +167,8 @@ jobs:
         echo "=== Environment ==="
         echo "ANDROID_NDK: $ANDROID_NDK"
         echo "ANDROID_SDK: $ANDROID_SDK"
+
+        ccache --zero-stats
 
         # Run the build script from the repo root
         export ANDROID_NDK=/tmp/android-ndk-r25c

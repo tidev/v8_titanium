@@ -34,7 +34,7 @@ index 00de81df88..f519aecbdf 100644
   * Returns a new instance of the default v8::JobHandle implementation.
   *
 diff --git a/include/v8-internal.h b/include/v8-internal.h
-index 0222ab2f7e..974a513351 100644
+index 0222ab2f7e..89ed5ab123 100644
 --- a/include/v8-internal.h
 +++ b/include/v8-internal.h
 @@ -230,8 +230,10 @@ class Internals {
@@ -49,18 +49,16 @@ index 0222ab2f7e..974a513351 100644
    static const int kIsolateFastCCallCallerPcOffset =
        kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
    static const int kIsolateFastApiCallTargetOffset =
-@@ -263,6 +265,9 @@ class Internals {
+@@ -263,6 +265,7 @@ class Internals {
    static const int kNodeStateMask = 0x7;
    static const int kNodeStateIsWeakValue = 2;
    static const int kNodeStateIsPendingValue = 3;
 +  static const int kNodeStateIsNearDeathValue = 4;
-+  static const int kNodeIsIndependentShift = 3;
-+  static const int kNodeIsActiveShift = 4;
  
    static const int kFirstNonstringType = 0x40;
    static const int kOddballType = 0x43;
 diff --git a/include/v8.h b/include/v8.h
-index 78c454e334..412214da11 100644
+index 78c454e334..fb20c7e8a3 100644
 --- a/include/v8.h
 +++ b/include/v8.h
 @@ -138,9 +138,9 @@ class HeapObject;
@@ -164,7 +162,7 @@ index 78c454e334..412214da11 100644
  
    /** Returns the equivalent of `ToNumber()->Value()`. */
    V8_WARN_UNUSED_RESULT Maybe<double> NumberValue(Local<Context> context) const;
-@@ -3306,16 +3330,7 @@ class V8_EXPORT String : public Name {
+@@ -3306,12 +3330,7 @@ class V8_EXPORT String : public Name {
     public:
      virtual ~ExternalStringResourceBase() = default;
  
@@ -174,15 +172,11 @@ index 78c454e334..412214da11 100644
 -     * expected to be stable beyond the current top-level task.
 -     */
 -    virtual bool IsCacheable() const { return true; }
--
--    // Disallow copying and assigning.
--    ExternalStringResourceBase(const ExternalStringResourceBase&) = delete;
--    void operator=(const ExternalStringResourceBase&) = delete;
 +    virtual bool IsCompressible() const { return false; }
  
-    protected:
-     ExternalStringResourceBase() = default;
-@@ -3328,28 +3343,9 @@ class V8_EXPORT String : public Name {
+     // Disallow copying and assigning.
+     ExternalStringResourceBase(const ExternalStringResourceBase&) = delete;
+@@ -3328,28 +3347,9 @@ class V8_EXPORT String : public Name {
       */
      virtual void Dispose() { delete this; }
  
@@ -211,7 +205,7 @@ index 78c454e334..412214da11 100644
    };
  
    /**
-@@ -3478,6 +3474,11 @@ class V8_EXPORT String : public Name {
+@@ -3478,6 +3478,11 @@ class V8_EXPORT String : public Name {
  
    V8_INLINE static String* Cast(v8::Data* data);
  
@@ -223,7 +217,7 @@ index 78c454e334..412214da11 100644
    /**
     * Allocates a new string from a UTF-8 literal. This is equivalent to calling
     * String::NewFromUtf(isolate, "...").ToLocalChecked(), but without the check
-@@ -3490,7 +3491,7 @@ class V8_EXPORT String : public Name {
+@@ -3490,7 +3495,7 @@ class V8_EXPORT String : public Name {
    template <int N>
    static V8_WARN_UNUSED_RESULT Local<String> NewFromUtf8Literal(
        Isolate* isolate, const char (&literal)[N],
@@ -232,7 +226,7 @@ index 78c454e334..412214da11 100644
      static_assert(N <= kMaxLength, "String is too long");
      return NewFromUtf8Literal(isolate, literal, type, N - 1);
    }
-@@ -3499,19 +3500,22 @@ class V8_EXPORT String : public Name {
+@@ -3499,19 +3504,25 @@ class V8_EXPORT String : public Name {
     * length > kMaxLength. **/
    static V8_WARN_UNUSED_RESULT MaybeLocal<String> NewFromUtf8(
        Isolate* isolate, const char* data,
@@ -253,12 +247,15 @@ index 78c454e334..412214da11 100644
 -      NewStringType type = NewStringType::kNormal, int length = -1);
 +      v8::NewStringType type = v8::NewStringType::kNormal, int length = -1);
 +
-+  static Local<String> NewFromUtf8(Isolate* isolate, const char* data, NewStringType type = kNormalString, int length = -1);
-+  static Local<String> NewFromTwoByte(Isolate* isolate, const uint16_t* data, NewStringType type = kNormalString, int length = -1);
++  // Compat: pre-7.x API returning Local<String>. `type` intentionally has no
++  // default so that NewFromUtf8(isolate, data) still resolves to the
++  // MaybeLocal overload above.
++  static Local<String> NewFromUtf8(Isolate* isolate, const char* data, NewStringType type, int length = -1);
++  static Local<String> NewFromTwoByte(Isolate* isolate, const uint16_t* data, NewStringType type, int length = -1);
  
    /**
     * Creates a new string by concatenating the left and the right strings
-@@ -3583,6 +3587,7 @@ class V8_EXPORT String : public Name {
+@@ -3583,6 +3594,7 @@ class V8_EXPORT String : public Name {
     */
    class V8_EXPORT Utf8Value {
     public:
@@ -266,7 +263,7 @@ index 78c454e334..412214da11 100644
      Utf8Value(Isolate* isolate, Local<v8::Value> obj);
      ~Utf8Value();
      char* operator*() { return str_; }
-@@ -3606,6 +3611,7 @@ class V8_EXPORT String : public Name {
+@@ -3606,6 +3618,7 @@ class V8_EXPORT String : public Name {
     */
    class V8_EXPORT Value {
     public:
@@ -274,7 +271,7 @@ index 78c454e334..412214da11 100644
      Value(Isolate* isolate, Local<v8::Value> obj);
      ~Value();
      uint16_t* operator*() { return str_; }
-@@ -3631,7 +3637,7 @@ class V8_EXPORT String : public Name {
+@@ -3631,7 +3644,7 @@ class V8_EXPORT String : public Name {
  
    static Local<v8::String> NewFromUtf8Literal(Isolate* isolate,
                                                const char* literal,
@@ -283,7 +280,7 @@ index 78c454e334..412214da11 100644
  
    static void CheckCast(v8::Data* that);
  };
-@@ -3640,7 +3646,7 @@ class V8_EXPORT String : public Name {
+@@ -3640,7 +3653,7 @@ class V8_EXPORT String : public Name {
  // terminator).
  template <>
  inline V8_WARN_UNUSED_RESULT Local<String> String::NewFromUtf8Literal(
@@ -292,7 +289,7 @@ index 78c454e334..412214da11 100644
    return String::Empty(isolate);
  }
  
-@@ -4056,6 +4062,12 @@ class V8_EXPORT Object : public Value {
+@@ -4056,6 +4069,12 @@ class V8_EXPORT Object : public Value {
    /**
     * Note: SideEffectType affects the getter only, not the setter.
     */
@@ -305,16 +302,18 @@ index 78c454e334..412214da11 100644
    V8_WARN_UNUSED_RESULT Maybe<bool> SetAccessor(
        Local<Context> context, Local<Name> name,
        AccessorNameGetterCallback getter,
-@@ -4180,7 +4192,7 @@ class V8_EXPORT Object : public Value {
+@@ -4180,7 +4199,9 @@ class V8_EXPORT Object : public Value {
    Maybe<bool> SetIntegrityLevel(Local<Context> context, IntegrityLevel level);
  
    /** Gets the number of internal fields for this Object. */
 -  int InternalFieldCount() const;
++  // ABI compat: prebuilt Titanium modules link against the non-const
++  // mangling of this method (V8 <= 8.8), so keep it non-const.
 +  int InternalFieldCount();
  
    /** Same as above, but works for PersistentBase. */
    V8_INLINE static int InternalFieldCount(
-@@ -4417,6 +4429,19 @@ class V8_EXPORT Object : public Value {
+@@ -4417,6 +4438,19 @@ class V8_EXPORT Object : public Value {
     */
    bool IsCodeLike(Isolate* isolate) const;
  
@@ -334,35 +333,18 @@ index 78c454e334..412214da11 100644
   private:
    Object();
    static void CheckCast(Value* obj);
-@@ -4610,6 +4635,8 @@ class FunctionCallbackInfo {
-   // This shouldn't be public, but the arm compiler needs it.
-   static const int kArgsLength = 6;
- 
-+  V8_INLINE Local<Function> Callee() const;
-+
-  protected:
-   friend class internal::FunctionCallbackArguments;
-   friend class internal::CustomArguments<FunctionCallbackInfo>;
-@@ -4620,6 +4647,7 @@ class FunctionCallbackInfo {
-   static const int kReturnValueIndex = 3;
-   static const int kDataIndex = 4;
-   static const int kNewTargetIndex = 5;
-+  static const int kCalleeIndex = 6;
- 
-   V8_INLINE FunctionCallbackInfo(internal::Address* implicit_args,
-                                  internal::Address* values, int length);
-@@ -4832,6 +4860,10 @@ class V8_EXPORT Function : public Object {
+@@ -4832,6 +4866,10 @@ class V8_EXPORT Function : public Object {
    V8_INLINE static Function* Cast(Value* obj);
    static const int kLineOffsetNotFound;
  
-+  Local<Function> New(Isolate* isolate, FunctionCallback callback, Local<Value> data = Local<Value>(), int length = 0);
++  static Local<Function> New(Isolate* isolate, FunctionCallback callback, Local<Value> data = Local<Value>(), int length = 0);
 +  Local<Value> Call(Local<Value> recv, int argc, Local<Value> argv[]);
 +  Local<Object> NewInstance(int argc, Local<Value> argv[]) const;
 +
   private:
    Function();
    static void CheckCast(Value* obj);
-@@ -5889,6 +5921,8 @@ class V8_EXPORT Date : public Object {
+@@ -5889,6 +5927,8 @@ class V8_EXPORT Date : public Object {
  
    V8_INLINE static Date* Cast(Value* obj);
  
@@ -371,7 +353,7 @@ index 78c454e334..412214da11 100644
   private:
    static void CheckCast(Value* obj);
  };
-@@ -6178,6 +6212,12 @@ class V8_EXPORT Template : public Data {
+@@ -6178,6 +6218,12 @@ class V8_EXPORT Template : public Data {
    friend class FunctionTemplate;
  };
  
@@ -384,7 +366,7 @@ index 78c454e334..412214da11 100644
  // TODO(dcarney): Replace GenericNamedPropertyFooCallback with just
  // NamedPropertyFooCallback.
  
-@@ -6529,9 +6569,15 @@ class V8_EXPORT FunctionTemplate : public Template {
+@@ -6529,9 +6575,18 @@ class V8_EXPORT FunctionTemplate : public Template {
        Isolate* isolate, FunctionCallback callback = nullptr,
        Local<Value> data = Local<Value>(),
        Local<Signature> signature = Local<Signature>(), int length = 0,
@@ -392,6 +374,9 @@ index 78c454e334..412214da11 100644
 -      SideEffectType side_effect_type = SideEffectType::kHasSideEffect,
 -      const CFunction* c_function = nullptr, uint16_t instance_type = 0,
 +      ConstructorBehavior behavior = ConstructorBehavior::kAllow);
++  // ABI compat: prebuilt Titanium modules import the 6-argument overload above
++  // (_ZN2v816FunctionTemplate3NewE...NS_19ConstructorBehaviorE), so it must
++  // stay a real exported function rather than defaulted parameters.
 +  static Local<FunctionTemplate> New(
 +      Isolate* isolate, FunctionCallback callback,
 +      Local<Value> data,
@@ -403,7 +388,7 @@ index 78c454e334..412214da11 100644
        uint16_t allowed_receiver_instance_type_range_start = 0,
        uint16_t allowed_receiver_instance_type_range_end = 0);
  
-@@ -6647,6 +6693,8 @@ class V8_EXPORT FunctionTemplate : public Template {
+@@ -6647,6 +6702,8 @@ class V8_EXPORT FunctionTemplate : public Template {
  
    V8_INLINE static FunctionTemplate* Cast(Data* data);
  
@@ -412,13 +397,15 @@ index 78c454e334..412214da11 100644
   private:
    FunctionTemplate();
  
-@@ -6887,10 +6935,24 @@ class V8_EXPORT ObjectTemplate : public Template {
+@@ -6887,10 +6944,26 @@ class V8_EXPORT ObjectTemplate : public Template {
        AccessorNameSetterCallback setter = nullptr,
        Local<Value> data = Local<Value>(), AccessControl settings = DEFAULT,
        PropertyAttribute attribute = None,
 -      Local<AccessorSignature> signature = Local<AccessorSignature>(),
 -      SideEffectType getter_side_effect_type = SideEffectType::kHasSideEffect,
 +      Local<AccessorSignature> signature = Local<AccessorSignature>());
++  // ABI compat: prebuilt Titanium modules import the 7-argument overload above,
++  // so it must stay a real exported function rather than defaulted parameters.
 +  void SetAccessor(
 +      Local<Name> name, AccessorNameGetterCallback getter,
 +      AccessorNameSetterCallback setter,
@@ -439,16 +426,18 @@ index 78c454e334..412214da11 100644
    /**
     * Sets a named property handler on the object template.
     *
-@@ -6990,7 +7052,7 @@ class V8_EXPORT ObjectTemplate : public Template {
+@@ -6990,7 +7063,9 @@ class V8_EXPORT ObjectTemplate : public Template {
     * Gets the number of internal fields for objects generated from
     * this template.
     */
 -  int InternalFieldCount() const;
++  // ABI compat: prebuilt Titanium modules link against the non-const
++  // mangling of this method (V8 <= 8.8), so keep it non-const.
 +  int InternalFieldCount();
  
    /**
     * Sets the number of internal fields for objects generated from
-@@ -7023,6 +7085,8 @@ class V8_EXPORT ObjectTemplate : public Template {
+@@ -7023,6 +7098,8 @@ class V8_EXPORT ObjectTemplate : public Template {
  
    V8_INLINE static ObjectTemplate* Cast(Data* data);
  
@@ -457,7 +446,7 @@ index 78c454e334..412214da11 100644
   private:
    ObjectTemplate();
    static Local<ObjectTemplate> New(internal::Isolate* isolate,
-@@ -7074,6 +7138,19 @@ class V8_EXPORT AccessorSignature : public Data {
+@@ -7074,6 +7151,19 @@ class V8_EXPORT AccessorSignature : public Data {
  
  
  // --- Extensions ---
@@ -477,7 +466,7 @@ index 78c454e334..412214da11 100644
  
  /**
   * Ignore
-@@ -9956,6 +10033,12 @@ class V8_EXPORT V8 {
+@@ -9956,6 +10046,12 @@ class V8_EXPORT V8 {
     */
    static bool Initialize(int build_config);
  
@@ -490,7 +479,7 @@ index 78c454e334..412214da11 100644
    static internal::Address* GlobalizeReference(internal::Isolate* isolate,
                                                 internal::Address* handle);
    static internal::Address* GlobalizeTracedReference(internal::Isolate* isolate,
-@@ -10371,6 +10454,9 @@ class V8_EXPORT TryCatch {
+@@ -10371,6 +10467,9 @@ class V8_EXPORT TryCatch {
    TryCatch(const TryCatch&) = delete;
    void operator=(const TryCatch&) = delete;
  
@@ -500,7 +489,7 @@ index 78c454e334..412214da11 100644
   private:
    // Declaring operator new and delete as deleted is not spec compliant.
    // Therefore declare them private instead to disable dynamic alloc
-@@ -10924,7 +11010,7 @@ template <class T>
+@@ -10924,7 +11023,7 @@ template <class T>
  Local<T> Local<T>::New(Isolate* isolate, T* that) {
    if (that == nullptr) return Local<T>();
    T* that_ptr = that;
@@ -509,7 +498,7 @@ index 78c454e334..412214da11 100644
    return Local<T>(reinterpret_cast<T*>(HandleScope::CreateHandle(
        reinterpret_cast<internal::Isolate*>(isolate), *p)));
  }
-@@ -10967,7 +11053,7 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
+@@ -10967,7 +11066,7 @@ void* WeakCallbackInfo<T>::GetInternalField(int index) const {
  template <class T>
  T* PersistentBase<T>::New(Isolate* isolate, T* that) {
    if (that == nullptr) return nullptr;
@@ -518,7 +507,7 @@ index 78c454e334..412214da11 100644
    return reinterpret_cast<T*>(
        V8::GlobalizeReference(reinterpret_cast<internal::Isolate*>(isolate),
                               p));
-@@ -10997,7 +11083,7 @@ bool PersistentBase<T>::IsWeak() const {
+@@ -10997,7 +11096,7 @@ bool PersistentBase<T>::IsWeak() const {
  template <class T>
  void PersistentBase<T>::Reset() {
    if (this->IsEmpty()) return;
@@ -527,7 +516,7 @@ index 78c454e334..412214da11 100644
    val_ = nullptr;
  }
  
-@@ -11033,7 +11119,7 @@ V8_INLINE void PersistentBase<T>::SetWeak(
+@@ -11033,7 +11132,7 @@ V8_INLINE void PersistentBase<T>::SetWeak(
  #pragma GCC diagnostic push
  #pragma GCC diagnostic ignored "-Wcast-function-type"
  #endif
@@ -536,7 +525,7 @@ index 78c454e334..412214da11 100644
                 reinterpret_cast<Callback>(callback), type);
  #if (__GNUC__ >= 8) && !defined(__clang__)
  #pragma GCC diagnostic pop
-@@ -11042,14 +11128,14 @@ V8_INLINE void PersistentBase<T>::SetWeak(
+@@ -11042,14 +11141,14 @@ V8_INLINE void PersistentBase<T>::SetWeak(
  
  template <class T>
  void PersistentBase<T>::SetWeak() {
@@ -553,29 +542,21 @@ index 78c454e334..412214da11 100644
  }
  
  template <class T>
-@@ -11077,6 +11163,35 @@ uint16_t PersistentBase<T>::WrapperClassId() const {
+@@ -11077,6 +11176,27 @@ uint16_t PersistentBase<T>::WrapperClassId() const {
    return *reinterpret_cast<uint16_t*>(addr);
  }
  
++// Compat: the "independent" and "active" node flags were removed from V8's
++// GlobalHandles (they had been no-ops since 7.x). Keep the API, do nothing.
 +template <class T>
-+void PersistentBase<T>::MarkIndependent() {
-+  typedef internal::Internals I;
-+  if (this->IsEmpty()) return;
-+  I::UpdateNodeFlag(reinterpret_cast<internal::Address*>(this->val_), true, I::kNodeIsIndependentShift);
-+}
++void PersistentBase<T>::MarkIndependent() {}
 +
 +template <class T>
-+void PersistentBase<T>::MarkActive() {
-+  typedef internal::Internals I;
-+  if (this->IsEmpty()) return;
-+  I::UpdateNodeFlag(reinterpret_cast<internal::Address*>(this->val_), true, I::kNodeIsActiveShift);
-+}
++void PersistentBase<T>::MarkActive() {}
 +
 +template <class T>
 +bool PersistentBase<T>::IsIndependent() const {
-+  typedef internal::Internals I;
-+  if (this->IsEmpty()) return false;
-+  return I::GetNodeFlag(reinterpret_cast<internal::Address*>(this->val_), I::kNodeIsIndependentShift);
++  return false;
 +}
 +
 +template <class T>
@@ -589,86 +570,11 @@ index 78c454e334..412214da11 100644
  template <class T>
  Global<T>::Global(Global&& other) : PersistentBase<T>(other.val_) {
    if (other.val_ != nullptr) {
-@@ -11429,6 +11544,10 @@ Local<Value> FunctionCallbackInfo<T>::operator[](int i) const {
-   return Local<Value>(reinterpret_cast<Value*>(values_ + i));
- }
- 
-+template<typename T>
-+Local<Function> FunctionCallbackInfo<T>::Callee() const {
-+  return Local<Function>(reinterpret_cast<Function*>(&implicit_args_[kCalleeIndex]));
-+}
- 
- template<typename T>
- Local<Object> FunctionCallbackInfo<T>::This() const {
-@@ -11621,21 +11740,23 @@ Local<Value> Object::GetInternalField(int index) {
- #ifndef V8_ENABLE_CHECKS
-   using A = internal::Address;
-   using I = internal::Internals;
-+  using O = internal::Object*;
-   A obj = *reinterpret_cast<A*>(this);
-   // Fast path: If the object is a plain JSObject, which is the common case, we
-   // know where to find the internal fields and can return the value directly.
-   int instance_type = I::GetInstanceType(obj);
--  if (v8::internal::CanHaveInternalField(instance_type)) {
-+  if (instance_type == I::kJSObjectType || instance_type == 0x420 || instance_type == I::kJSSpecialApiObjectType) {
-     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
--    A value = I::ReadRawField<A>(obj, offset);
-+    O value = I::ReadRawField<O>(obj, offset);
- #ifdef V8_COMPRESS_POINTERS
-     // We read the full pointer value and then decompress it in order to avoid
-     // dealing with potential endiannes issues.
--    value = I::DecompressTaggedAnyField(obj, static_cast<uint32_t>(value));
-+    uint32_t ptr = I::ReadRawField<uint32_t>(obj, offset);
-+    value = reinterpret_cast<O>(I::DecompressTaggedAnyField(obj, ptr));
- #endif
-     internal::Isolate* isolate =
-         internal::IsolateFromNeverReadOnlySpaceObject(obj);
--    A* result = HandleScope::CreateHandle(isolate, value);
-+    O* result = HandleScope::CreateHandle(isolate, value);
-     return Local<Value>(reinterpret_cast<Value*>(result));
-   }
- #endif
-@@ -11651,7 +11772,7 @@ void* Object::GetAlignedPointerFromInternalField(int index) {
-   // Fast path: If the object is a plain JSObject, which is the common case, we
-   // know where to find the internal fields and can return the value directly.
-   auto instance_type = I::GetInstanceType(obj);
--  if (v8::internal::CanHaveInternalField(instance_type)) {
-+  if (instance_type == I::kJSObjectType || instance_type == 0x420 || instance_type == I::kJSSpecialApiObjectType) {
-     int offset = I::kJSObjectHeaderSize + (I::kEmbedderDataSlotSize * index);
- #ifdef V8_HEAP_SANDBOX
-     offset += I::kEmbedderDataSlotRawPayloadOffset;
-@@ -12262,21 +12383,23 @@ Local<Value> Context::GetEmbedderData(int index) {
- #ifndef V8_ENABLE_CHECKS
-   using A = internal::Address;
-   using I = internal::Internals;
-+  using O = internal::Object*;
-   A ctx = *reinterpret_cast<const A*>(this);
-   A embedder_data =
-       I::ReadTaggedPointerField(ctx, I::kNativeContextEmbedderDataOffset);
-   int value_offset =
-       I::kEmbedderDataArrayHeaderSize + (I::kEmbedderDataSlotSize * index);
--  A value = I::ReadRawField<A>(embedder_data, value_offset);
-+  O value = I::ReadRawField<O>(embedder_data, value_offset);
- #ifdef V8_COMPRESS_POINTERS
-   // We read the full pointer value and then decompress it in order to avoid
-   // dealing with potential endiannes issues.
-+  uint32_t ptr = I::ReadRawField<uint32_t>(embedder_data, value_offset);
-   value =
--      I::DecompressTaggedAnyField(embedder_data, static_cast<uint32_t>(value));
-+      reinterpret_cast<O>(I::DecompressTaggedAnyField(embedder_data, ptr));
- #endif
-   internal::Isolate* isolate = internal::IsolateFromNeverReadOnlySpaceObject(
-       *reinterpret_cast<A*>(this));
--  A* result = HandleScope::CreateHandle(isolate, value);
-+  O* result = HandleScope::CreateHandle(isolate, value);
-   return Local<Value>(reinterpret_cast<Value*>(result));
- #else
-   return SlowGetEmbedderData(index);
 diff --git a/src/api/api-arguments-inl.h b/src/api/api-arguments-inl.h
-index 786f849be6..81f5cd0efb 100644
+index 786f849be6..9c0269de92 100644
 --- a/src/api/api-arguments-inl.h
 +++ b/src/api/api-arguments-inl.h
-@@ -44,6 +42,9 @@ Handle<V> CustomArguments<T>::GetReturnValue(Isolate* isolate) {
+@@ -44,6 +44,9 @@ Handle<V> CustomArguments<T>::GetReturnValue(Isolate* isolate) {
    // Nothing was set, return empty handle as per previous behaviour.
    if ((*slot).IsTheHole(isolate)) return Handle<V>();
    Handle<V> result = Handle<V>::cast(Handle<Object>(slot.location()));
@@ -679,29 +585,27 @@ index 786f849be6..81f5cd0efb 100644
    return result;
  }
 diff --git a/src/api/api.cc b/src/api/api.cc
-index a8af304a53..f01e97f10b 100644
+index a8af304a53..641440a550 100644
 --- a/src/api/api.cc
 +++ b/src/api/api.cc
-@@ -157,6 +157,18 @@
+@@ -157,6 +157,16 @@
  
  namespace v8 {
  
 +namespace {
 +
-+  Local<Context> UnsafeContextFromHeapObject(i::Handle<i::Object> obj) {
-+    i::MemoryChunk* chunk = i::MemoryChunk::FromHeapObject(i::HeapObject::cast(*obj));
-+    return reinterpret_cast<Isolate*>(chunk->heap()->isolate())->GetCurrentContext();
-+  }
-+
-+  Local<Context> ContextFromNeverReadOnlySpaceObject(i::Handle<i::JSReceiver> obj) {
-+    return reinterpret_cast<v8::Isolate*>(obj->GetIsolate())->GetCurrentContext();
-+  }
++// Context used by the context-less compat shims below: the pre-6.x APIs they
++// emulate operated on the current context of the current isolate.
++Local<Context> CompatCurrentContext() {
++  return Isolate::GetCurrent()->GetCurrentContext();
 +}
++
++}  // namespace
 +
  static ScriptOrigin GetScriptOriginForScript(i::Isolate* isolate,
                                               i::Handle<i::Script> script) {
    i::Handle<i::Object> scriptName(script->GetNameOrSourceURL(), isolate);
-@@ -746,6 +758,26 @@ void ResourceConstraints::ConfigureDefaults(uint64_t physical_memory,
+@@ -746,6 +756,26 @@ void ResourceConstraints::ConfigureDefaults(uint64_t physical_memory,
    }
  }
  
@@ -728,7 +632,7 @@ index a8af304a53..f01e97f10b 100644
  i::Address* V8::GlobalizeReference(i::Isolate* isolate, i::Address* obj) {
    LOG_API(isolate, Persistent, New);
    i::Handle<i::Object> result = isolate->global_handles()->Create(*obj);
-@@ -888,6 +920,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
+@@ -888,6 +918,9 @@ int HandleScope::NumberOfHandles(Isolate* isolate) {
        reinterpret_cast<i::Isolate*>(isolate));
  }
  
@@ -738,7 +642,7 @@ index a8af304a53..f01e97f10b 100644
  i::Address* HandleScope::CreateHandle(i::Isolate* isolate, i::Address value) {
    return i::HandleScope::CreateHandle(isolate, value);
  }
-@@ -899,6 +934,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
+@@ -899,6 +932,9 @@ EscapableHandleScope::EscapableHandleScope(Isolate* v8_isolate) {
    Initialize(v8_isolate);
  }
  
@@ -748,22 +652,26 @@ index a8af304a53..f01e97f10b 100644
  i::Address* EscapableHandleScope::Escape(i::Address* escape_value) {
    i::Heap* heap = reinterpret_cast<i::Isolate*>(GetIsolate())->heap();
    Utils::ApiCheck(i::Object(*escape_slot_).IsTheHole(heap->isolate()),
-@@ -1263,6 +1301,11 @@ static Local<FunctionTemplate> FunctionTemplateNew(
+@@ -1263,6 +1299,14 @@ static Local<FunctionTemplate> FunctionTemplateNew(
    return Utils::ToLocal(obj);
  }
  
++// ABI compat overload, see include/v8.h.
 +Local<FunctionTemplate> FunctionTemplate::New(
 +    Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
 +    v8::Local<Signature> signature, int length, ConstructorBehavior behavior) {
-+  return FunctionTemplate::New(isolate, callback, data, signature, length, behavior, SideEffectType::kHasSideEffect);
++  return FunctionTemplate::New(isolate, callback, data, signature, length,
++                               behavior, SideEffectType::kHasSideEffect);
 +}
++
  Local<FunctionTemplate> FunctionTemplate::New(
      Isolate* isolate, FunctionCallback callback, v8::Local<Value> data,
      v8::Local<Signature> signature, int length, ConstructorBehavior behavior,
-@@ -1610,6 +1653,16 @@ void ObjectTemplate::SetAccessor(v8::Local<String> name,
+@@ -1610,6 +1654,18 @@ void ObjectTemplate::SetAccessor(v8::Local<String> name,
                        getter_side_effect_type, setter_side_effect_type);
  }
  
++// ABI compat overload, see include/v8.h.
 +void ObjectTemplate::SetAccessor(v8::Local<Name> name,
 +                                 AccessorNameGetterCallback getter,
 +                                 AccessorNameSetterCallback setter,
@@ -774,10 +682,11 @@ index a8af304a53..f01e97f10b 100644
 +                              signature, SideEffectType::kHasSideEffect,
 +                              SideEffectType::kHasSideEffect);
 +}
++
  void ObjectTemplate::SetAccessor(v8::Local<Name> name,
                                   AccessorNameGetterCallback getter,
                                   AccessorNameSetterCallback setter,
-@@ -1703,6 +1756,13 @@ static void ObjectTemplateSetNamedPropertyHandler(
+@@ -1703,6 +1759,13 @@ static void ObjectTemplateSetNamedPropertyHandler(
    i::FunctionTemplateInfo::SetNamedPropertyHandler(isolate, cons, obj);
  }
  
@@ -791,7 +700,7 @@ index a8af304a53..f01e97f10b 100644
  void ObjectTemplate::SetHandler(
      const NamedPropertyHandlerConfiguration& config) {
    ObjectTemplateSetNamedPropertyHandler(
-@@ -1816,7 +1876,7 @@ void ObjectTemplate::SetCallAsFunctionHandler(FunctionCallback callback,
+@@ -1816,7 +1879,7 @@ void ObjectTemplate::SetCallAsFunctionHandler(FunctionCallback callback,
    i::FunctionTemplateInfo::SetInstanceCallHandler(isolate, cons, obj);
  }
  
@@ -800,26 +709,25 @@ index a8af304a53..f01e97f10b 100644
    return Utils::OpenHandle(this)->embedder_field_count();
  }
  
-@@ -2011,6 +2071,26 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
+@@ -2011,6 +2074,25 @@ MaybeLocal<Value> Script::Run(Local<Context> context) {
    RETURN_ESCAPED(result);
  }
  
 +Local<Value> Script::Run() {
++  // If execution is terminating, Compile(..)->Run() requires this check.
 +  auto self = Utils::OpenHandle(this, true);
 +  if (self.is_null()) return Local<Value>();
-+  auto context = UnsafeContextFromHeapObject(self);
++  auto context = CompatCurrentContext();
 +  return Run(context).FromMaybe(Local<Value>());
 +}
 +
 +Local<Script> Script::Compile(v8::Local<String> source, v8::ScriptOrigin* origin) {
-+  auto str = Utils::OpenHandle(*source);
-+  auto context = UnsafeContextFromHeapObject(str);
++  auto context = CompatCurrentContext();
 +  return Compile(context, source, origin).FromMaybe(Local<Script>());
 +}
 +
 +Local<Script> Script::Compile(v8::Local<String> source, v8::Local<String> file_name) {
-+  auto str = Utils::OpenHandle(*source);
-+  auto context = UnsafeContextFromHeapObject(str);
++  auto context = CompatCurrentContext();
 +  ScriptOrigin origin(file_name);
 +  return Compile(context, source, &origin).FromMaybe(Local<Script>());
 +}
@@ -827,7 +735,7 @@ index a8af304a53..f01e97f10b 100644
  Local<Value> ScriptOrModule::GetResourceName() {
    i::Handle<i::Script> obj = Utils::OpenHandle(this);
    i::Isolate* isolate = obj->GetIsolate();
-@@ -2715,7 +2795,18 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
+@@ -2715,7 +2797,18 @@ MaybeLocal<Script> Script::Compile(Local<Context> context, Local<String> source,
  }
  
  // --- E x c e p t i o n s ---
@@ -847,7 +755,7 @@ index a8af304a53..f01e97f10b 100644
  v8::TryCatch::TryCatch(v8::Isolate* isolate)
      : isolate_(reinterpret_cast<i::Isolate*>(isolate)),
        next_(isolate_->try_catch_handler()),
-@@ -2813,6 +2904,11 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
+@@ -2813,6 +2906,11 @@ MaybeLocal<Value> v8::TryCatch::StackTrace(Local<Context> context) const {
    return StackTrace(context, Exception());
  }
  
@@ -859,24 +767,24 @@ index a8af304a53..f01e97f10b 100644
  v8::Local<v8::Message> v8::TryCatch::Message() const {
    i::Object message(reinterpret_cast<i::Address>(message_obj_));
    DCHECK(message.IsJSMessageObject() || message.IsTheHole(isolate_));
-@@ -2896,6 +2992,16 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
+@@ -2896,6 +2994,16 @@ Maybe<int> Message::GetLineNumber(Local<Context> context) const {
    return Just(self->GetLineNumber());
  }
  
 +int Message::GetLineNumber() const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return GetLineNumber(context).FromMaybe(0);
 +}
 +
 +Local<String> Message::GetSourceLine() const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return GetSourceLine(context).FromMaybe(Local<String>());
 +}
 +
  int Message::GetStartPosition() const {
    auto self = Utils::OpenHandle(this);
    i::Isolate* isolate = self->GetIsolate();
-@@ -3588,6 +3694,10 @@ MaybeLocal<String> Value::ToString(Local<Context> context) const {
+@@ -3588,6 +3696,10 @@ MaybeLocal<String> Value::ToString(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -887,7 +795,7 @@ index a8af304a53..f01e97f10b 100644
  MaybeLocal<String> Value::ToDetailString(Local<Context> context) const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    if (obj->IsString()) return ToApiHandle<String>(obj);
-@@ -3609,6 +3719,10 @@ MaybeLocal<Object> Value::ToObject(Local<Context> context) const {
+@@ -3609,6 +3721,10 @@ MaybeLocal<Object> Value::ToObject(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -898,7 +806,7 @@ index a8af304a53..f01e97f10b 100644
  MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    if (obj->IsBigInt()) return ToApiHandle<BigInt>(obj);
-@@ -3620,11 +3734,20 @@ MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
+@@ -3620,11 +3736,20 @@ MaybeLocal<BigInt> Value::ToBigInt(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -919,7 +827,7 @@ index a8af304a53..f01e97f10b 100644
  Local<Boolean> Value::ToBoolean(Isolate* v8_isolate) const {
    auto isolate = reinterpret_cast<i::Isolate*>(v8_isolate);
    ASSERT_NO_SCRIPT_NO_EXCEPTION(isolate);
-@@ -3643,6 +3766,10 @@ MaybeLocal<Number> Value::ToNumber(Local<Context> context) const {
+@@ -3643,6 +3768,10 @@ MaybeLocal<Number> Value::ToNumber(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -930,7 +838,7 @@ index a8af304a53..f01e97f10b 100644
  MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Integer>(obj);
-@@ -3654,6 +3781,10 @@ MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
+@@ -3654,6 +3783,10 @@ MaybeLocal<Integer> Value::ToInteger(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -941,7 +849,7 @@ index a8af304a53..f01e97f10b 100644
  MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Int32>(obj);
-@@ -3665,6 +3796,10 @@ MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
+@@ -3665,6 +3798,10 @@ MaybeLocal<Int32> Value::ToInt32(Local<Context> context) const {
    RETURN_ESCAPED(result);
  }
  
@@ -952,69 +860,69 @@ index a8af304a53..f01e97f10b 100644
  MaybeLocal<Uint32> Value::ToUint32(Local<Context> context) const {
    auto obj = Utils::OpenHandle(this);
    if (obj->IsSmi()) return ToApiHandle<Uint32>(obj);
-@@ -4123,6 +4258,61 @@ Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context,
+@@ -4123,6 +4260,61 @@ Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context,
    return Just(true);
  }
  
 +bool v8::Object::Set(Local<Value> key, Local<Value> value) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return Set(context, key, value).FromMaybe(false);
 +}
 +
 +bool v8::Object::Set(uint32_t index, Local<Value> value) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return Set(context, index, value).FromMaybe(false);
 +}
 +
 +Local<Value> v8::Object::Get(Local<Value> key) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return Get(context, key).FromMaybe(Local<Value>());
 +}
 +
 +Local<Value> v8::Object::Get(uint32_t index) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return Get(context, index).FromMaybe(Local<Value>());
 +}
 +
 +Local<Array> v8::Object::GetPropertyNames() {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return GetPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
 +Local<Array> v8::Object::GetOwnPropertyNames() {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return GetOwnPropertyNames(context).FromMaybe(Local<Array>());
 +}
 +
 +Local<Value> v8::Object::GetRealNamedProperty(Local<String> key) {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return GetRealNamedProperty(context, key).FromMaybe(Local<Value>());
 +}
 +
 +bool v8::Object::Has(Local<Value> key) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return Has(context, key).FromMaybe(false);
 +}
 +
 +bool v8::Object::HasOwnProperty(Local<String> key) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return HasOwnProperty(context, key).FromMaybe(false);
 +}
 +
 +bool v8::Object::HasRealNamedProperty(Local<String> key) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return HasRealNamedProperty(context, key).FromMaybe(false);
 +}
 +
 +bool v8::Object::HasRealNamedCallbackProperty(Local<String> key) {
-+  auto context = ContextFromNeverReadOnlySpaceObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return HasRealNamedCallbackProperty(context, key).FromMaybe(false);
 +}
 +
  Maybe<bool> v8::Object::Set(v8::Local<v8::Context> context, uint32_t index,
                              v8::Local<Value> value) {
    auto isolate = reinterpret_cast<i::Isolate*>(context->GetIsolate());
-@@ -4688,6 +4878,29 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
+@@ -4688,6 +4880,17 @@ Maybe<bool> Object::SetAccessor(Local<Context> context, Local<Name> name,
                             getter_side_effect_type, setter_side_effect_type);
  }
  
@@ -1024,40 +932,40 @@ index a8af304a53..f01e97f10b 100644
 +                         v8::Local<Value> data,
 +                         AccessControl settings,
 +                         PropertyAttribute attribute) {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
-+  return ObjectSetAccessor(
-+      context,
-+      this,
-+      name,
-+      getter,
-+      setter,
-+      data,
-+      settings,
-+      attribute,
-+      i::FLAG_disable_old_api_accessors,
-+      false,
-+      SideEffectType::kHasSideEffect,
-+      SideEffectType::kHasSideEffect
-+    ).FromMaybe(false);
++  return SetAccessor(CompatCurrentContext(), name, getter, setter, data,
++                     settings, attribute)
++      .FromMaybe(false);
 +}
 +
  void Object::SetAccessorProperty(Local<Name> name, Local<Function> getter,
                                   Local<Function> setter,
                                   PropertyAttribute attribute,
-@@ -5020,6 +5233,12 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
+@@ -5020,6 +5223,24 @@ MaybeLocal<Object> Function::NewInstance(Local<Context> context, int argc,
                                         SideEffectType::kHasSideEffect);
  }
  
 +Local<v8::Object> Function::NewInstance(int argc,
 +                                        v8::Local<v8::Value> argv[]) const {
-+  auto context = UnsafeContextFromHeapObject(Utils::OpenHandle(this));
++  auto context = CompatCurrentContext();
 +  return NewInstance(context, argc, argv).FromMaybe(Local<v8::Object>());
++}
++
++Local<Function> Function::New(Isolate* isolate, FunctionCallback callback,
++                              Local<Value> data, int length) {
++  return New(isolate->GetCurrentContext(), callback, data, length)
++      .FromMaybe(Local<Function>());
++}
++
++Local<v8::Value> Function::Call(v8::Local<v8::Value> recv, int argc,
++                                v8::Local<v8::Value> argv[]) {
++  return Call(CompatCurrentContext(), recv, argc, argv)
++      .FromMaybe(Local<v8::Value>());
 +}
 +
  MaybeLocal<Object> Function::NewInstanceWithSideEffectType(
      Local<Context> context, int argc, v8::Local<v8::Value> argv[],
      SideEffectType side_effect_type) const {
-@@ -5764,7 +5983,7 @@ uint32_t Uint32::Value() const {
+@@ -5764,7 +5985,7 @@ uint32_t Uint32::Value() const {
    }
  }
  
@@ -1066,21 +974,22 @@ index a8af304a53..f01e97f10b 100644
    i::JSReceiver self = *Utils::OpenHandle(this);
    if (!self.IsJSObject()) return 0;
    return i::JSObject::cast(self).GetEmbedderFieldCount();
-@@ -6459,6 +6678,13 @@ MaybeLocal<v8::Function> FunctionTemplate::GetFunction(Local<Context> context) {
+@@ -6459,6 +6680,14 @@ MaybeLocal<v8::Function> FunctionTemplate::GetFunction(Local<Context> context) {
    RETURN_ESCAPED(result);
  }
  
 +Local<v8::Function> FunctionTemplate::GetFunction() {
-+  Local<Context> context =
-+      reinterpret_cast<v8::Isolate*>(Utils::OpenHandle(this)->GetIsolate())
-+          ->GetCurrentContext();
-+  return GetFunction(context).FromMaybe(Local<v8::Function>());
++  return GetFunction(CompatCurrentContext()).FromMaybe(Local<v8::Function>());
++}
++
++Local<v8::Object> ObjectTemplate::NewInstance() {
++  return NewInstance(CompatCurrentContext()).FromMaybe(Local<v8::Object>());
 +}
 +
  MaybeLocal<v8::Object> FunctionTemplate::NewRemoteInstance() {
    auto self = Utils::OpenHandle(this);
    i::Isolate* isolate = self->GetIsolate();
-@@ -6552,7 +6778,7 @@ V8_WARN_UNUSED_RESULT
+@@ -6552,7 +6781,7 @@ V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
                                             NewStringType type,
                                             base::Vector<const char> string) {
@@ -1089,7 +998,7 @@ index a8af304a53..f01e97f10b 100644
      return factory->InternalizeUtf8String(string);
    }
    return factory->NewStringFromUtf8(string);
-@@ -6560,9 +6786,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
+@@ -6560,9 +6789,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
  
  V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
@@ -1101,7 +1010,7 @@ index a8af304a53..f01e97f10b 100644
      return factory->InternalizeString(string);
    }
    return factory->NewStringFromOneByte(string);
-@@ -6570,9 +6796,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
+@@ -6570,9 +6799,9 @@ inline i::MaybeHandle<i::String> NewString(i::Factory* factory,
  
  V8_WARN_UNUSED_RESULT
  inline i::MaybeHandle<i::String> NewString(
@@ -1113,7 +1022,7 @@ index a8af304a53..f01e97f10b 100644
      return factory->InternalizeString(string);
    }
    return factory->NewStringFromTwoByte(string);
-@@ -6603,7 +6829,7 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
+@@ -6603,7 +6832,7 @@ STATIC_ASSERT(v8::String::kMaxLength == i::String::kMaxLength);
    }
  
  Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
@@ -1122,7 +1031,7 @@ index a8af304a53..f01e97f10b 100644
    DCHECK_LE(length, i::String::kMaxLength);
    i::Isolate* i_isolate = reinterpret_cast<internal::Isolate*>(isolate);
    ENTER_V8_NO_SCRIPT_NO_EXCEPTION(i_isolate);
-@@ -6615,21 +6841,39 @@ Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
+@@ -6615,21 +6844,39 @@ Local<String> String::NewFromUtf8Literal(Isolate* isolate, const char* literal,
    return Utils::ToLocal(handle_result);
  }
  
@@ -1165,7 +1074,7 @@ index a8af304a53..f01e97f10b 100644
    NEW_STRING(isolate, String, NewFromTwoByte, uint16_t, data, type, length);
    return result;
  }
-@@ -6996,6 +7240,11 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
+@@ -6996,6 +7243,11 @@ MaybeLocal<v8::Value> v8::Date::New(Local<Context> context, double time) {
    RETURN_ESCAPED(result);
  }
  
@@ -1177,7 +1086,7 @@ index a8af304a53..f01e97f10b 100644
  double v8::Date::ValueOf() const {
    i::Handle<i::Object> obj = Utils::OpenHandle(this);
    i::Handle<i::JSDate> jsdate = i::Handle<i::JSDate>::cast(obj);
-@@ -9314,6 +9563,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9314,6 +9566,9 @@ String::Utf8Value::Utf8Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->WriteUtf8(isolate, str_);
  }
  
@@ -1187,7 +1096,7 @@ index a8af304a53..f01e97f10b 100644
  String::Utf8Value::~Utf8Value() { i::DeleteArray(str_); }
  
  String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
-@@ -9331,6 +9583,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
+@@ -9331,6 +9586,9 @@ String::Value::Value(v8::Isolate* isolate, v8::Local<v8::Value> obj)
    str->Write(isolate, str_);
  }
  
@@ -1197,19 +1106,6 @@ index a8af304a53..f01e97f10b 100644
  String::Value::~Value() { i::DeleteArray(str_); }
  
  #define DEFINE_ERROR(NAME, name)                                         \
-diff --git a/src/debug/debug-wasm-objects.cc b/src/debug/debug-wasm-objects.cc
-index 3df53a8f5e..11e1eadba0 100644
---- a/src/debug/debug-wasm-objects.cc
-+++ b/src/debug/debug-wasm-objects.cc
-@@ -147,7 +147,7 @@ struct IndexedDebugProxy {
-   static v8::Local<v8::FunctionTemplate> CreateTemplate(v8::Isolate* isolate) {
-     Local<v8::FunctionTemplate> templ = v8::FunctionTemplate::New(isolate);
-     templ->SetClassName(
--        v8::String::NewFromUtf8(isolate, T::kClassName).ToLocalChecked());
-+        v8::String::NewFromUtf8(isolate, T::kClassName, v8::NewStringType::kNormal).ToLocalChecked());
-     templ->InstanceTemplate()->SetInternalFieldCount(T::kFieldCount);
-     templ->InstanceTemplate()->SetHandler(
-         v8::IndexedPropertyHandlerConfiguration(
 diff --git a/src/execution/isolate-data.h b/src/execution/isolate-data.h
 index 3b667e0d5a..6b3f09ec7d 100644
 --- a/src/execution/isolate-data.h
@@ -1231,95 +1127,6 @@ index 3b667e0d5a..6b3f09ec7d 100644
    // Stores the state of the caller for TurboAssembler::CallCFunction so that
    // the sampling CPU profiler can iterate the stack during such calls. These
    // are stored on IsolateData so that they can be stored to with only one move
-diff --git a/src/extensions/gc-extension.cc b/src/extensions/gc-extension.cc
-index 6f1c601d8d..4e7928c027 100644
---- a/src/extensions/gc-extension.cc
-+++ b/src/extensions/gc-extension.cc
-@@ -25,13 +25,13 @@ struct GCOptions {
- Maybe<bool> IsProperty(v8::Isolate* isolate, v8::Local<v8::Context> ctx,
-                        v8::Local<v8::Object> object, const char* key,
-                        const char* value) {
--  auto k = v8::String::NewFromUtf8(isolate, key).ToLocalChecked();
-+  auto k = v8::String::NewFromUtf8(isolate, key, v8::NewStringType::kNormal).ToLocalChecked();
-   // Get will return undefined for non-existing keys which will make
-   // StrictEquals fail.
-   auto maybe_property = object->Get(ctx, k);
-   if (maybe_property.IsEmpty()) return Nothing<bool>();
-   return Just<bool>(maybe_property.ToLocalChecked()->StrictEquals(
--      v8::String::NewFromUtf8(isolate, value).ToLocalChecked()));
-+      v8::String::NewFromUtf8(isolate, value, v8::NewStringType::kNormal).ToLocalChecked()));
- }
- 
- Maybe<GCOptions> Parse(v8::Isolate* isolate,
-diff --git a/src/extensions/statistics-extension.cc b/src/extensions/statistics-extension.cc
-index 1911dfc39e..d4018df682 100644
---- a/src/extensions/statistics-extension.cc
-+++ b/src/extensions/statistics-extension.cc
-@@ -31,7 +31,7 @@ static void AddCounter(v8::Isolate* isolate,
-   if (counter->Enabled()) {
-     object
-         ->Set(isolate->GetCurrentContext(),
--              v8::String::NewFromUtf8(isolate, name).ToLocalChecked(),
-+              v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kNormal).ToLocalChecked(),
-               v8::Number::New(isolate, *counter->GetInternalPointer()))
-         .FromJust();
-   }
-@@ -41,7 +41,7 @@ static void AddNumber(v8::Isolate* isolate, v8::Local<v8::Object> object,
-                       double value, const char* name) {
-   object
-       ->Set(isolate->GetCurrentContext(),
--            v8::String::NewFromUtf8(isolate, name).ToLocalChecked(),
-+            v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kNormal).ToLocalChecked(),
-             v8::Number::New(isolate, value))
-       .FromJust();
- }
-@@ -53,7 +53,7 @@ static void AddNumber64(v8::Isolate* isolate,
-                         const char* name) {
-   object
-       ->Set(isolate->GetCurrentContext(),
--            v8::String::NewFromUtf8(isolate, name).ToLocalChecked(),
-+            v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kNormal).ToLocalChecked(),
-             v8::Number::New(isolate, static_cast<double>(value)))
-       .FromJust();
- }
-diff --git a/src/extensions/vtunedomain-support-extension.cc b/src/extensions/vtunedomain-support-extension.cc
-index 9a7715bb23..7de4ab5ee3 100644
---- a/src/extensions/vtunedomain-support-extension.cc
-+++ b/src/extensions/vtunedomain-support-extension.cc
-@@ -130,7 +130,7 @@ void VTuneDomainSupportExtension::Mark(
-   int r = 0;
-   if ((r = libvtune::invoke(params.str().c_str())) != 0) {
-     args.GetIsolate()->ThrowError(
--        v8::String::NewFromUtf8(args.GetIsolate(), std::to_string(r).c_str())
-+        v8::String::NewFromUtf8(args.GetIsolate(), std::to_string(r).c_str(), v8::NewStringType::kNormal)
-             .ToLocalChecked());
-   }
- }
-diff --git a/src/flags/flag-definitions.h b/src/flags/flag-definitions.h
-index 312d17b52f..fb0431770a 100644
---- a/src/flags/flag-definitions.h
-+++ b/src/flags/flag-definitions.h
-@@ -271,7 +271,7 @@ DEFINE_BOOL(allow_overwriting_for_next_flag, false,
- // Flags for language modes and experimental language features.
- DEFINE_BOOL(use_strict, false, "enforce strict mode")
- 
--DEFINE_BOOL(harmony, false, "enable all completed harmony features")
-+DEFINE_BOOL(harmony, true, "enable all completed harmony features")
- DEFINE_BOOL(harmony_shipping, true, "enable all shipped harmony features")
- 
- // Update bootstrapper.cc whenever adding a new feature flag.
-diff --git a/src/handles/handles.h b/src/handles/handles.h
-index 929cba0bc7..83fe364583 100644
---- a/src/handles/handles.h
-+++ b/src/handles/handles.h
-@@ -223,6 +223,7 @@ class V8_NODISCARD HandleScope {
- 
-   // Creates a new handle with the given value.
-   V8_INLINE static Address* CreateHandle(Isolate* isolate, Address value);
-+  V8_INLINE static Object** CreateHandle(Isolate* isolate, Object* value);
- 
-   // Deallocates any extensions used by the current scope.
-   V8_EXPORT_PRIVATE static void DeleteExtensions(Isolate* isolate);
 diff --git a/src/heap/factory.cc b/src/heap/factory.cc
 index 0c80e81f51..a9e4f9cd12 100644
 --- a/src/heap/factory.cc
@@ -1342,28 +1149,6 @@ index 0c80e81f51..a9e4f9cd12 100644
                                              : uncached_external_string_map();
    ExternalTwoByteString string =
        ExternalTwoByteString::cast(New(map, AllocationType::kOld));
-diff --git a/src/interpreter/interpreter.cc b/src/interpreter/interpreter.cc
-index a874954157..2ad6819ce7 100644
---- a/src/interpreter/interpreter.cc
-+++ b/src/interpreter/interpreter.cc
-@@ -417,7 +417,7 @@ Local<v8::Object> Interpreter::GetDispatchCountersObject() {
-       if (counter > 0) {
-         std::string to_name = Bytecodes::ToString(to_bytecode);
-         Local<v8::String> to_name_object =
--            v8::String::NewFromUtf8(isolate, to_name.c_str()).ToLocalChecked();
-+            v8::String::NewFromUtf8(isolate, to_name.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
-         Local<v8::Number> counter_object = v8::Number::New(isolate, counter);
-         CHECK(counters_row
-                   ->DefineOwnProperty(context, to_name_object, counter_object)
-@@ -427,7 +427,7 @@ Local<v8::Object> Interpreter::GetDispatchCountersObject() {
- 
-     std::string from_name = Bytecodes::ToString(from_bytecode);
-     Local<v8::String> from_name_object =
--        v8::String::NewFromUtf8(isolate, from_name.c_str()).ToLocalChecked();
-+        v8::String::NewFromUtf8(isolate, from_name.c_str(), v8::NewStringType::kNormal).ToLocalChecked();
- 
-     CHECK(
-         counters_map->DefineOwnProperty(context, from_name_object, counters_row)
 diff --git a/src/libplatform/default-platform.cc b/src/libplatform/default-platform.cc
 index 66057e1a39..454026b12f 100644
 --- a/src/libplatform/default-platform.cc
@@ -1509,34 +1294,3 @@ index becc72c12d..f54e353bc2 100644
    const Char* const data_;
    const size_t length_;
  };
-diff --git a/src/snapshot/snapshot.cc b/src/snapshot/snapshot.cc
-index 2084a2b150..7b20c3410b 100644
---- a/src/snapshot/snapshot.cc
-+++ b/src/snapshot/snapshot.cc
-@@ -648,11 +648,11 @@ bool RunExtraCode(v8::Isolate* isolate, v8::Local<v8::Context> context,
-   v8::Context::Scope context_scope(context);
-   v8::TryCatch try_catch(isolate);
-   v8::Local<v8::String> source_string;
--  if (!v8::String::NewFromUtf8(isolate, utf8_source).ToLocal(&source_string)) {
-+  if (!v8::String::NewFromUtf8(isolate, utf8_source, v8::NewStringType::kNormal).ToLocal(&source_string)) {
-     return false;
-   }
-   v8::Local<v8::String> resource_name =
--      v8::String::NewFromUtf8(isolate, name).ToLocalChecked();
-+      v8::String::NewFromUtf8(isolate, name, v8::NewStringType::kNormal).ToLocalChecked();
-   v8::ScriptOrigin origin(isolate, resource_name);
-   v8::ScriptCompiler::Source source(source_string, origin);
-   v8::Local<v8::Script> script;
-diff --git a/src/web-snapshot/web-snapshot.cc b/src/web-snapshot/web-snapshot.cc
-index 5e8ae15c0b..5f66081117 100644
---- a/src/web-snapshot/web-snapshot.cc
-+++ b/src/web-snapshot/web-snapshot.cc
-@@ -37,7 +37,7 @@ void WebSnapshotSerializerDeserializer::Throw(const char* message) {
-   if (!isolate_->has_pending_exception()) {
-     v8::Isolate* v8_isolate = reinterpret_cast<v8::Isolate*>(isolate_);
-     v8_isolate->ThrowError(
--        v8::String::NewFromUtf8(v8_isolate, message).ToLocalChecked());
-+        v8::String::NewFromUtf8(v8_isolate, message, v8::NewStringType::kNormal).ToLocalChecked());
-   }
- }
- 

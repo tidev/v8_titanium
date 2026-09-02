@@ -14,10 +14,10 @@ index 6a25df7264..f671ce5b86 100644
  #include "src/baseline/baseline-compiler.h"
  #include "src/codegen/compiler.h"
 diff --git a/src/builtins/arm/builtins-arm.cc b/src/builtins/arm/builtins-arm.cc
-index 8bfb3e7353..ab2ebe98ee 100644
+index f45c927e67..e18635bdee 100644
 --- a/src/builtins/arm/builtins-arm.cc
 +++ b/src/builtins/arm/builtins-arm.cc
-@@ -1021,6 +1021,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
+@@ -1038,6 +1038,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
  }
  
  // static
@@ -25,7 +25,7 @@ index 8bfb3e7353..ab2ebe98ee 100644
  void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    UseScratchRegisterScope temps(masm);
    // Need a few extra registers
-@@ -1173,6 +1174,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+@@ -1190,6 +1191,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    __ LoadRoot(kInterpreterAccumulatorRegister, RootIndex::kUndefinedValue);
    __ Ret();
  }
@@ -33,7 +33,7 @@ index 8bfb3e7353..ab2ebe98ee 100644
  
  // Generate code for entering a JS function with the interpreter.
  // On entry to the function the receiver and arguments have been pushed on the
-@@ -1783,11 +1785,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+@@ -1835,11 +1837,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
    return OnStackReplacement(masm, true);
  }
  
@@ -48,10 +48,10 @@ index 8bfb3e7353..ab2ebe98ee 100644
  // static
  void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
 diff --git a/src/builtins/arm64/builtins-arm64.cc b/src/builtins/arm64/builtins-arm64.cc
-index 0080ad40ab..2e05269ce2 100644
+index b1f9a63e3c..b86d9e7068 100644
 --- a/src/builtins/arm64/builtins-arm64.cc
 +++ b/src/builtins/arm64/builtins-arm64.cc
-@@ -1209,6 +1209,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
+@@ -1231,6 +1231,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
  }
  
  // static
@@ -59,7 +59,7 @@ index 0080ad40ab..2e05269ce2 100644
  void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    UseScratchRegisterScope temps(masm);
    // Need a few extra registers
-@@ -1350,6 +1351,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+@@ -1372,6 +1373,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    __ LoadRoot(kInterpreterAccumulatorRegister, RootIndex::kUndefinedValue);
    __ Ret();
  }
@@ -67,7 +67,7 @@ index 0080ad40ab..2e05269ce2 100644
  
  // Generate code for entering a JS function with the interpreter.
  // On entry to the function the receiver and arguments have been pushed on the
-@@ -2054,11 +2056,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+@@ -2098,11 +2100,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
    return OnStackReplacement(masm, true);
  }
  
@@ -82,10 +82,10 @@ index 0080ad40ab..2e05269ce2 100644
  // static
  void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
 diff --git a/src/builtins/builtins-internal-gen.cc b/src/builtins/builtins-internal-gen.cc
-index b20968e52c..0268f1a4c5 100644
+index 49ad4b4e7c..6f9bfa3426 100644
 --- a/src/builtins/builtins-internal-gen.cc
 +++ b/src/builtins/builtins-internal-gen.cc
-@@ -1033,9 +1033,7 @@ void Builtins::Generate_MemMove(MacroAssembler* masm) {
+@@ -1053,9 +1053,7 @@ void Builtins::Generate_MemMove(MacroAssembler* masm) {
  
  // TODO(v8:11421): Remove #if once baseline compiler is ported to other
  // architectures.
@@ -97,10 +97,10 @@ index b20968e52c..0268f1a4c5 100644
    EmitReturnBaseline(masm);
  }
 diff --git a/src/builtins/ia32/builtins-ia32.cc b/src/builtins/ia32/builtins-ia32.cc
-index 945bcf050d..36f12e503c 100644
+index 7a8875fee9..de98037489 100644
 --- a/src/builtins/ia32/builtins-ia32.cc
 +++ b/src/builtins/ia32/builtins-ia32.cc
-@@ -1614,7 +1614,9 @@ void Builtins::Generate_InterpreterEnterAtNextBytecode(MacroAssembler* masm) {
+@@ -1645,7 +1645,9 @@ void Builtins::Generate_InterpreterEnterAtNextBytecode(MacroAssembler* masm) {
  void Builtins::Generate_InterpreterEnterAtBytecode(MacroAssembler* masm) {
    Generate_InterpreterEnterBytecode(masm);
  }
@@ -110,7 +110,7 @@ index 945bcf050d..36f12e503c 100644
  void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    auto descriptor =
        Builtins::CallInterfaceDescriptorFor(Builtin::kBaselineOutOfLinePrologue);
-@@ -1759,6 +1761,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+@@ -1790,6 +1792,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
      __ Ret();
    }
  }
@@ -118,7 +118,7 @@ index 945bcf050d..36f12e503c 100644
  
  namespace {
  void Generate_ContinueToBuiltinHelper(MacroAssembler* masm,
-@@ -2865,11 +2868,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+@@ -2788,11 +2791,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
    return OnStackReplacement(masm, true);
  }
  
@@ -133,10 +133,10 @@ index 945bcf050d..36f12e503c 100644
  #if V8_ENABLE_WEBASSEMBLY
  void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
 diff --git a/src/builtins/x64/builtins-x64.cc b/src/builtins/x64/builtins-x64.cc
-index f79a560b2a..cb6748a048 100644
+index 14186e3be6..74f36c91ae 100644
 --- a/src/builtins/x64/builtins-x64.cc
 +++ b/src/builtins/x64/builtins-x64.cc
-@@ -1595,6 +1595,7 @@ void Builtins::Generate_InterpreterEnterAtBytecode(MacroAssembler* masm) {
+@@ -1633,6 +1633,7 @@ void Builtins::Generate_InterpreterEnterAtBytecode(MacroAssembler* masm) {
  }
  
  // static
@@ -144,7 +144,7 @@ index f79a560b2a..cb6748a048 100644
  void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
    Register feedback_vector = r8;
    Register optimization_state = rcx;
-@@ -1737,6 +1738,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+@@ -1775,6 +1776,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
      __ Ret();
    }
  }
@@ -152,7 +152,7 @@ index f79a560b2a..cb6748a048 100644
  
  namespace {
  void Generate_ContinueToBuiltinHelper(MacroAssembler* masm,
-@@ -2814,11 +2816,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+@@ -2696,11 +2698,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
    return OnStackReplacement(masm, true);
  }
  
@@ -167,7 +167,7 @@ index f79a560b2a..cb6748a048 100644
  #if V8_ENABLE_WEBASSEMBLY
  void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
 diff --git a/src/flags/flag-definitions.h b/src/flags/flag-definitions.h
-index fb0431770a..95bd13c53e 100644
+index 312d17b52f..4a627a8f88 100644
 --- a/src/flags/flag-definitions.h
 +++ b/src/flags/flag-definitions.h
 @@ -184,7 +184,7 @@ struct MaybeBoolFlag {
@@ -179,16 +179,3 @@ index fb0431770a..95bd13c53e 100644
  #else
  // TODO(v8:11421): Enable Sparkplug for other architectures
  #define ENABLE_SPARKPLUG false
-diff --git a/src/runtime/runtime-internal.cc b/src/runtime/runtime-internal.cc
-index f9dce4d271..2cc60eca39 100644
---- a/src/runtime/runtime-internal.cc
-+++ b/src/runtime/runtime-internal.cc
-@@ -334,7 +334,7 @@ namespace {
- void BytecodeBudgetInterruptFromBytecode(Isolate* isolate,
-                                          Handle<JSFunction> function) {
-   function->SetInterruptBudget();
--  bool should_mark_for_optimization = function->has_feedback_vector();
-+  bool should_mark_for_optimization = false;
-   if (!function->has_feedback_vector()) {
-     IsCompiledScope is_compiled_scope(
-         function->shared().is_compiled_scope(isolate));
