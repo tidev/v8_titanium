@@ -34,22 +34,42 @@ index 00de81df88..f519aecbdf 100644
   * Returns a new instance of the default v8::JobHandle implementation.
   *
 diff --git a/include/v8-internal.h b/include/v8-internal.h
-index 0222ab2f7e..1761de970d 100644
+index 0222ab2f7e..6325765291 100644
 --- a/include/v8-internal.h
 +++ b/include/v8-internal.h
-@@ -230,8 +230,10 @@ class Internals {
+@@ -230,18 +230,25 @@ class Internals {
  
    // IsolateData layout guarantees.
    static const int kIsolateEmbedderDataOffset = 0;
 -  static const int kIsolateFastCCallCallerFpOffset =
-+  static const int kCompatibilityPaddingOffset =
-       kNumIsolateDataSlots * kApiSystemPointerSize;
-+  static const int kIsolateFastCCallCallerFpOffset =
-+      kCompatibilityPaddingOffset + (kApiInt64Size * 3);
-   static const int kIsolateFastCCallCallerPcOffset =
-       kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
+-      kNumIsolateDataSlots * kApiSystemPointerSize;
+-  static const int kIsolateFastCCallCallerPcOffset =
+-      kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
++  // ABI compat: V8 8.8 (as shipped by Titanium) reserved 3 * int64 after the
++  // embedder data. The fields V8 9.x added in front of the stack guard are
++  // stored inside that slot so the stack-guard and roots offsets, which
++  // inline API functions such as Undefined()/True()/ReturnValue::Set(bool)
++  // bake into every embedder binary, are identical to 8.8.
    static const int kIsolateFastApiCallTargetOffset =
-@@ -263,12 +265,17 @@ class Internals {
+-      kIsolateFastCCallCallerPcOffset + kApiSystemPointerSize;
++      kNumIsolateDataSlots * kApiSystemPointerSize;
+   static const int kIsolateCageBaseOffset =
+       kIsolateFastApiCallTargetOffset + kApiSystemPointerSize;
+   static const int kIsolateLongTaskStatsCounterOffset =
+       kIsolateCageBaseOffset + kApiSystemPointerSize;
+-  static const int kIsolateStackGuardOffset =
++  static const int kCompatibilityPaddingOffset =
+       kIsolateLongTaskStatsCounterOffset + kApiSizetSize;
++  static const int kIsolateFastCCallCallerFpOffset =
++      kNumIsolateDataSlots * kApiSystemPointerSize + (kApiInt64Size * 3);
++  static const int kIsolateFastCCallCallerPcOffset =
++      kIsolateFastCCallCallerFpOffset + kApiSystemPointerSize;
++  static const int kIsolateStackGuardOffset =
++      kIsolateFastCCallCallerPcOffset + kApiSystemPointerSize;
+   static const int kIsolateRootsOffset =
+       kIsolateStackGuardOffset + 7 * kApiSystemPointerSize;
+ 
+@@ -263,12 +270,17 @@ class Internals {
    static const int kNodeStateMask = 0x7;
    static const int kNodeStateIsWeakValue = 2;
    static const int kNodeStateIsPendingValue = 3;
@@ -1144,26 +1164,66 @@ index a8af304a53..641440a550 100644
  
  #define DEFINE_ERROR(NAME, name)                                         \
 diff --git a/src/execution/isolate-data.h b/src/execution/isolate-data.h
-index 3b667e0d5a..6b3f09ec7d 100644
+index 3b667e0d5a..1d863bb500 100644
 --- a/src/execution/isolate-data.h
 +++ b/src/execution/isolate-data.h
-@@ -157,6 +157,7 @@ class IsolateData final {
+@@ -155,13 +155,23 @@ class IsolateData final {
+   // cheaper it is to access them. See also: https://crbug.com/993264.
+   // The recommend guideline is to put frequently-accessed fields close to the
    // beginning of IsolateData.
++  // Size of the 8.8-compatible reserved slot that is not taken by the fields
++  // above it (0 on 64-bit hosts, 12 on 32-bit hosts).
++  static constexpr int kCompatibilityPaddingSize =
++      kInt64Size * 3 - 2 * kSystemPointerSize - kSizetSize;
++  STATIC_ASSERT(kCompatibilityPaddingSize >= 0);
++
  #define FIELDS(V)                                                             \
    V(kEmbedderDataOffset, Internals::kNumIsolateDataSlots* kSystemPointerSize) \
-+  V(kCompatibilityPaddingOffset, kInt64Size* 3)                               \
-   V(kFastCCallCallerFPOffset, kSystemPointerSize)                             \
-   V(kFastCCallCallerPCOffset, kSystemPointerSize)                             \
+-  V(kFastCCallCallerFPOffset, kSystemPointerSize)                             \
+-  V(kFastCCallCallerPCOffset, kSystemPointerSize)                             \
++  /* ABI compat: the three fields V8 9.x added in front of the stack guard */ \
++  /* live inside the 24-byte slot that the 8.8 layout reserved, so that    */ \
++  /* kStackGuardOffset and kRootsTableOffset keep their 8.8 values.        */ \
    V(kFastApiCallTargetOffset, kSystemPointerSize)                             \
-@@ -192,6 +193,8 @@ class IsolateData final {
+   V(kCageBaseOffset, kSystemPointerSize)                                      \
+   V(kLongTaskStatsCounterOffset, kSizetSize)                                  \
++  V(kCompatibilityPaddingOffset, kCompatibilityPaddingSize)                   \
++  V(kFastCCallCallerFPOffset, kSystemPointerSize)                             \
++  V(kFastCCallCallerPCOffset, kSystemPointerSize)                             \
+   V(kStackGuardOffset, StackGuard::kSizeInBytes)                              \
+   V(kRootsTableOffset, RootsTable::kEntriesCount* kSystemPointerSize)         \
+   V(kExternalReferenceTableOffset, ExternalReferenceTable::kSizeInBytes)      \
+@@ -192,12 +202,6 @@ class IsolateData final {
    // runtime checks.
    void* embedder_data_[Internals::kNumIsolateDataSlots] = {};
  
-+  int64_t compatibility_padding_[3];
+-  // Stores the state of the caller for TurboAssembler::CallCFunction so that
+-  // the sampling CPU profiler can iterate the stack during such calls. These
+-  // are stored on IsolateData so that they can be stored to with only one move
+-  // instruction in compiled code.
+-  Address fast_c_call_caller_fp_ = kNullAddress;
+-  Address fast_c_call_caller_pc_ = kNullAddress;
+   Address fast_api_call_target_ = kNullAddress;
+ 
+   Address cage_base_ = kNullAddress;
+@@ -206,6 +210,17 @@ class IsolateData final {
+   // long tasks.
+   size_t long_task_stats_counter_ = 0;
+ 
++#if V8_HOST_ARCH_32_BIT
++  char compatibility_padding_[kCompatibilityPaddingSize] = {};
++#endif
 +
-   // Stores the state of the caller for TurboAssembler::CallCFunction so that
-   // the sampling CPU profiler can iterate the stack during such calls. These
-   // are stored on IsolateData so that they can be stored to with only one move
++  // Stores the state of the caller for TurboAssembler::CallCFunction so that
++  // the sampling CPU profiler can iterate the stack during such calls. These
++  // are stored on IsolateData so that they can be stored to with only one move
++  // instruction in compiled code.
++  Address fast_c_call_caller_fp_ = kNullAddress;
++  Address fast_c_call_caller_pc_ = kNullAddress;
++
+   // Fields related to the system and JS stack. In particular, this contains
+   // the stack limit used by stack checks in generated code.
+   StackGuard stack_guard_;
 diff --git a/src/heap/factory.cc b/src/heap/factory.cc
 index 0c80e81f51..a9e4f9cd12 100644
 --- a/src/heap/factory.cc
