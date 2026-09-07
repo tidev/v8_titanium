@@ -1,0 +1,29 @@
+diff --git a/src/base/bit-field.h b/src/base/bit-field.h
+index 7b2796e3df..ae99235dc4 100644
+--- a/src/base/bit-field.h
++++ b/src/base/bit-field.h
+@@ -38,9 +38,14 @@ class BitField final {
+   static constexpr U kMask = ((U{1} << kShift) << kSize) - (U{1} << kShift);
+   static constexpr int kLastUsedBit = kShift + kSize - 1;
+   static constexpr U kNumValues = U{1} << kSize;
++  static constexpr U kNumValuesMinusOne = kNumValues - 1;
+ 
+   // Value for the field with all bits set.
+-  static constexpr T kMax = static_cast<T>(kNumValues - 1);
++  // Suppress enum-constexpr-conversion warning for newer clang versions
++#pragma clang diagnostic push
++#pragma clang diagnostic ignored "-Wenum-constexpr-conversion"
++  static constexpr T kMax = static_cast<T>(kNumValuesMinusOne);
++#pragma clang diagnostic pop
+ 
+   template <class T2, int size2>
+   using Next = BitField<T2, kShift + kSize, size2, U>;
+@@ -53,7 +58,7 @@ class BitField final {
+   // Returns a type U with the bit field value encoded.
+   static constexpr U encode(T value) {
+     DCHECK(is_valid(value));
+-    return static_cast<U>(value) << kShift;
++    return (static_cast<U>(value) & kNumValuesMinusOne) << kShift;
+   }
+ 
+   // Returns a type U with the bit field value updated.

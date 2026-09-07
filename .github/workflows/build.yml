@@ -1,0 +1,288 @@
+name: Build
+on: [push, pull_request, workflow_dispatch]
+
+# A newer push to the same ref cancels the previous (~80 min) build of that ref.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    # Every branch push already builds; only build pull_request events for PRs
+    # coming from forks, so a PR from a branch of this repo is not built twice.
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name != github.repository
+    strategy:
+      matrix:
+        arch: ['arm64', 'x64', 'arm', 'ia32']
+    runs-on: ubuntu-latest
+    name: ${{ matrix.arch }}
+    env:
+      CCACHE_DIR: ${{ github.workspace }}/.ccache
+      USE_CCACHE: 1
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Verify v8 version
+      run: |
+        cd v8
+        echo "V8 Version:"
+        git log -1 --oneline
+        echo "V8 Tag:"
+        git describe --tags --always
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Set up Java
+      uses: actions/setup-java@v4
+      with:
+        distribution: 'temurin'
+        java-version: '17'
+
+    - run: echo "JAVA_HOME=$JAVA_HOME_17_X64" >> $GITHUB_ENV
+
+    - name: Install httplib2
+      run: pip install 'httplib2==0.18.1'
+
+    - name: Setup Android SDK
+      uses: android-actions/setup-android@v3
+
+    - run: echo "ANDROID_SDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
+
+    - name: Install build dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get -y install ccache ninja-build patch clang llvm binutils make xz-utils
+
+    - name: Download Android NDK r25c
+      run: |
+        cd /tmp
+        wget -q https://dl.google.com/android/repository/android-ndk-r25c-linux.zip
+        unzip -q android-ndk-r25c-linux.zip
+        echo "ANDROID_NDK=/tmp/android-ndk-r25c" >> $GITHUB_ENV
+
+    - name: Apply patches
+      run: |
+        set -e
+        cd v8
+        
+        echo "Applying DEPS.patch..."
+        if ! patch -p1 --dry-run < ../DEPS.patch > /dev/null 2>&1; then
+          echo "DEPS.patch failed dry-run, attempting apply..."
+          patch -p1 < ../DEPS.patch || true
+        else
+          patch -p1 < ../DEPS.patch
+        fi
+
+        echo "Applying build_options.patch..."
+        patch -p1 < ../build_options.patch
+
+        echo "Applying python3_fixes.patch..."
+        patch -p1 < ../python3_fixes.patch
+
+        echo "Applying compat.patch..."
+        patch -p1 < ../compat.patch
+
+        echo "Applying compat_sparkplug.patch..."
+        patch -p1 < ../compat_sparkplug.patch
+
+        echo "Applying compat_jsargs.patch..."
+        patch -p1 < ../compat_jsargs.patch
+
+        echo "Applying compat_adaptor.patch..."
+        patch -p1 < ../compat_adaptor.patch
+
+        echo "Applying bit-field-fix.patch..."
+        patch --batch --forward -p1 < ../bit-field-fix.patch || true
+
+        echo "All patches applied successfully"
+
+    - name: Checkout depot_tools repo
+      run: |
+        git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+        cd depot_tools
+        ln -sf vpython3 vpython
+        if [ -f .cipd_bin/vpython3 ]; then
+            ln -sf .cipd_bin/vpython3 .cipd_bin/vpython
+        fi
+
+    - name: Add depot_tools to PATH
+      run: echo "${{ github.workspace }}/depot_tools" >> $GITHUB_PATH
+
+    - name: Install GClient Dependencies
+      working-directory: ./v8
+      env:
+        VPYTHON_BYPASS: "manually managed python not supported by chrome operations"
+      run: |
+        # Try with more complete sync - include all dependencies
+        ../depot_tools/gclient sync --with_branch_heads --with_tags --nohooks || true
+
+        # Check what was synced
+        echo "=== Checking gclient sync results ==="
+        ls -la third_party/llvm-build/ 2>/dev/null || echo "llvm-build not found!"
+        ls -la third_party/clang/ 2>/dev/null || echo "clang not found!"
+        ls -la buildtools/ 2>/dev/null || echo "buildtools not found!"
+
+    - name: Install sysroot
+      working-directory: ./v8
+      run: |
+        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=amd64
+        python3 build/linux/sysroot_scripts/install-sysroot.py --arch=i386
+
+    - name: Fix Python 3.10+ compat in gclient-synced files
+      working-directory: ./v8
+      run: |
+        sed -i 's/from collections import Mapping/from collections.abc import Mapping/g' third_party/jinja2/runtime.py third_party/jinja2/tests.py third_party/jinja2/sandbox.py
+        sed -i 's/from collections import MutableMapping/from collections.abc import MutableMapping/g' third_party/jinja2/utils.py third_party/jinja2/sandbox.py
+        sed -i 's/from collections import MutableSet, MutableMapping, MutableSequence/from collections.abc import MutableSet, MutableMapping, MutableSequence/g' third_party/jinja2/sandbox.py
+
+    - name: Verify clang toolchain
+      working-directory: ./v8
+      run: |
+        echo "=== Checking for clang ==="
+        ls -la third_party/llvm-build/Release+Asserts/bin/clang++ 2>/dev/null || echo "clang++ not found in llvm-build!"
+        ls -la third_party/clang/ 2>/dev/null || echo "clang not found!"
+        ls -la buildtools/linux64/ 2>/dev/null || echo "buildtools not found!"
+        ls -la buildtools/clang/ 2>/dev/null || echo "clang in buildtools not found!"
+
+    # Note: Don't create symlink here - build_v8.sh handles NDK setup
+
+    - name: Retrieve ccache
+      uses: actions/cache@v4
+      with:
+        path: ${{ env.CCACHE_DIR }}
+        key: ${{ runner.os }}-ccache-${{ matrix.arch }}-${{ github.sha }}
+        restore-keys: |
+          ${{ runner.os }}-ccache-${{ matrix.arch }}-
+          ${{ runner.os }}-ccache-
+
+    - name: Build
+      run: |
+        # Verify necessary files exist before building
+        if [ ! -f "v8/infra/mb/mb_config.pyl" ]; then
+          echo "ERROR: infra/mb/mb_config.pyl not found. gclient sync may have failed."
+          ls -la v8/infra/mb/ 2>/dev/null || echo "infra/mb/ directory does not exist"
+          exit 1
+        fi
+
+        # Show some info about the environment
+        echo "=== Environment ==="
+        echo "ANDROID_NDK: $ANDROID_NDK"
+        echo "ANDROID_SDK: $ANDROID_SDK"
+
+        ccache --zero-stats
+
+        # Run the build script from the repo root
+        export ANDROID_NDK=/tmp/android-ndk-r25c
+        export ANDROID_SDK=/usr/local/lib/android/sdk
+        ./build_v8.sh -l ${{ matrix.arch }} -m release -x v8_monolith 2>&1
+
+    - name: Show ccache stats
+      run: ccache --show-stats
+
+    - name: Archive Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: libv8-release-${{ matrix.arch }}
+        path: |
+          build/release/**
+
+  package:
+    runs-on: ubuntu-latest
+    name: Package
+    needs: build
+    steps:
+    - uses: actions/checkout@v4
+      with:
+        submodules: true
+
+    - name: Apply patches (for headers)
+      run: |
+        set -e
+        cd v8
+
+        echo "Applying DEPS.patch..."
+        patch -p1 < ../DEPS.patch || echo "DEPS.patch may have already been applied"
+
+        echo "Applying build_options.patch..."
+        patch -p1 < ../build_options.patch || echo "build_options.patch may have already been applied"
+
+        echo "Applying python3_fixes.patch..."
+        patch -p1 < ../python3_fixes.patch || true
+
+        echo "Applying compat.patch..."
+        patch -p1 < ../compat.patch || true
+
+        echo "Applying compat_sparkplug.patch..."
+        patch -p1 < ../compat_sparkplug.patch || true
+
+        echo "Applying compat_jsargs.patch..."
+        patch -p1 < ../compat_jsargs.patch || true
+
+        echo "All patches applied"
+
+    - name: Create include directory
+      run: |
+        mkdir -p 'build/release/libs' 'build/release/include' 2>/dev/null
+        cp -R 'v8/include' 'build/release'
+
+    - name: Get branch name (merge)
+      if: github.event_name != 'pull_request'
+      shell: bash
+      run: echo "BRANCH_NAME=$(echo ${GITHUB_REF#refs/heads/} | tr / -)" >> $GITHUB_ENV
+
+    - name: Get branch name (pull request)
+      if: github.event_name == 'pull_request'
+      shell: bash
+      run: echo "BRANCH_NAME=$(echo ${GITHUB_HEAD_REF} | tr / -)" >> $GITHUB_ENV
+
+    - name: Create libv8.json
+      run: |
+        gitRevision=$(git ls-tree HEAD -- v8 | cut -c15-54)
+        timestamp=$(date '+%Y-%m-%d %H:%M:%S')
+        MAJOR=$(grep "#define V8_MAJOR_VERSION" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        MINOR=$(grep "#define V8_MINOR_VERSION" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        BUILD=$(grep "#define V8_BUILD_NUMBER" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        PATCH=$(grep "#define V8_PATCH_LEVEL" "v8/include/v8-version.h" | awk '{print $NF}' | tr -d '[[:space:]]')
+        v8Version="$MAJOR.$MINOR.$BUILD.$PATCH"
+        echo "v8Version=$v8Version" >> $GITHUB_ENV
+        echo "{
+          \"version\": \"$v8Version\",
+          \"git_revision\": \"$gitRevision\",
+          \"git_branch\": \"${{ env.BRANCH_NAME }}\",
+          \"svn_revision\": \"\",
+          \"timestamp\": \"$timestamp\"
+        }" >> build/release/libv8.json
+
+    - name: Download all workflow run artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Move built libraries to final folder
+      run: |
+        mv libv8-release-arm64/libs/arm64 build/release/libs/arm64
+        mv libv8-release-x64/libs/x86_64 build/release/libs/x86_64
+        mv libv8-release-arm/libs/arm build/release/libs/arm
+        mv libv8-release-ia32/libs/x86 build/release/libs/x86
+
+    - name: Building tarball
+      run: tar -cvj -f libv8-${{ env.v8Version }}-release.tar.bz2 libv8.json libs include
+      working-directory: ./build/release
+
+    - name: Archive Build
+      uses: actions/upload-artifact@v4
+      with:
+        name: libv8-${{ env.v8Version }}-release
+        path: |
+          build/release/libv8-*-release.tar.bz2
+
+    - uses: geekyeggo/delete-artifact@v5
+      with:
+        name: |
+          libv8-release-arm64
+          libv8-release-x64
+          libv8-release-arm
+          libv8-release-ia32

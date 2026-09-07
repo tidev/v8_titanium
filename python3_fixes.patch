@@ -1,0 +1,13 @@
+diff --git a/tools/mb/mb.py b/tools/mb/mb.py
+index 7031ba50..565da83d 100755
+--- a/tools/mb/mb.py
++++ b/tools/mb/mb.py
+@@ -18,7 +18,7 @@ import ast
+ import errno
+ import json
+ import os
+-import pipes
++import shlex as pipes
+ import platform
+ import pprint
+ import re

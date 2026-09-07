@@ -3,16 +3,19 @@
 // (We upload to S3 on any successful build, so we really only need artifacts when testing PR builds)
 properties([buildDiscarder(logRotator(numToKeepStr: '10', artifactNumToKeepStr: '1'))])
 
-def build(scm, arch, mode) {
+def buildV8Monolith(scm, arch, mode) {
+  return build(scm, arch, mode, 'v8_monolith')
+}
+
+def buildMksnapshot(scm, arch, mode) {
+  return build(scm, arch, mode, 'v8_snapshot')
+}
+
+def build(scm, arch, mode, buildTarget) {
   return {
-    def expectedLibraries = ['monolith']
-    def labels = 'ninja && git && android-ndk && android-sdk && python'
-    if (arch.equals('ia32') || arch.equals('arm')) {
-      labels += ' && (osx && xcode-9)' // Need xcode-9 or older on mac, as 32-bit x86 was removed in xcode 10
-    } else {
-      // 64-bit can be built on xcode 10, so we can use linux or osx
-      labels += ' && osx'
-    }
+    // Ensure we get a libv8_monolith.a, nothing special for mksnapshot
+    def expectedOutput = buildTarget.equals('v8_monolith') ? [ 'libv8_monolith.a', 'mksnapshot', 'embedded.S' ] : []
+    def labels = 'ninja && git && android-ndk && android-sdk && python && linux'
 
     node(labels) {
       checkout([
@@ -41,31 +44,37 @@ def build(scm, arch, mode) {
           // Force a git clean on everything under v8
           sh '../depot_tools/gclient recurse git clean -fdx'
           // Then apply our patch to avoid grabbing android sdk/ndk
-          sh 'git apply ../ndkr19c_7.3.patch'
+          sh 'git apply ../DEPS.patch'
+          // Apply patch to retain backwards-compatible APIs (to avoid breaking module api changes)
           sh 'git apply ../compat.patch'
-          sh 'git apply ../optimize.patch'
+          // Apply patch for breaking reverse jsargs change.
+          sh 'git apply ../compat_jsargs.patch'
+          // Link our specified NDK
+          sh "ln -s ${env.ANDROID_NDK_R21D} third_party/android_ndk"
           // Now let gclient get the dependencies.
           sh '../depot_tools/gclient sync --shallow --no-history --reset --force' // needs python
         }
       } // withEnv
 
       // clean, but be ok with non-zero exit code
-      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -c"
+      sh returnStatus: true, script: "./build_v8.sh -n ${env.ANDROID_NDK_R21D} -s ${env.ANDROID_SDK} -c"
       // Now manually clean since that usually fails trying to clean non-existant tags dir
       sh 'rm -rf build/' // wipe any previously built libraries
       // Now build
-      sh "./build_v8.sh -n ${env.ANDROID_NDK_R19C} -s ${env.ANDROID_SDK} -j8 -l ${arch} -m ${mode}"
+      sh "./build_v8.sh -n ${env.ANDROID_NDK_R21D} -s ${env.ANDROID_SDK} -l ${arch} -m ${mode} -x ${buildTarget}"
       // Now run a sanity check to make sure we built the static libraries we expect
       // We want to fail the build overall if we didn't
-      for (int l = 0; l < expectedLibraries.size(); l++) {
-        def lib = expectedLibraries[l]
+      for (int l = 0; l < expectedOutput.size(); l++) {
+        def out = expectedOutput[l]
         def modifiedArch = arch
         if (arch.equals('ia32')) {
           modifiedArch = 'x86'
+        } else if (arch.equals('x64')) {
+          modifiedArch = 'x86_64'
         }
-        def libraryName = "build/${mode}/libs/${modifiedArch}/libv8_${lib}.a"
-        if (!fileExists(libraryName)) {
-          error "Failed to build expected static library: ${libraryName}"
+        def outputPath = "build/${mode}/libs/${modifiedArch}/${out}"
+        if (!fileExists(outputPath)) {
+          error "Failed to build expected output: ${outputPath}"
         }
       } // for
       stash includes: "build/${mode}/**", name: "results-${arch}-${mode}"
@@ -84,7 +93,7 @@ timestamps {
   def timestamp = '' // we generate this later
   def v8Version = '' // we calculate this later from the v8 repo
   def modes = ['release'] // 'debug'
-  def arches = ['arm', 'arm64', 'ia32']
+  def arches = ['arm', 'arm64', 'ia32', 'x64']
 
   // In parallel, check out on each node and then build
   // We used to check out once, stash and then unstash, but that is not reccomended for such large amounts of data
@@ -94,9 +103,12 @@ timestamps {
       def mode = modes[m];
       for (int a = 0; a < arches.size(); a++) {
         def arch = arches[a];
-        branches["${arch} ${mode}"] = build(scm, arch, mode);
+        branches["${arch} ${mode}"] = buildV8Monolith(scm, arch, mode);
       }
     }
+    // Also in parallel do an x64 build on mac with target v8_snapshot, not v8_monolith - we need a mksnapshot executable
+    // branches['x64 mksnapshot'] = buildMksnapshot(scm, 'x64', 'release');
+    // TODO: Build a windows or linux mksnapshot binary too?
     parallel(branches)
   } // stage
 
@@ -142,6 +154,8 @@ timestamps {
           unstash "results-${arch}-${mode}"
         }
       }
+      // unstash 64-bit macOS mksnapshot binary
+      // unstash 'results-x64-release'
 
       // Package each mode
       for (int m = 0; m < modes.size(); m++) {

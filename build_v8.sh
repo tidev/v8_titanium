@@ -22,18 +22,19 @@ Options:
 	-l <lib-version>  Architectures to build for (arm, x64, ia32, arm64, mipsel, x87, all. default: arm)
 	-t                Package a thirdparty tarball for uploading (don't build)
 	-c                Clean the V8 build
-	-p <api-level>		The Android SDK version to support (android-8, android-9, etc.)
+	-p <api-level>    The Android SDK version to support (android-8, android-9, etc. default: android-23)
+	-x <target>       Target to build (v8_snapshot || v8_monolith. default: v8_monolith)
 EOF
 }
 
-NUM_CPUS=1
+# NUM_CPUS=0
 MODE=release
 LIB_VERSION=arm
 THIRDPARTY=0
 CLEAN=0
-PLATFORM_VERSION=android-23
+PLATFORM_VERSION=android-29
 
-while getopts "hts:cn:j:m:l:p:" OPTION; do
+while getopts "hts:cn:j:m:l:p:x:" OPTION; do
 	case $OPTION in
 		h)
 			usage
@@ -62,6 +63,9 @@ while getopts "hts:cn:j:m:l:p:" OPTION; do
 			;;
 		p)
 			PLATFORM_VERSION=$OPTARG
+			;;
+		x)
+			TARGET=$OPTARG
 			;;
 		?)
 			usage
@@ -92,6 +96,11 @@ if [ "$SDK_DIR" = "" ]; then
 fi
 echo "Building against Android SDK: $SDK_DIR"
 
+# build target
+if [ "$TARGET" = "" ]; then
+	TARGET=v8_monolith
+fi
+
 THIS_DIR=$(cd "$(dirname "$0")"; pwd)
 BUILD_DIR=$THIS_DIR/build
 
@@ -101,6 +110,8 @@ fi
 
 V8_DIR=$THIS_DIR/v8
 
+OS=$(uname)
+
 buildV8()
 {
 	BUILD_MODE=$1
@@ -108,23 +119,144 @@ buildV8()
 	BUILDER_NAME=$3
 	BUILDER_GROUP=$4
 
-	echo "Building V8 mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
+	echo "Building $TARGET - mode: $BUILD_MODE, lib: $BUILD_LIB_VERSION, arch: $ARCH"
 
 	cd "$V8_DIR"
 
+	# Debug info
+	echo "=== Build Configuration ==="
+	echo "MAKE_TARGET: $MAKE_TARGET"
+	echo "ARCH: $ARCH"
+	echo "NDK_DIR: $NDK_DIR"
+	echo "SDK_DIR: $SDK_DIR"
+	echo "TARGET: $TARGET"
+
+	# Hack one of the toolchain items to fix AR executable used for android
+	if [ "$OS" = "Darwin" ]; then
+		cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
+	fi
+	# Force building with libc++ from Android NDK
+	cp -fvv ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
+	# Create NDK build config directory and copy files
+	mkdir -p "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures"
+	cp -fvv ../overrides/third_party/android_ndk/BUILD.gn "$V8_DIR/third_party/android_ndk/BUILD.gn"
+
+	# Copy cpu-features.c if it doesn't exist or needs update
+	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" ]; then
+		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.c" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
+	# Copy cpu-features.h if it exists in NDK
+	if [ -f "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" ]; then
+		cp -fv "$NDK_DIR/sources/android/cpufeatures/cpu-features.h" "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
+
+	# Verify cpu-features.h exists (might be in v8 already)
+	if [ ! -f "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.h" ]; then
+		echo "ERROR: cpu-features.h not found in v8/third_party/android_ndk/sources/android/cpufeatures/"
+		ls -la "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/"
+	fi
+
+	# Remove catapult dependencies from build/android/BUILD.gn (not in original v8, added by gclient)
+	if [ -f "$V8_DIR/build/android/BUILD.gn" ]; then
+		sed -i 's|"//third_party/catapult/third_party/gsutil/",||' "$V8_DIR/build/android/BUILD.gn"
+		sed -i 's|"//third_party/catapult/devil/devil/devil_dependencies.json",||' "$V8_DIR/build/android/BUILD.gn"
+		sed -i 's|"//third_party/catapult/tracing:convert_chart_json",||' "$V8_DIR/build/android/BUILD.gn"
+	fi
+
+	# Verify NDK files exist
+	echo "=== Verifying NDK setup ==="
+	echo "Checking: $V8_DIR/third_party/android_ndk/BUILD.gn"
+	ls -la "$V8_DIR/third_party/android_ndk/BUILD.gn" || echo "ERROR: BUILD.gn not found!"
+	echo "Checking: $V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c"
+	ls -la "$V8_DIR/third_party/android_ndk/sources/android/cpufeatures/cpu-features.c" || echo "ERROR: cpu-features.c not found!"
+
 	# Build V8
 	MAKE_TARGET="android_$BUILD_LIB_VERSION.$BUILD_MODE"
-	tools/dev/v8gen.py gen --no-goma -b "$BUILDER_NAME" -m $BUILDER_GROUP $MAKE_TARGET -- use_goma=false v8_use_snapshot=true v8_enable_embedded_builtins=false v8_use_external_startup_data=false v8_static_library=true v8_enable_i18n_support=false android_sdk_root=\"$SDK_DIR\" android_ndk_root=\"$NDK_DIR\" android_ndk_major_version=19 android_ndk_version=\"r19c\" v8_monolithic=true target_os=\"android\" use_custom_libcxx=false v8_android_log_stdout=false
-	# Hack one of the toolchain items to fix AR executable used for android
-	cp -f ../overrides/build/toolchain/android/BUILD.gn "$V8_DIR/build/toolchain/android/BUILD.gn"
-	cp -f ../overrides/build/config/android/BUILD.gn "$V8_DIR/build/config/android/BUILD.gn"
-	cp -f ../overrides/build/config/compiler/BUILD.gn "$V8_DIR/build/config/compiler/BUILD.gn"
-	ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS v8_monolith
+
+	# Generate args.gn manually to avoid mb.py issues
+	# Use gclient clang for host tools if available, otherwise empty to use system
+	echo "=== Generating args.gn ==="
+	mkdir -p out.gn/$MAKE_TARGET
+
+if [ -d "$V8_DIR/third_party/llvm-build/Release+Asserts/bin" ]; then
+	CLANG_BASE="$V8_DIR/third_party/llvm-build/Release+Asserts"
+	echo "Using gclient clang: $CLANG_BASE"
+else
+	CLANG_BASE=""
+	echo "No gclient clang found, will use system clang"
+fi
+
+	cat > out.gn/$MAKE_TARGET/args.gn << EOF
+is_debug = false
+is_component_build = false
+is_official_build = true
+use_goma = false
+target_os = "android"
+target_cpu = "$GN_ARCH"
+v8_enable_pointer_compression = false
+v8_enable_minor_mc = false
+v8_use_external_startup_data = false
+v8_static_library = true
+v8_enable_i18n_support = false
+v8_monolithic = true
+use_custom_libcxx = false
+v8_android_log_stdout = false
+v8_use_snapshot = true
+v8_enable_embedded_builtins = false
+android_sdk_root = "$SDK_DIR"
+android_ndk_root = "$NDK_DIR"
+host_os = "linux"
+clang_base_path = "$CLANG_BASE"
+is_clang = true
+clang_use_chrome_plugins = false
+use_gold = false
+use_lld = false
+treat_warnings_as_errors = false
+use_thin_lto = false
+is_cfi = false
+
+# Disable v8 internal plugins that require special clang
+v8_enable_verify_heap = false
+EOF
+	# Route compiles through ccache when requested (CI sets USE_CCACHE=1).
+	if [ "$USE_CCACHE" = "1" ] && command -v ccache >/dev/null 2>&1; then
+		echo 'cc_wrapper = "ccache"' >> out.gn/$MAKE_TARGET/args.gn
+	fi
+	cat out.gn/$MAKE_TARGET/args.gn
+
+	# Run gn gen
+	echo "=== Running gn gen ==="
+	buildtools/linux64/gn gen out.gn/$MAKE_TARGET 2>&1 || { echo "ERROR: gn gen failed!"; cat out.gn/$MAKE_TARGET/args.gn; exit 1; }
+
+	# Verify build.ninja was created
+	if [ -f "out.gn/$MAKE_TARGET/build.ninja" ]; then
+		echo "=== build.ninja created successfully ==="
+	else
+		echo "ERROR: build.ninja was NOT created!"
+		exit 1
+	fi
+
+	# Build using ninja
+	if [ ! -z "$NUM_CPUS" ]; then
+		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
+	else
+		ninja -v -C out.gn/$MAKE_TARGET $TARGET
+	fi
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
-	cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	if [ "$TARGET" = "v8_monolith" ]; then
+		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+	fi
+
+	# Strip debug symbols from mksnapshot binaries to reduce size
+	echo "=== Stripping mksnapshot binaries ==="
+	for mksnap in "$V8_DIR/out.gn/$MAKE_TARGET"/clang_*/mksnapshot; do
+		if [ -f "$mksnap" ]; then
+			strip -s "$mksnap" && echo "Stripped: $mksnap ($(du -h "$mksnap" | cut -f1))"
+		fi
+	done
 
 	MKSNAPSHOT_X86="$V8_DIR/out.gn/$MAKE_TARGET/clang_x86/mksnapshot"
 	if [ -f $MKSNAPSHOT_X86 ]; then
@@ -141,6 +273,12 @@ buildV8()
 	MKSNAPSHOT_ARM64="$V8_DIR/out.gn/$MAKE_TARGET/clang_x64_v8_arm64/mksnapshot"
 	if [ -f $MKSNAPSHOT_ARM64 ]; then
 		cp $MKSNAPSHOT_ARM64 "$DEST_DIR/libs/$ARCH/mksnapshot"
+	fi
+
+	# Copy embedded blob.
+	EMBEDDED="$V8_DIR/out.gn/$MAKE_TARGET/gen/embedded.S"
+	if [ -f $EMBEDDED ]; then
+		cp $EMBEDDED "$DEST_DIR/libs/$ARCH/embedded.S"
 	fi
 }
 
@@ -174,9 +312,11 @@ cat <<EOF > "$DEST_DIR/libv8.json"
 }
 EOF
 
-	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" 2>/dev/null
-	find "$V8_DIR/include" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
+	mkdir -p "$DEST_DIR/libs" "$DEST_DIR/include" "$DEST_DIR/include/libplatform" "$DEST_DIR/include/cppgc" 2>/dev/null
+	find "$V8_DIR/include" -maxdepth 1 -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include" ';'
 	find "$V8_DIR/include/libplatform" -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/libplatform" ';'
+	find "$V8_DIR/include/cppgc" -maxdepth 1 -name '*.h' -exec cp -pv '{}' "$DEST_DIR/include/cppgc" ';'
+	cp -r "$V8_DIR/include/cppgc/internal" "$DEST_DIR/include/cppgc/"
 
 	cd "$DEST_DIR"
 	echo "Building libv8-$V8_VERSION-$BUILD_MODE.tar.bz2..."
@@ -203,31 +343,37 @@ if [ "$THIRDPARTY" = "0" ]; then
 		case $build_lib_version in
 			arm)
 				ARCH=arm
+				GN_ARCH=arm
 				BUILDER_NAME="V8 Android Arm - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			ia32)
 				ARCH=x86
+				GN_ARCH=x86
 				BUILDER_NAME="V8 Win32 - builder"
 				BUILDER_GROUP="client.v8"
 				;;
 			mipsel)
 				ARCH=mips
+				GN_ARCH=mips
 				BUILDER_NAME="V8 Mips - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			arm64)
 				ARCH=arm64
+				GN_ARCH=arm64
 				BUILDER_NAME="V8 Android Arm64 - builder"
 				BUILDER_GROUP="client.v8.ports"
 				;;
 			x64)
 				ARCH=x86_64
+				GN_ARCH=x64
 				BUILDER_NAME="V8 Win64"
 				BUILDER_GROUP="client.v8"
 				;;
 			x87)
 				ARCH=x86
+				GN_ARCH=x86
 				;;
 			*)
 				echo "Invalid -l"
