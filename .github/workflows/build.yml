@@ -20,7 +20,7 @@ jobs:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
       USE_CCACHE: 1
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: true
 
@@ -33,12 +33,12 @@ jobs:
         git describe --tags --always
 
     - name: Set up Python
-      uses: actions/setup-python@v5
+      uses: actions/setup-python@v7
       with:
         python-version: '3.11'
 
     - name: Set up Java
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@v6
       with:
         distribution: 'temurin'
         java-version: '17'
@@ -49,7 +49,7 @@ jobs:
       run: pip install 'httplib2==0.18.1'
 
     - name: Setup Android SDK
-      uses: android-actions/setup-android@v3
+      uses: android-actions/setup-android@v4
 
     - run: echo "ANDROID_SDK=/usr/local/lib/android/sdk" >> $GITHUB_ENV
 
@@ -154,7 +154,7 @@ jobs:
     # Note: Don't create symlink here - build_v8.sh handles NDK setup
 
     - name: Retrieve ccache
-      uses: actions/cache@v4
+      uses: actions/cache@v6
       with:
         path: ${{ env.CCACHE_DIR }}
         key: ${{ runner.os }}-ccache-${{ matrix.arch }}-${{ github.sha }}
@@ -187,7 +187,7 @@ jobs:
       run: ccache --show-stats
 
     - name: Archive Build
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: libv8-release-${{ matrix.arch }}
         path: |
@@ -198,7 +198,7 @@ jobs:
     name: Package
     needs: build
     steps:
-    - uses: actions/checkout@v4
+    - uses: actions/checkout@v7
       with:
         submodules: true
 
@@ -261,7 +261,7 @@ jobs:
         }" >> build/release/libv8.json
 
     - name: Download all workflow run artifacts
-      uses: actions/download-artifact@v4
+      uses: actions/download-artifact@v8
 
     - name: Move built libraries to final folder
       run: |
@@ -275,13 +275,13 @@ jobs:
       working-directory: ./build/release
 
     - name: Archive Build
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v7
       with:
         name: libv8-${{ env.v8Version }}-release
         path: |
           build/release/libv8-*-release.tar.bz2
 
-    - uses: geekyeggo/delete-artifact@v5
+    - uses: geekyeggo/delete-artifact@v6
       with:
         name: |
           libv8-release-arm64
