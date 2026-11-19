@@ -98,6 +98,8 @@ jobs:
 
         echo "Applying bit-field-fix.patch..."
         patch --batch --forward -p1 < ../bit-field-fix.patch || true
+        echo "Applying regexp_flags_order.patch..."
+        patch --batch --forward -p1 < ../regexp_flags_order.patch || true
 
         echo "All patches applied successfully"
 

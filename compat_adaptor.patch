@@ -1,11 +1,44 @@
 diff --git a/src/builtins/accessors.cc b/src/builtins/accessors.cc
-index 8d26259204..4a5ab16fe4 100644
+index 0d994d2d03..bc7e5e4c5b 100644
 --- a/src/builtins/accessors.cc
 +++ b/src/builtins/accessors.cc
-@@ -473,9 +473,16 @@ Handle<JSObject> GetFrameArguments(Isolate* isolate,
+@@ -438,6 +438,29 @@ Handle<JSObject> ArgumentsForInlinedFunction(JavaScriptFrame* frame,
+     array->set(i, *value);
+     iter++;
+   }
++
++  // With an arguments adaptor frame, the values above are the arguments that
++  // the caller passed. The function works on its own copy of the formal
++  // parameters. Read those from the frame of the function, so that
++  // assignments to parameters are visible, like without an adaptor frame.
++  TranslatedFrame* function_frame =
++      translated_values.GetFrameFromJSFrameIndex(inlined_frame_index);
++  if (function_frame != translated_frame &&
++      translated_frame->kind() == TranslatedFrame::kArgumentsAdaptor) {
++    int formal_count = function_frame->shared_info()
++                           ->internal_formal_parameter_count_without_receiver();
++    int common_length = std::min(argument_count, formal_count);
++    TranslatedFrame::iterator formal_iter = function_frame->begin();
++    formal_iter++;  // Skip the function.
++    formal_iter++;  // Skip the receiver.
++    for (int i = 0; i < common_length; ++i) {
++      should_deoptimize =
++          should_deoptimize || formal_iter->IsMaterializedObject();
++      Handle<Object> value = formal_iter->GetValue();
++      array->set(i, *value);
++      formal_iter++;
++    }
++  }
+   arguments->set_elements(*array);
+ 
+   if (should_deoptimize) {
+@@ -472,9 +495,19 @@ Handle<JSObject> GetFrameArguments(Isolate* isolate,
      return ArgumentsForInlinedFunction(frame, function_index);
    }
  
++  // The frame of the function itself. It holds the deoptimization data.
++  JavaScriptFrame* function_frame = frame;
++
 +  // Find the frame that holds the actual arguments passed to the function.
 +  if (it->frame()->has_adapted_arguments()) {
 +    it->AdvanceOneFrame();
@@ -20,11 +53,48 @@ index 8d26259204..4a5ab16fe4 100644
    Handle<JSFunction> function(frame->function(), isolate);
    Handle<JSObject> arguments =
        isolate->factory()->NewArgumentsObject(function, length);
+@@ -492,6 +525,36 @@ Handle<JSObject> GetFrameArguments(Isolate* isolate,
+     }
+     array->set(i, value);
+   }
++
++  // With an arguments adaptor frame, the function works on its own copy of
++  // the formal parameters. Read those from the frame of the function, so that
++  // assignments to parameters are visible, like without an adaptor frame.
++  if (function_frame != frame) {
++    int formal_length =
++        std::min(length, function_frame->ComputeParametersCount());
++    for (int i = 0; i < formal_length; i++) {
++      Object value = function_frame->GetParameter(i);
++      if (value.IsTheHole(isolate)) {
++        value = ReadOnlyRoots(isolate).undefined_value();
++      }
++      array->set(i, value);
++    }
++  }
++
++  // For optimized functions, the frame arguments may be outdated, so we should
++  // update them with the deopt info, while keeping the length and extra
++  // arguments from the actual frame (v8:2989, backport of the upstream fix).
++  if (CodeKindCanDeoptimize(function_frame->LookupCode().kind()) &&
++      length > 0) {
++    Handle<JSObject> arguments_from_deopt_info =
++        ArgumentsForInlinedFunction(function_frame, function_index);
++    Handle<FixedArray> elements_from_deopt_info(
++        FixedArray::cast(arguments_from_deopt_info->elements()), isolate);
++    int common_length = std::min(length, elements_from_deopt_info->length());
++    for (int i = 0; i < common_length; i++) {
++      array->set(i, elements_from_deopt_info->get(i));
++    }
++  }
+   arguments->set_elements(*array);
+ 
+   // Return the freshly allocated arguments object.
 diff --git a/src/builtins/arm/builtins-arm.cc b/src/builtins/arm/builtins-arm.cc
-index 37981b08a9..ab2ebe98ee 100644
+index 2807e9b16e..6c9e532d5a 100644
 --- a/src/builtins/arm/builtins-arm.cc
 +++ b/src/builtins/arm/builtins-arm.cc
-@@ -805,18 +805,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
+@@ -866,20 +866,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
    __ ldr(params_size,
           FieldMemOperand(params_size, BytecodeArray::kParameterSizeOffset));
  
@@ -33,7 +103,9 @@ index 37981b08a9..ab2ebe98ee 100644
 -  __ ldr(actual_params_size,
 -         MemOperand(fp, StandardFrameConstants::kArgCOffset));
 -  __ lsl(actual_params_size, actual_params_size, Operand(kPointerSizeLog2));
--  __ add(actual_params_size, actual_params_size, Operand(kSystemPointerSize));
+-  if (!kJSArgcIncludesReceiver) {
+-    __ add(actual_params_size, actual_params_size, Operand(kSystemPointerSize));
+-  }
 -
 -  // If actual is bigger than formal, then we should use it to free up the stack
 -  // arguments.
@@ -43,10 +115,27 @@ index 37981b08a9..ab2ebe98ee 100644
    // Leave the frame (also dropping the register file).
    __ LeaveFrame(StackFrame::INTERPRETED);
  
-@@ -1989,6 +1977,29 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
+@@ -2055,48 +2041,29 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
+-namespace {
+-
+-// Allocate new stack space for |count| arguments and shift all existing
+-// arguments already on the stack. |pointer_to_new_space_out| points to the
+-// first free slot on the stack to copy additional arguments to and
+-// |argc_in_out| is updated to include |count|.
+-void Generate_AllocateSpaceAndShiftExistingArguments(
+-    MacroAssembler* masm, Register count, Register argc_in_out,
+-    Register pointer_to_new_space_out, Register scratch1, Register scratch2) {
+-  DCHECK(!AreAliased(count, argc_in_out, pointer_to_new_space_out, scratch1,
+-                     scratch2));
+-  UseScratchRegisterScope temps(masm);
+-  Register old_sp = scratch1;
+-  Register new_space = scratch2;
+-  __ mov(old_sp, sp);
+-  __ lsl(new_space, count, Operand(kSystemPointerSizeLog2));
+-  __ AllocateStackSpace(new_space);
 +static void EnterArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  __ SmiTag(r0);
 +  __ mov(r4, Operand(StackFrame::TypeToMarker(StackFrame::ARGUMENTS_ADAPTOR)));
@@ -56,7 +145,24 @@ index 37981b08a9..ab2ebe98ee 100644
 +  __ add(fp, sp,
 +         Operand(ArgumentsAdaptorFrameConstants::kFixedFrameSizeFromFp));
 +}
-+
+ 
+-  Register end = scratch2;
+-  Register value = temps.Acquire();
+-  Register dest = pointer_to_new_space_out;
+-  __ mov(dest, sp);
+-  __ add(end, old_sp, Operand(argc_in_out, LSL, kSystemPointerSizeLog2));
+-  Label loop, done;
+-  __ bind(&loop);
+-  __ cmp(old_sp, end);
+-  if (kJSArgcIncludesReceiver) {
+-    __ b(ge, &done);
+-  } else {
+-    __ b(gt, &done);
+-  }
+-  __ ldr(value, MemOperand(old_sp, kSystemPointerSize, PostIndex));
+-  __ str(value, MemOperand(dest, kSystemPointerSize, PostIndex));
+-  __ b(&loop);
+-  __ bind(&done);
 +static void LeaveArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  // ----------- S t a t e -------------
 +  //  -- r0 : result being passed through
@@ -64,19 +170,27 @@ index 37981b08a9..ab2ebe98ee 100644
 +  // Get the number of arguments passed (as a smi), tear down the frame and
 +  // then tear down the parameters.
 +  __ ldr(r1, MemOperand(fp, ArgumentsAdaptorFrameConstants::kLengthOffset));
-+
+ 
+-  // Update total number of arguments.
+-  __ add(argc_in_out, argc_in_out, count);
 +  __ LeaveFrame(StackFrame::ARGUMENTS_ADAPTOR);
 +  __ add(sp, sp, Operand::PointerOffsetFromSmiKey(r1));
 +  __ add(sp, sp, Operand(kPointerSize));  // adjust for receiver
-+}
-+
+ }
+ 
+-}  // namespace
+-
  // static
  // TODO(v8:11615): Observe Code::kMaxArguments in CallOrConstructVarargs
  void Builtins::Generate_CallOrConstructVarargs(MacroAssembler* masm,
-@@ -2082,8 +2093,31 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
+@@ -2190,11 +2157,31 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
      __ bind(&new_target_constructor);
    }
  
+-  Label stack_done, stack_overflow;
+-  __ ldr(r5, MemOperand(fp, StandardFrameConstants::kArgCOffset));
+-  if (kJSArgcIncludesReceiver) {
+-    __ sub(r5, r5, Operand(kJSArgcReceiverSlots));
 +  // Check if we have an arguments adaptor frame below the function frame.
 +  Label arguments_adaptor, arguments_done;
 +  __ ldr(r4, MemOperand(fp, StandardFrameConstants::kCallerFPOffset));
@@ -98,15 +212,14 @@ index 37981b08a9..ab2ebe98ee 100644
 +    // Load the length from the ArgumentsAdaptorFrame.
 +    __ ldr(r5, MemOperand(r4, ArgumentsAdaptorFrameConstants::kLengthOffset));
 +    __ SmiUntag(r5);
-+  }
+   }
 +  __ bind(&arguments_done);
 +
-   Label stack_done, stack_overflow;
--  __ ldr(r5, MemOperand(fp, StandardFrameConstants::kArgCOffset));
++  Label stack_done, stack_overflow;
    __ sub(r5, r5, r2, SetCC);
    __ b(le, &stack_done);
    {
-@@ -2496,6 +2530,184 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
+@@ -2606,6 +2593,184 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
@@ -292,10 +405,10 @@ index 37981b08a9..ab2ebe98ee 100644
  void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
    // The function index was put in a register by the jump table trampoline.
 diff --git a/src/builtins/arm64/builtins-arm64.cc b/src/builtins/arm64/builtins-arm64.cc
-index 9aada3c8e1..2e05269ce2 100644
+index 7c5236d1f4..3809e18d94 100644
 --- a/src/builtins/arm64/builtins-arm64.cc
 +++ b/src/builtins/arm64/builtins-arm64.cc
-@@ -980,21 +980,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
+@@ -1030,23 +1030,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
    __ Ldr(params_size.W(),
           FieldMemOperand(params_size, BytecodeArray::kParameterSizeOffset));
  
@@ -304,7 +417,9 @@ index 9aada3c8e1..2e05269ce2 100644
 -  __ Ldr(actual_params_size,
 -         MemOperand(fp, StandardFrameConstants::kArgCOffset));
 -  __ lsl(actual_params_size, actual_params_size, kSystemPointerSizeLog2);
--  __ Add(actual_params_size, actual_params_size, Operand(kSystemPointerSize));
+-  if (!kJSArgcIncludesReceiver) {
+-    __ Add(actual_params_size, actual_params_size, Operand(kSystemPointerSize));
+-  }
 -
 -  // If actual is bigger than formal, then we should use it to free up the stack
 -  // arguments.
@@ -317,7 +432,7 @@ index 9aada3c8e1..2e05269ce2 100644
    // Leave the frame (also dropping the register file).
    __ LeaveFrame(StackFrame::INTERPRETED);
  
-@@ -2383,6 +2368,30 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
+@@ -2444,6 +2427,30 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
  
  namespace {
  
@@ -348,12 +463,16 @@ index 9aada3c8e1..2e05269ce2 100644
  // Prepares the stack for copying the varargs. First we claim the necessary
  // slots, taking care of potential padding. Then we copy the existing arguments
  // one slot up or one slot down, as needed.
-@@ -2550,9 +2559,38 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
+@@ -2611,12 +2618,38 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
      __ Bind(&new_target_constructor);
    }
  
 +  Register args_fp = x5;
    Register len = x6;
+-  Label stack_done, stack_overflow;
+-  __ Ldr(len, MemOperand(fp, StandardFrameConstants::kArgCOffset));
+-  if (kJSArgcIncludesReceiver) {
+-    __ Subs(len, len, kJSArgcReceiverSlots);
 +  {
 +    Label arguments_adaptor, arguments_done;
 +    Register scratch = x10;
@@ -381,14 +500,13 @@ index 9aada3c8e1..2e05269ce2 100644
 +          MemOperand(args_fp, ArgumentsAdaptorFrameConstants::kLengthOffset));
 +    }
 +    __ Bind(&arguments_done);
-+  }
+   }
 +
-   Label stack_done, stack_overflow;
--  __ Ldr(len, MemOperand(fp, StandardFrameConstants::kArgCOffset));
++  Label stack_done, stack_overflow;
    __ Subs(len, len, start_index);
    __ B(le, &stack_done);
    // Check for stack overflow.
-@@ -2993,6 +3031,218 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
+@@ -3057,6 +3090,218 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
@@ -607,7 +725,7 @@ index 9aada3c8e1..2e05269ce2 100644
  #if V8_ENABLE_WEBASSEMBLY
  void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
    // The function index was put in w8 by the jump table trampoline.
-@@ -3931,10 +4181,6 @@ void Generate_DeoptimizationEntry(MacroAssembler* masm,
+@@ -3989,10 +4234,6 @@ void Generate_DeoptimizationEntry(MacroAssembler* masm,
    __ Lsr(unwind_limit, unwind_limit, kSystemPointerSizeLog2);
    __ Mov(x5, unwind_limit);
    __ CopyDoubleWords(x3, x1, x5);
@@ -619,10 +737,10 @@ index 9aada3c8e1..2e05269ce2 100644
  
    // Compute the output frame in the deoptimizer.
 diff --git a/src/builtins/builtins-definitions.h b/src/builtins/builtins-definitions.h
-index 70eb349dab..b1f1fd7c53 100644
+index 0c89b0e45a..9659da4e96 100644
 --- a/src/builtins/builtins-definitions.h
 +++ b/src/builtins/builtins-definitions.h
-@@ -60,6 +60,7 @@ namespace internal {
+@@ -68,6 +68,7 @@ namespace internal {
    TFC(AdaptorWithBuiltinExitFrame, CppBuiltinAdaptor)                          \
                                                                                 \
    /* Calls */                                                                  \
@@ -631,25 +749,25 @@ index 70eb349dab..b1f1fd7c53 100644
    ASM(CallFunction_ReceiverIsNullOrUndefined, CallTrampoline)                  \
    ASM(CallFunction_ReceiverIsNotNullOrUndefined, CallTrampoline)               \
 diff --git a/src/builtins/builtins-internal-gen.cc b/src/builtins/builtins-internal-gen.cc
-index 6f9bfa3426..0268f1a4c5 100644
+index 03f9fb932a..4d0fd80ed2 100644
 --- a/src/builtins/builtins-internal-gen.cc
 +++ b/src/builtins/builtins-internal-gen.cc
-@@ -891,26 +891,6 @@ TF_BUILTIN(AdaptorWithBuiltinExitFrame, CodeStubAssembler) {
- 
-   TVARIABLE(Int32T, pushed_argc, actual_argc);
+@@ -958,26 +958,6 @@ TF_BUILTIN(AdaptorWithBuiltinExitFrame, CodeStubAssembler) {
+   TVARIABLE(Int32T, pushed_argc,
+             TruncateIntPtrToInt32(args.GetLengthWithReceiver()));
  
 -  TNode<SharedFunctionInfo> shared = LoadJSFunctionSharedFunctionInfo(target);
 -
--  TNode<Int32T> formal_count =
--      UncheckedCast<Int32T>(LoadSharedFunctionInfoFormalParameterCount(shared));
+-  TNode<Int32T> formal_count = UncheckedCast<Int32T>(
+-      LoadSharedFunctionInfoFormalParameterCountWithReceiver(shared));
 -
 -  // The number of arguments pushed is the maximum of actual arguments count
 -  // and formal parameters count. Except when the formal parameters count is
 -  // the sentinel.
 -  Label check_argc(this), update_argc(this), done_argc(this);
 -
--  Branch(Word32Equal(formal_count, Int32Constant(kDontAdaptArgumentsSentinel)),
--         &done_argc, &check_argc);
+-  Branch(IsSharedFunctionInfoDontAdaptArguments(shared), &done_argc,
+-         &check_argc);
 -  BIND(&check_argc);
 -  Branch(Int32GreaterThan(formal_count, pushed_argc.value()), &update_argc,
 -         &done_argc);
@@ -661,23 +779,23 @@ index 6f9bfa3426..0268f1a4c5 100644
    // Update arguments count for CEntry to contain the number of arguments
    // including the receiver and the extra arguments.
    TNode<Int32T> argc = Int32Add(
-@@ -1237,20 +1217,6 @@ TF_BUILTIN(InstantiateAsmJs, CodeStubAssembler) {
+@@ -1304,20 +1284,6 @@ TF_BUILTIN(InstantiateAsmJs, CodeStubAssembler) {
    TNode<Object> maybe_result_or_smi_zero = CallRuntime(
        Runtime::kInstantiateAsmJs, context, function, stdlib, foreign, heap);
    GotoIf(TaggedIsSmi(maybe_result_or_smi_zero), &tailcall_to_function);
 -
 -  TNode<SharedFunctionInfo> shared = LoadJSFunctionSharedFunctionInfo(function);
--  TNode<Int32T> parameter_count =
--      UncheckedCast<Int32T>(LoadSharedFunctionInfoFormalParameterCount(shared));
+-  TNode<Int32T> parameter_count = UncheckedCast<Int32T>(
+-      LoadSharedFunctionInfoFormalParameterCountWithReceiver(shared));
 -  // This builtin intercepts a call to {function}, where the number of arguments
 -  // pushed is the maximum of actual arguments count and formal parameters
 -  // count.
 -  Label argc_lt_param_count(this), argc_ge_param_count(this);
--  Branch(IntPtrLessThan(args.GetLength(), ChangeInt32ToIntPtr(parameter_count)),
+-  Branch(IntPtrLessThan(args.GetLengthWithReceiver(),
+-                        ChangeInt32ToIntPtr(parameter_count)),
 -         &argc_lt_param_count, &argc_ge_param_count);
 -  BIND(&argc_lt_param_count);
--  PopAndReturn(Int32Add(parameter_count, Int32Constant(1)),
--               maybe_result_or_smi_zero);
+-  PopAndReturn(parameter_count, maybe_result_or_smi_zero);
 -  BIND(&argc_ge_param_count);
    args.PopAndReturn(maybe_result_or_smi_zero);
  
@@ -695,10 +813,10 @@ index e2d3acef36..e21fe1aa0a 100644
      case Builtin::kInstantiateAsmJs:
  #if V8_ENABLE_WEBASSEMBLY
 diff --git a/src/builtins/frame-arguments.tq b/src/builtins/frame-arguments.tq
-index 5f25c97dc3..27f3266e2d 100644
+index 9dd26e2327..508b488f95 100644
 --- a/src/builtins/frame-arguments.tq
 +++ b/src/builtins/frame-arguments.tq
-@@ -11,6 +11,8 @@ struct Arguments {
+@@ -15,6 +15,8 @@ struct Arguments {
  
  extern operator '[]' macro GetArgumentValue(Arguments, intptr): JSAny;
  extern macro GetFrameArguments(FrameWithArguments, intptr): Arguments;
@@ -707,10 +825,10 @@ index 5f25c97dc3..27f3266e2d 100644
  
  struct ArgumentsIterator {
    macro Next(): Object labels NoMore {
-@@ -47,13 +49,30 @@ macro GetFrameWithArgumentsInfo(implicit context: Context)():
+@@ -51,13 +53,30 @@ macro GetFrameWithArgumentsInfo(implicit context: Context)():
    const shared: SharedFunctionInfo = f.shared_function_info;
-   const formalParameterCount: bint =
-       Convert<bint>(Convert<int32>(shared.formal_parameter_count));
+   const formalParameterCount: bint = Convert<bint>(Convert<int32>(
+       LoadSharedFunctionInfoFormalParameterCountWithoutReceiver(shared)));
 -  // TODO(victorgomes): When removing the v8_disable_arguments_adaptor flag,
 -  // FrameWithArgumentsInfo can be simplified, since the frame field already
 -  // contains the argument count.
@@ -748,7 +866,7 @@ index 5f25c97dc3..27f3266e2d 100644
 +  }
  }
 diff --git a/src/builtins/frames.tq b/src/builtins/frames.tq
-index 03336bd464..3b716b7a64 100644
+index 3e959a094f..20c40208e9 100644
 --- a/src/builtins/frames.tq
 +++ b/src/builtins/frames.tq
 @@ -3,6 +3,8 @@
@@ -781,7 +899,7 @@ index 03336bd464..3b716b7a64 100644
  macro LoadIntptrFromFrame(f: Frame, o: constexpr int32): intptr {
    return LoadBufferIntptr(f, o);
  }
-@@ -96,6 +102,14 @@ macro LoadContextOrFrameTypeFromFrame(implicit context: Context)(f: Frame):
+@@ -100,6 +106,14 @@ macro LoadContextOrFrameTypeFromFrame(implicit context: Context)(f: Frame):
        LoadObjectFromFrame(f, kStandardFrameContextOrFrameTypeOffset));
  }
  
@@ -796,7 +914,7 @@ index 03336bd464..3b716b7a64 100644
  operator '==' macro FrameTypeEquals(f1: FrameType, f2: FrameType): bool {
    return TaggedEqual(f1, f2);
  }
-@@ -121,6 +135,16 @@ Cast<StandardFrame>(implicit context: Context)(f: Frame):
+@@ -125,6 +139,16 @@ Cast<StandardFrame>(implicit context: Context)(f: Frame):
    goto CastError;
  }
  
@@ -814,10 +932,10 @@ index 03336bd464..3b716b7a64 100644
  // This is an alternative way of getting the target function in addition to
  // Parameter(Descriptor::kJSTarget). The latter should be used near the
 diff --git a/src/builtins/ia32/builtins-ia32.cc b/src/builtins/ia32/builtins-ia32.cc
-index e3f4001842..36f12e503c 100644
+index 768c5344d3..5913866fb6 100644
 --- a/src/builtins/ia32/builtins-ia32.cc
 +++ b/src/builtins/ia32/builtins-ia32.cc
-@@ -749,21 +749,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
+@@ -807,21 +807,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
    __ mov(params_size,
           FieldOperand(params_size, BytecodeArray::kParameterSizeOffset));
  
@@ -826,7 +944,7 @@ index e3f4001842..36f12e503c 100644
 -  __ mov(actual_params_size, Operand(ebp, StandardFrameConstants::kArgCOffset));
 -  __ lea(actual_params_size,
 -         Operand(actual_params_size, times_system_pointer_size,
--                 kSystemPointerSize));
+-                 kJSArgcIncludesReceiver ? 0 : kSystemPointerSize));
 -
 -  // If actual is bigger than formal, then we should use it to free up the stack
 -  // arguments.
@@ -839,17 +957,64 @@ index e3f4001842..36f12e503c 100644
    // Leave the frame (also dropping the register file).
    __ leave();
  
-@@ -2085,6 +2070,41 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
+@@ -2152,58 +2137,40 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
+-namespace {
 +static void EnterArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  __ push(ebp);
 +  __ mov(ebp, esp);
-+
+ 
+-// Allocate new stack space for |count| arguments and shift all existing
+-// arguments already on the stack. |pointer_to_new_space_out| points to the
+-// first free slot on the stack to copy additional arguments to and
+-// |argc_in_out| is updated to include |count|.
+-void Generate_AllocateSpaceAndShiftExistingArguments(
+-    MacroAssembler* masm, Register count, Register argc_in_out,
+-    Register pointer_to_new_space_out, Register scratch1, Register scratch2) {
+-  DCHECK(!AreAliased(count, argc_in_out, pointer_to_new_space_out, scratch1,
+-                     scratch2));
+-  // Use pointer_to_new_space_out as scratch until we set it to the correct
+-  // value at the end.
+-  Register old_esp = pointer_to_new_space_out;
+-  Register new_space = scratch1;
+-  __ mov(old_esp, esp);
+-
+-  __ lea(new_space, Operand(count, times_system_pointer_size, 0));
+-  __ AllocateStackSpace(new_space);
+-
+-  if (!kJSArgcIncludesReceiver) {
+-    __ inc(argc_in_out);
+-  }
+-  Register current = scratch1;
+-  Register value = scratch2;
 +  // Store the arguments adaptor context sentinel.
 +  __ push(Immediate(StackFrame::TypeToMarker(StackFrame::ARGUMENTS_ADAPTOR)));
-+
+ 
+-  Label loop, entry;
+-  __ mov(current, 0);
+-  __ jmp(&entry);
+-  __ bind(&loop);
+-  __ mov(value, Operand(old_esp, current, times_system_pointer_size, 0));
+-  __ mov(Operand(esp, current, times_system_pointer_size, 0), value);
+-  __ inc(current);
+-  __ bind(&entry);
+-  __ cmp(current, argc_in_out);
+-  __ j(less_equal, &loop, Label::kNear);
+-
+-  // Point to the next free slot above the shifted arguments (argc + 1 slot for
+-  // the return address).
+-  __ lea(
+-      pointer_to_new_space_out,
+-      Operand(esp, argc_in_out, times_system_pointer_size, kSystemPointerSize));
+-  // Update the total number of arguments.
+-  if (kJSArgcIncludesReceiver) {
+-    __ add(argc_in_out, count);
+-  } else {
+-    // Also subtract the receiver again.
+-    __ lea(argc_in_out, Operand(argc_in_out, count, times_1, -1));
+-  }
 +  // Push the function on the stack.
 +  __ push(edi);
 +
@@ -861,8 +1026,9 @@ index e3f4001842..36f12e503c 100644
 +  __ push(edi);
 +
 +  __ Push(Immediate(0));  // Padding.
-+}
-+
+ }
+ 
+-}  // namespace
 +static void LeaveArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  // Retrieve the number of arguments from the stack.
 +  __ mov(edi, Operand(ebp, ArgumentsAdaptorFrameConstants::kLengthOffset));
@@ -877,14 +1043,17 @@ index e3f4001842..36f12e503c 100644
 +                      1 * kSystemPointerSize));  // 1 ~ receiver
 +  __ PushReturnAddressFrom(ecx);
 +}
-+
+ 
  // static
  // TODO(v8:11615): Observe Code::kMaxArguments in CallOrConstructVarargs
- void Builtins::Generate_CallOrConstructVarargs(MacroAssembler* masm,
-@@ -2212,8 +2232,30 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
+@@ -2331,11 +2298,30 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
  
    __ movd(xmm1, edx);  // Preserve new.target (in case of [[Construct]]).
  
+-  Label stack_done, stack_overflow;
+-  __ mov(edx, Operand(ebp, StandardFrameConstants::kArgCOffset));
+-  if (kJSArgcIncludesReceiver) {
+-    __ dec(edx);
 +  // Check if we have an arguments adaptor frame below the function frame.
 +  Label arguments_adaptor, arguments_done;
 +  __ mov(scratch, Operand(ebp, StandardFrameConstants::kCallerFPOffset));
@@ -905,15 +1074,14 @@ index e3f4001842..36f12e503c 100644
 +    __ mov(edx,
 +           Operand(scratch, ArgumentsAdaptorFrameConstants::kLengthOffset));
 +    __ SmiUntag(edx);
-+  }
+   }
 +  __ bind(&arguments_done);
 +
-   Label stack_done, stack_overflow;
--  __ mov(edx, Operand(ebp, StandardFrameConstants::kArgCOffset));
++  Label stack_done, stack_overflow;
    __ sub(edx, ecx);
    __ j(less_equal, &stack_done);
    {
-@@ -2661,6 +2703,118 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
+@@ -2782,6 +2768,118 @@ void Builtins::Generate_Construct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
@@ -1033,10 +1201,10 @@ index e3f4001842..36f12e503c 100644
  
  void Generate_OSREntry(MacroAssembler* masm, Register entry_address) {
 diff --git a/src/builtins/x64/builtins-x64.cc b/src/builtins/x64/builtins-x64.cc
-index 661fd9bd22..cb6748a048 100644
+index a04c22aba9..b89edc5e2b 100644
 --- a/src/builtins/x64/builtins-x64.cc
 +++ b/src/builtins/x64/builtins-x64.cc
-@@ -851,22 +851,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
+@@ -916,22 +916,6 @@ static void LeaveInterpreterFrame(MacroAssembler* masm, Register scratch1,
    __ movl(params_size,
            FieldOperand(params_size, BytecodeArray::kParameterSizeOffset));
  
@@ -1046,7 +1214,7 @@ index 661fd9bd22..cb6748a048 100644
 -          Operand(rbp, StandardFrameConstants::kArgCOffset));
 -  __ leaq(actual_params_size,
 -          Operand(actual_params_size, times_system_pointer_size,
--                  kSystemPointerSize));
+-                  kJSArgcIncludesReceiver ? 0 : kSystemPointerSize));
 -
 -  // If actual is bigger than formal, then we should use it to free up the stack
 -  // arguments.
@@ -1059,17 +1227,66 @@ index 661fd9bd22..cb6748a048 100644
    // Leave the frame (also dropping the register file).
    __ leave();
  
-@@ -2050,6 +2034,185 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
+@@ -2121,60 +2105,184 @@ void Builtins::Generate_ReflectConstruct(MacroAssembler* masm) {
            RelocInfo::CODE_TARGET);
  }
  
+-namespace {
 +static void EnterArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  __ pushq(rbp);
 +  __ movq(rbp, rsp);
-+
+ 
+-// Allocate new stack space for |count| arguments and shift all existing
+-// arguments already on the stack. |pointer_to_new_space_out| points to the
+-// first free slot on the stack to copy additional arguments to and
+-// |argc_in_out| is updated to include |count|.
+-void Generate_AllocateSpaceAndShiftExistingArguments(
+-    MacroAssembler* masm, Register count, Register argc_in_out,
+-    Register pointer_to_new_space_out, Register scratch1, Register scratch2) {
+-  DCHECK(!AreAliased(count, argc_in_out, pointer_to_new_space_out, scratch1,
+-                     scratch2, kScratchRegister));
+-  // Use pointer_to_new_space_out as scratch until we set it to the correct
+-  // value at the end.
+-  Register old_rsp = pointer_to_new_space_out;
+-  Register new_space = kScratchRegister;
+-  __ movq(old_rsp, rsp);
+-
+-  __ leaq(new_space, Operand(count, times_system_pointer_size, 0));
+-  __ AllocateStackSpace(new_space);
+-
+-  Register copy_count = argc_in_out;
+-  if (!kJSArgcIncludesReceiver) {
+-    // We have a spare register, so use it instead of clobbering argc.
+-    // lea + add (to add the count to argc in the end) uses 1 less byte than
+-    // inc + lea (with base, index and disp), at the cost of 1 extra register.
+-    copy_count = scratch1;
+-    __ leaq(copy_count, Operand(argc_in_out, 1));  // Include the receiver.
+-  }
+-  Register current = scratch2;
+-  Register value = kScratchRegister;
 +  // Store the arguments adaptor context sentinel.
 +  __ Push(Immediate(StackFrame::TypeToMarker(StackFrame::ARGUMENTS_ADAPTOR)));
-+
+ 
+-  Label loop, entry;
+-  __ Move(current, 0);
+-  __ jmp(&entry);
+-  __ bind(&loop);
+-  __ movq(value, Operand(old_rsp, current, times_system_pointer_size, 0));
+-  __ movq(Operand(rsp, current, times_system_pointer_size, 0), value);
+-  __ incq(current);
+-  __ bind(&entry);
+-  __ cmpq(current, copy_count);
+-  __ j(less_equal, &loop, Label::kNear);
+-
+-  // Point to the next free slot above the shifted arguments (copy_count + 1
+-  // slot for the return address).
+-  __ leaq(
+-      pointer_to_new_space_out,
+-      Operand(rsp, copy_count, times_system_pointer_size, kSystemPointerSize));
+-  // We use addl instead of addq here because we can omit REX.W, saving 1 byte.
+-  // We are especially constrained here because we are close to reaching the
+-  // limit for a near jump to the stackoverflow label, so every byte counts.
+-  __ addl(argc_in_out, count);  // Update total number of arguments.
 +  // Push the function on the stack.
 +  __ Push(rdi);
 +
@@ -1080,8 +1297,9 @@ index 661fd9bd22..cb6748a048 100644
 +  __ Push(r8);
 +
 +  __ Push(Immediate(0));  // Padding.
-+}
-+
+ }
+ 
+-}  // namespace
 +static void LeaveArgumentsAdaptorFrame(MacroAssembler* masm) {
 +  // Retrieve the number of arguments from the stack. Number is a Smi.
 +  __ movq(rbx, Operand(rbp, ArgumentsAdaptorFrameConstants::kLengthOffset));
@@ -1241,14 +1459,17 @@ index 661fd9bd22..cb6748a048 100644
 +    __ int3();
 +  }
 +}
-+
+ 
  // static
  // TODO(v8:11615): Observe Code::kMaxArguments in CallOrConstructVarargs
- void Builtins::Generate_CallOrConstructVarargs(MacroAssembler* masm,
-@@ -2146,8 +2309,29 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
+@@ -2272,11 +2380,29 @@ void Builtins::Generate_CallOrConstructForwardVarargs(MacroAssembler* masm,
      __ bind(&new_target_constructor);
    }
  
+-  Label stack_done, stack_overflow;
+-  __ movq(r8, Operand(rbp, StandardFrameConstants::kArgCOffset));
+-  if (kJSArgcIncludesReceiver) {
+-    __ decq(r8);
 +  // Check if we have an arguments adaptor frame below the function frame.
 +  Label arguments_adaptor, arguments_done;
 +  __ movq(rbx, Operand(rbp, StandardFrameConstants::kCallerFPOffset));
@@ -1262,7 +1483,7 @@ index 661fd9bd22..cb6748a048 100644
 +    __ movzxwq(
 +        r8, FieldOperand(r8, SharedFunctionInfo::kFormalParameterCountOffset));
 +    __ movq(rbx, rbp);
-+  }
+   }
 +  __ jmp(&arguments_done, Label::kNear);
 +  __ bind(&arguments_adaptor);
 +  {
@@ -1271,12 +1492,11 @@ index 661fd9bd22..cb6748a048 100644
 +  }
 +  __ bind(&arguments_done);
 +
-   Label stack_done, stack_overflow;
--  __ movq(r8, Operand(rbp, StandardFrameConstants::kArgCOffset));
++  Label stack_done, stack_overflow;
    __ subl(r8, rcx);
    __ j(less_equal, &stack_done);
    {
-@@ -2328,7 +2512,6 @@ void Generate_PushBoundArguments(MacroAssembler* masm) {
+@@ -2455,7 +2581,6 @@ void Generate_PushBoundArguments(MacroAssembler* masm) {
      //  -- rbx : the number of [[BoundArguments]] (checked to be non-zero)
      // -----------------------------------
  
@@ -1304,10 +1524,10 @@ index 83d82fe3ce..395c59e9ac 100644
  constexpr auto ApiCallbackDescriptor::registers() {
    return RegisterArray(r1,   // kApiFunctionAddress
 diff --git a/src/codegen/arm/macro-assembler-arm.cc b/src/codegen/arm/macro-assembler-arm.cc
-index 26d16406a6..2f398f39ee 100644
+index 43bbd86207..614a12c12c 100644
 --- a/src/codegen/arm/macro-assembler-arm.cc
 +++ b/src/codegen/arm/macro-assembler-arm.cc
-@@ -1595,6 +1595,53 @@ void TurboAssembler::MovFromFloatParameter(DwVfpRegister dst) {
+@@ -1598,6 +1598,53 @@ void TurboAssembler::MovFromFloatParameter(DwVfpRegister dst) {
    MovFromFloatResult(dst);
  }
  
@@ -1361,7 +1581,7 @@ index 26d16406a6..2f398f39ee 100644
  void MacroAssembler::LoadStackLimit(Register destination, StackLimitKind kind) {
    ASM_CODE_COMMENT(this);
    DCHECK(root_array_available());
-@@ -1637,58 +1684,15 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
+@@ -1640,62 +1687,15 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
    DCHECK_EQ(actual_parameter_count, r0);
    DCHECK_EQ(expected_parameter_count, r2);
  
@@ -1398,7 +1618,11 @@ index 26d16406a6..2f398f39ee 100644
 -    str(scratch, MemOperand(dest, kSystemPointerSize, PostIndex));
 -    sub(num, num, Operand(1), SetCC);
 -    bind(&check);
--    b(ge, &copy);
+-    if (kJSArgcIncludesReceiver) {
+-      b(gt, &copy);
+-    } else {
+-      b(ge, &copy);
+-    }
 -  }
 -
 -  // Fill remaining expected arguments with undefined values.
@@ -1428,7 +1652,7 @@ index 26d16406a6..2f398f39ee 100644
  
    bind(&regular_invoke);
 diff --git a/src/codegen/arm/macro-assembler-arm.h b/src/codegen/arm/macro-assembler-arm.h
-index 8baf5c48a8..9b355c1610 100644
+index 9e699e4083..9f5eebb92b 100644
 --- a/src/codegen/arm/macro-assembler-arm.h
 +++ b/src/codegen/arm/macro-assembler-arm.h
 @@ -241,6 +241,10 @@ class V8_EXPORT_PRIVATE TurboAssembler : public TurboAssemblerBase {
@@ -1462,10 +1686,10 @@ index e8fe4ef1d3..cf113afc4b 100644
  constexpr auto ApiCallbackDescriptor::registers() {
    return RegisterArray(x1,   // kApiFunctionAddress
 diff --git a/src/codegen/arm64/macro-assembler-arm64.cc b/src/codegen/arm64/macro-assembler-arm64.cc
-index f125f2a932..ce12f11ad8 100644
+index 715cf04fc5..bdb51aff92 100644
 --- a/src/codegen/arm64/macro-assembler-arm64.cc
 +++ b/src/codegen/arm64/macro-assembler-arm64.cc
-@@ -2215,6 +2215,61 @@ void TurboAssembler::CallForDeoptimization(
+@@ -2211,6 +2211,61 @@ void TurboAssembler::CallForDeoptimization(
    }
  }
  
@@ -1527,7 +1751,7 @@ index f125f2a932..ce12f11ad8 100644
  void MacroAssembler::LoadStackLimit(Register destination, StackLimitKind kind) {
    ASM_CODE_COMMENT(this);
    DCHECK(root_array_available());
-@@ -2261,98 +2316,21 @@ void MacroAssembler::InvokePrologue(Register formal_parameter_count,
+@@ -2257,107 +2312,21 @@ void MacroAssembler::InvokePrologue(Register formal_parameter_count,
    DCHECK_EQ(actual_argument_count, x0);
    DCHECK_EQ(formal_parameter_count, x2);
  
@@ -1555,7 +1779,18 @@ index f125f2a932..ce12f11ad8 100644
 -  Register slots_to_copy = x4;
 -  Register slots_to_claim = x5;
 -
--  Add(slots_to_copy, actual_argument_count, 1);  // Copy with receiver.
+-  if (kJSArgcIncludesReceiver) {
+-    Mov(slots_to_copy, actual_argument_count);
++  // The argument counts mismatch, generate a call to the argument adaptor.
++  Handle<Code> adaptor = BUILTIN_CODE(isolate(), ArgumentsAdaptorTrampoline);
++  if (type == InvokeType::kCall) {
++    Call(adaptor);
++    // If the arg counts don't match, no extra code is emitted by
++    // MAsm::InvokeFunctionCode and we can just fall through.
++    B(done);
+   } else {
+-    Add(slots_to_copy, actual_argument_count, 1);  // Copy with receiver.
+-  }
 -  Mov(slots_to_claim, extra_argument_count);
 -  Tbz(extra_argument_count, 0, &even_extra_count);
 -
@@ -1569,7 +1804,9 @@ index f125f2a932..ce12f11ad8 100644
 -    Register scratch = x11;
 -    Add(slots_to_claim, extra_argument_count, 1);
 -    And(scratch, actual_argument_count, 1);
--    Eor(scratch, scratch, 1);
+-    if (!kJSArgcIncludesReceiver) {
+-      Eor(scratch, scratch, 1);
+-    }
 -    Sub(slots_to_claim, slots_to_claim, Operand(scratch, LSL, 1));
 -  }
 -
@@ -1590,10 +1827,13 @@ index f125f2a932..ce12f11ad8 100644
 -  }
 -
 -  Bind(&skip_move);
--  Register actual_argument_with_receiver = x4;
+-  Register actual_argument_with_receiver = actual_argument_count;
 -  Register pointer_next_value = x5;
--  Add(actual_argument_with_receiver, actual_argument_count,
--      1);  // {slots_to_copy} was scratched.
+-  if (!kJSArgcIncludesReceiver) {
+-    actual_argument_with_receiver = x4;
+-    Add(actual_argument_with_receiver, actual_argument_count,
+-        1);  // {slots_to_copy} was scratched.
+-  }
 -
 -  // Copy extra arguments as undefined values.
 -  {
@@ -1627,20 +1867,12 @@ index f125f2a932..ce12f11ad8 100644
 -                     has_frame() ? StackFrame::NONE : StackFrame::INTERNAL);
 -    CallRuntime(Runtime::kThrowStackOverflow);
 -    Unreachable();
-+  // The argument counts mismatch, generate a call to the argument adaptor.
-+  Handle<Code> adaptor = BUILTIN_CODE(isolate(), ArgumentsAdaptorTrampoline);
-+  if (type == InvokeType::kCall) {
-+    Call(adaptor);
-+    // If the arg counts don't match, no extra code is emitted by
-+    // MAsm::InvokeFunctionCode and we can just fall through.
-+    B(done);
-+  } else {
 +    Jump(adaptor, RelocInfo::CODE_TARGET);
    }
  
    Bind(&regular_invoke);
 diff --git a/src/codegen/arm64/macro-assembler-arm64.h b/src/codegen/arm64/macro-assembler-arm64.h
-index 9128ba2c18..a761c4e4d2 100644
+index 11a5e7eb9a..a8d6796602 100644
 --- a/src/codegen/arm64/macro-assembler-arm64.h
 +++ b/src/codegen/arm64/macro-assembler-arm64.h
 @@ -555,6 +555,10 @@ class V8_EXPORT_PRIVATE TurboAssembler : public TurboAssemblerBase {
@@ -1655,7 +1887,7 @@ index 9128ba2c18..a761c4e4d2 100644
    inline void SmiUntag(Register dst, const MemOperand& src);
    inline void SmiUntag(Register smi);
 diff --git a/src/codegen/code-factory.cc b/src/codegen/code-factory.cc
-index f3cb604478..c0c7e09160 100644
+index dcf19a0ad5..0b100a5bda 100644
 --- a/src/codegen/code-factory.cc
 +++ b/src/codegen/code-factory.cc
 @@ -154,6 +154,11 @@ Callable CodeFactory::FastNewFunctionContext(Isolate* isolate,
@@ -1671,7 +1903,7 @@ index f3cb604478..c0c7e09160 100644
  Callable CodeFactory::Call(Isolate* isolate, ConvertReceiverMode mode) {
    return Callable(isolate->builtins()->Call(mode), CallTrampolineDescriptor{});
 diff --git a/src/codegen/code-factory.h b/src/codegen/code-factory.h
-index 4780678dad..93905147e8 100644
+index 05b27bef0e..1fd9f281c2 100644
 --- a/src/codegen/code-factory.h
 +++ b/src/codegen/code-factory.h
 @@ -56,6 +56,7 @@ class V8_EXPORT_PRIVATE CodeFactory final {
@@ -1683,10 +1915,10 @@ index 4780678dad..93905147e8 100644
                         ConvertReceiverMode mode = ConvertReceiverMode::kAny);
    static Callable Call_WithFeedback(Isolate* isolate, ConvertReceiverMode mode);
 diff --git a/src/codegen/code-stub-assembler.h b/src/codegen/code-stub-assembler.h
-index 008af6006f..4d3dd4c84f 100644
+index f869ac687f..5e1f4a5efd 100644
 --- a/src/codegen/code-stub-assembler.h
 +++ b/src/codegen/code-stub-assembler.h
-@@ -305,6 +305,8 @@ enum class PrimitiveType { kBoolean, kNumber, kString, kSymbol };
+@@ -306,6 +306,8 @@ enum class PrimitiveType { kBoolean, kNumber, kString, kSymbol };
  #define CSA_SLOW_ASSERT(csa, ...) ((void)0)
  #endif
  
@@ -1715,10 +1947,10 @@ index b383b5df76..dd9cca214b 100644
  constexpr auto ApiCallbackDescriptor::registers() {
    return RegisterArray(edx,   // kApiFunctionAddress
 diff --git a/src/codegen/ia32/macro-assembler-ia32.cc b/src/codegen/ia32/macro-assembler-ia32.cc
-index f7e24ba896..2871cde59d 100644
+index 19a20be696..5ee9495a9d 100644
 --- a/src/codegen/ia32/macro-assembler-ia32.cc
 +++ b/src/codegen/ia32/macro-assembler-ia32.cc
-@@ -1503,6 +1503,59 @@ void MacroAssembler::JumpToInstructionStream(Address entry) {
+@@ -1190,6 +1190,59 @@ void MacroAssembler::JumpToInstructionStream(Address entry) {
    jmp(entry, RelocInfo::OFF_HEAP_TARGET);
  }
  
@@ -1778,7 +2010,7 @@ index f7e24ba896..2871cde59d 100644
  void MacroAssembler::CompareStackLimit(Register with, StackLimitKind kind) {
    ASM_CODE_COMMENT(this);
    DCHECK(root_array_available());
-@@ -1555,79 +1608,17 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
+@@ -1242,81 +1295,17 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
    DCHECK_EQ(expected_parameter_count, ecx);
    Label regular_invoke;
  
@@ -1812,8 +2044,10 @@ index f7e24ba896..2871cde59d 100644
 -    lea(scratch,
 -        Operand(expected_parameter_count, times_system_pointer_size, 0));
 -    AllocateStackSpace(scratch);
--    // Extra words are the receiver and the return address (if a jump).
--    int extra_words = type == InvokeType::kCall ? 1 : 2;
+-    // Extra words are the receiver (if not already included in argc) and the
+-    // return address (if a jump).
+-    int extra_words = type == InvokeType::kCall ? 0 : 1;
+-    if (!kJSArgcIncludesReceiver) extra_words++;
 -    lea(num, Operand(eax, extra_words));  // Number of words to copy.
 -    Move(current, 0);
 -    // Fall-through to the loop body because there are non-zero words to copy.
@@ -1869,10 +2103,10 @@ index f7e24ba896..2871cde59d 100644
  
  void MacroAssembler::CallDebugOnFunctionCall(Register fun, Register new_target,
 diff --git a/src/codegen/ia32/macro-assembler-ia32.h b/src/codegen/ia32/macro-assembler-ia32.h
-index 527c357047..371a9acaae 100644
+index bf8f356e8c..85b3f8ff76 100644
 --- a/src/codegen/ia32/macro-assembler-ia32.h
 +++ b/src/codegen/ia32/macro-assembler-ia32.h
-@@ -203,6 +203,11 @@ class V8_EXPORT_PRIVATE TurboAssembler : public SharedTurboAssembler {
+@@ -199,6 +199,11 @@ class V8_EXPORT_PRIVATE TurboAssembler
      SmiUntag(output);
    }
  
@@ -1885,7 +2119,7 @@ index 527c357047..371a9acaae 100644
    // After aligning the frame, arguments must be stored in esp[0], esp[4],
    // etc., not pushed. The argument count assumes all arguments are word sized.
 diff --git a/src/codegen/interface-descriptors.h b/src/codegen/interface-descriptors.h
-index 10deb0ad41..994f000cf5 100644
+index 900ee712f4..22b714acb3 100644
 --- a/src/codegen/interface-descriptors.h
 +++ b/src/codegen/interface-descriptors.h
 @@ -26,6 +26,7 @@ namespace internal {
@@ -1914,7 +2148,7 @@ index 10deb0ad41..994f000cf5 100644
      : public StaticJSCallInterfaceDescriptor<CppBuiltinAdaptorDescriptor> {
   public:
 diff --git a/src/codegen/x64/interface-descriptors-x64-inl.h b/src/codegen/x64/interface-descriptors-x64-inl.h
-index 50ba12b836..b126e587cd 100644
+index fade1eda99..680b49b66c 100644
 --- a/src/codegen/x64/interface-descriptors-x64-inl.h
 +++ b/src/codegen/x64/interface-descriptors-x64-inl.h
 @@ -247,6 +247,14 @@ constexpr auto BinaryOp_BaselineDescriptor::registers() {
@@ -1933,10 +2167,10 @@ index 50ba12b836..b126e587cd 100644
  constexpr auto ApiCallbackDescriptor::registers() {
    return RegisterArray(rdx,   // api function address
 diff --git a/src/codegen/x64/macro-assembler-x64.cc b/src/codegen/x64/macro-assembler-x64.cc
-index c064f671e3..8a699e6d10 100644
+index ed623f58ac..c64a570fc5 100644
 --- a/src/codegen/x64/macro-assembler-x64.cc
 +++ b/src/codegen/x64/macro-assembler-x64.cc
-@@ -2923,6 +2923,54 @@ void MacroAssembler::EmitDecrementCounter(StatsCounter* counter, int value) {
+@@ -2631,6 +2631,54 @@ void MacroAssembler::EmitDecrementCounter(StatsCounter* counter, int value) {
    }
  }
  
@@ -1991,7 +2225,7 @@ index c064f671e3..8a699e6d10 100644
  void MacroAssembler::InvokeFunction(Register function, Register new_target,
                                      Register actual_parameter_count,
                                      InvokeType type) {
-@@ -3046,63 +3094,21 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
+@@ -2754,67 +2802,21 @@ void MacroAssembler::InvokePrologue(Register expected_parameter_count,
        return;
      }
      Label regular_invoke;
@@ -2017,8 +2251,12 @@ index c064f671e3..8a699e6d10 100644
 -      leaq(kScratchRegister,
 -           Operand(expected_parameter_count, times_system_pointer_size, 0));
 -      AllocateStackSpace(kScratchRegister);
--      // Extra words are the receiver and the return address (if a jump).
--      int extra_words = type == InvokeType::kCall ? 1 : 2;
+-      // Extra words are the receiver (if not already included in argc) and the
+-      // return address (if a jump).
+-      int extra_words =
+-          type == InvokeType::kCall ? 0 : kReturnAddressStackSlotCount;
+-      if (!kJSArgcIncludesReceiver) extra_words++;
+-
 -      leaq(num, Operand(rax, extra_words));  // Number of words to copy.
 -      Move(current, 0);
 -      // Fall-through to the loop body because there are non-zero words to copy.
@@ -2070,10 +2308,10 @@ index c064f671e3..8a699e6d10 100644
  }
  
 diff --git a/src/codegen/x64/macro-assembler-x64.h b/src/codegen/x64/macro-assembler-x64.h
-index 02b9eb410e..76f874f36d 100644
+index ec35108aba..0a43da598e 100644
 --- a/src/codegen/x64/macro-assembler-x64.h
 +++ b/src/codegen/x64/macro-assembler-x64.h
-@@ -570,6 +570,10 @@ class V8_EXPORT_PRIVATE TurboAssembler : public SharedTurboAssembler {
+@@ -520,6 +520,10 @@ class V8_EXPORT_PRIVATE TurboAssembler
    }
  #endif
  
@@ -2084,11 +2322,29 @@ index 02b9eb410e..76f874f36d 100644
    void InitializeRootRegister() {
      ExternalReference isolate_root = ExternalReference::isolate_root(isolate());
      Move(kRootRegister, isolate_root);
+diff --git a/src/common/globals.h b/src/common/globals.h
+index 6df1da88ae..6997d15e8a 100644
+--- a/src/common/globals.h
++++ b/src/common/globals.h
+@@ -1789,6 +1789,13 @@ constexpr int kJSArgcReceiverSlots = 0;
+ constexpr uint16_t kDontAdaptArgumentsSentinel = static_cast<uint16_t>(-1);
+ #endif
+ 
++// Titanium: the compat patches restore the pre-8.x argument layout and the
++// arguments adaptor frame. They are written for an argument count that does
++// not include the receiver.
++static_assert(!kJSArgcIncludesReceiver,
++              "v8_include_receiver_in_argc is not supported by the Titanium "
++              "compat patches");
++
+ // Helper to get the parameter count for functions with JS linkage.
+ inline constexpr int JSParameterCount(int param_count_without_receiver) {
+   return param_count_without_receiver + kJSArgcReceiverSlots;
 diff --git a/src/compiler/backend/arm/code-generator-arm.cc b/src/compiler/backend/arm/code-generator-arm.cc
-index 29c7897ec9..6ec2ee8396 100644
+index 7bc90fd822..e0d5bd41af 100644
 --- a/src/compiler/backend/arm/code-generator-arm.cc
 +++ b/src/compiler/backend/arm/code-generator-arm.cc
-@@ -551,6 +551,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
+@@ -519,6 +519,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
    frame_access_state()->SetFrameAccessToSP();
  }
  
@@ -2119,7 +2375,7 @@ index 29c7897ec9..6ec2ee8396 100644
  namespace {
  
  void FlushPendingPushRegisters(TurboAssembler* tasm,
-@@ -771,7 +795,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -720,7 +744,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
@@ -2135,7 +2391,7 @@ index 29c7897ec9..6ec2ee8396 100644
        if (instr->InputAt(0)->IsImmediate()) {
          __ Jump(i.InputCode(0), RelocInfo::CODE_TARGET);
        } else {
-@@ -3919,13 +3951,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -3846,13 +3878,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = r3;
@@ -2151,10 +2407,10 @@ index 29c7897ec9..6ec2ee8396 100644
      AssembleDeconstructFrame();
    } else if (frame_access_state()->has_frame()) {
 diff --git a/src/compiler/backend/arm/instruction-selector-arm.cc b/src/compiler/backend/arm/instruction-selector-arm.cc
-index 2698d45ae7..c0758aadc2 100644
+index 3de9b2aab6..ddc80db9e1 100644
 --- a/src/compiler/backend/arm/instruction-selector-arm.cc
 +++ b/src/compiler/backend/arm/instruction-selector-arm.cc
-@@ -1740,6 +1740,8 @@ void InstructionSelector::EmitPrepareResults(
+@@ -1774,6 +1774,8 @@ void InstructionSelector::EmitPrepareResults(
  
  bool InstructionSelector::IsTailCallAddressImmediate() { return false; }
  
@@ -2164,10 +2420,10 @@ index 2698d45ae7..c0758aadc2 100644
  
  // Shared routine for multiple compare operations.
 diff --git a/src/compiler/backend/arm64/code-generator-arm64.cc b/src/compiler/backend/arm64/code-generator-arm64.cc
-index c121383426..c4f67aafbd 100644
+index fcab0a739b..05104fc529 100644
 --- a/src/compiler/backend/arm64/code-generator-arm64.cc
 +++ b/src/compiler/backend/arm64/code-generator-arm64.cc
-@@ -643,6 +643,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
+@@ -601,6 +601,30 @@ void CodeGenerator::AssemblePrepareTailCall() {
    frame_access_state()->SetFrameAccessToSP();
  }
  
@@ -2198,7 +2454,7 @@ index c121383426..c4f67aafbd 100644
  namespace {
  
  void AdjustStackPointerForTailCall(TurboAssembler* tasm,
-@@ -798,7 +822,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -733,7 +757,15 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
@@ -2214,7 +2470,7 @@ index c121383426..c4f67aafbd 100644
        if (instr->InputAt(0)->IsImmediate()) {
          __ Jump(i.InputCode(0), RelocInfo::CODE_TARGET);
        } else {
-@@ -3309,13 +3341,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -3184,13 +3216,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = x3;
@@ -2230,10 +2486,10 @@ index c121383426..c4f67aafbd 100644
      AssembleDeconstructFrame();
    } else if (frame_access_state()->has_frame()) {
 diff --git a/src/compiler/backend/arm64/instruction-selector-arm64.cc b/src/compiler/backend/arm64/instruction-selector-arm64.cc
-index 6a1a101e35..b1ae4a5982 100644
+index d102ecabb2..ec53b3ccc8 100644
 --- a/src/compiler/backend/arm64/instruction-selector-arm64.cc
 +++ b/src/compiler/backend/arm64/instruction-selector-arm64.cc
-@@ -2146,6 +2146,8 @@ void InstructionSelector::EmitPrepareResults(
+@@ -2142,6 +2142,8 @@ void InstructionSelector::EmitPrepareResults(
  
  bool InstructionSelector::IsTailCallAddressImmediate() { return false; }
  
@@ -2243,10 +2499,10 @@ index 6a1a101e35..b1ae4a5982 100644
  
  // Shared routine for multiple compare operations.
 diff --git a/src/compiler/backend/code-generator.h b/src/compiler/backend/code-generator.h
-index 7ccb09d5ac..e16962734d 100644
+index 18de20f92c..296ae8b635 100644
 --- a/src/compiler/backend/code-generator.h
 +++ b/src/compiler/backend/code-generator.h
-@@ -301,6 +301,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
+@@ -285,6 +285,10 @@ class V8_EXPORT_PRIVATE CodeGenerator final : public GapResolver::Assembler {
    // Generates code to manipulate the stack in preparation for a tail call.
    void AssemblePrepareTailCall();
  
@@ -2258,10 +2514,10 @@ index 7ccb09d5ac..e16962734d 100644
      kImmediatePush = 0x1,
      kRegisterPush = 0x2,
 diff --git a/src/compiler/backend/ia32/code-generator-ia32.cc b/src/compiler/backend/ia32/code-generator-ia32.cc
-index 5db3f20fa4..1a9c59059a 100644
+index 1cd78b4359..f74b8e9a34 100644
 --- a/src/compiler/backend/ia32/code-generator-ia32.cc
 +++ b/src/compiler/backend/ia32/code-generator-ia32.cc
-@@ -572,6 +572,43 @@ void CodeGenerator::AssemblePrepareTailCall() {
+@@ -573,6 +573,43 @@ void CodeGenerator::AssemblePrepareTailCall() {
    frame_access_state()->SetFrameAccessToSP();
  }
  
@@ -2305,7 +2561,7 @@ index 5db3f20fa4..1a9c59059a 100644
  namespace {
  
  void AdjustStackPointerForTailCall(TurboAssembler* tasm,
-@@ -774,7 +811,14 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -747,7 +784,14 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
@@ -2320,7 +2576,7 @@ index 5db3f20fa4..1a9c59059a 100644
        if (HasImmediateInput(instr, 0)) {
          Handle<Code> code = i.InputCode(0);
          __ Jump(code, RelocInfo::CODE_TARGET);
-@@ -4613,14 +4657,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -4245,14 +4289,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = ecx;
@@ -2337,10 +2593,10 @@ index 5db3f20fa4..1a9c59059a 100644
      AssembleDeconstructFrame();
    } else if (frame_access_state()->has_frame()) {
 diff --git a/src/compiler/backend/ia32/instruction-selector-ia32.cc b/src/compiler/backend/ia32/instruction-selector-ia32.cc
-index f36fdb2935..0d83a0a386 100644
+index ce792692f0..8b5548b482 100644
 --- a/src/compiler/backend/ia32/instruction-selector-ia32.cc
 +++ b/src/compiler/backend/ia32/instruction-selector-ia32.cc
-@@ -1430,6 +1430,8 @@ void InstructionSelector::EmitPrepareResults(
+@@ -1496,6 +1496,8 @@ void InstructionSelector::EmitPrepareResults(
  
  bool InstructionSelector::IsTailCallAddressImmediate() { return true; }
  
@@ -2350,10 +2606,10 @@ index f36fdb2935..0d83a0a386 100644
  
  void VisitCompareWithMemoryOperand(InstructionSelector* selector,
 diff --git a/src/compiler/backend/instruction-codes.h b/src/compiler/backend/instruction-codes.h
-index 31d669813e..87c1c766ba 100644
+index 63cf3ca06f..b977b0f034 100644
 --- a/src/compiler/backend/instruction-codes.h
 +++ b/src/compiler/backend/instruction-codes.h
-@@ -69,6 +69,7 @@ inline RecordWriteMode WriteBarrierKindToRecordWriteMode(
+@@ -72,6 +72,7 @@ inline RecordWriteMode WriteBarrierKindToRecordWriteMode(
    /* Tail call opcodes are grouped together to make IsTailCall fast */     \
    /* and Arch call opcodes are grouped together to make */                 \
    /* IsCallWithDescriptorFlags fast */                                     \
@@ -2362,10 +2618,10 @@ index 31d669813e..87c1c766ba 100644
    V(ArchTailCallAddress)                                                   \
    IF_WASM(V, ArchTailCallWasm)                                             \
 diff --git a/src/compiler/backend/instruction-scheduler.cc b/src/compiler/backend/instruction-scheduler.cc
-index c46d263bae..bc06608090 100644
+index bdad838f3e..8b0dec4a06 100644
 --- a/src/compiler/backend/instruction-scheduler.cc
 +++ b/src/compiler/backend/instruction-scheduler.cc
-@@ -305,6 +305,7 @@ int InstructionScheduler::GetInstructionFlags(const Instruction* instr) const {
+@@ -299,6 +299,7 @@ int InstructionScheduler::GetInstructionFlags(const Instruction* instr) const {
  
      case kArchPrepareCallCFunction:
      case kArchPrepareTailCall:
@@ -2374,10 +2630,10 @@ index c46d263bae..bc06608090 100644
      case kArchTailCallAddress:
  #if V8_ENABLE_WEBASSEMBLY
 diff --git a/src/compiler/backend/instruction-selector.cc b/src/compiler/backend/instruction-selector.cc
-index f279ea1590..96343c069b 100644
+index cd2b83ac3d..21255c744f 100644
 --- a/src/compiler/backend/instruction-selector.cc
 +++ b/src/compiler/backend/instruction-selector.cc
-@@ -3040,7 +3040,17 @@ void InstructionSelector::VisitTailCall(Node* node) {
+@@ -2989,7 +2989,17 @@ void InstructionSelector::VisitTailCall(Node* node) {
    InstructionOperandVector temps(zone());
    switch (callee->kind()) {
      case CallDescriptor::kCallCodeObject:
@@ -2397,10 +2653,10 @@ index f279ea1590..96343c069b 100644
      case CallDescriptor::kCallAddress:
        DCHECK(!caller->IsJSFunctionCall());
 diff --git a/src/compiler/backend/instruction-selector.h b/src/compiler/backend/instruction-selector.h
-index 11a329d1d6..45460183a0 100644
+index b33de8e856..d3318557a7 100644
 --- a/src/compiler/backend/instruction-selector.h
 +++ b/src/compiler/backend/instruction-selector.h
-@@ -601,6 +601,7 @@ class V8_EXPORT_PRIVATE InstructionSelector final {
+@@ -572,6 +572,7 @@ class V8_EXPORT_PRIVATE InstructionSelector final {
    void InitializeCallBuffer(Node* call, CallBuffer* buffer,
                              CallBufferFlags flags, int stack_slot_delta = 0);
    bool IsTailCallAddressImmediate();
@@ -2409,10 +2665,10 @@ index 11a329d1d6..45460183a0 100644
    void UpdateMaxPushedArgumentCount(size_t count);
  
 diff --git a/src/compiler/backend/instruction.cc b/src/compiler/backend/instruction.cc
-index 63ca78e060..c50c13cf02 100644
+index 0da8e054ae..60c082a10d 100644
 --- a/src/compiler/backend/instruction.cc
 +++ b/src/compiler/backend/instruction.cc
-@@ -1025,14 +1025,11 @@ size_t GetConservativeFrameSizeInBytes(FrameStateType type,
+@@ -1021,14 +1021,11 @@ size_t GetConservativeFrameSizeInBytes(FrameStateType type,
            static_cast<int>(parameters_count), static_cast<int>(locals_count));
        return info.frame_size_in_bytes();
      }
@@ -2432,10 +2688,10 @@ index 63ca78e060..c50c13cf02 100644
        auto info = ConstructStubFrameInfo::Conservative(
            static_cast<int>(parameters_count));
 diff --git a/src/compiler/backend/x64/code-generator-x64.cc b/src/compiler/backend/x64/code-generator-x64.cc
-index 60a40fb489..8f0cec5b0c 100644
+index 3e2298de3e..fcfbd87802 100644
 --- a/src/compiler/backend/x64/code-generator-x64.cc
 +++ b/src/compiler/backend/x64/code-generator-x64.cc
-@@ -904,6 +904,28 @@ void CodeGenerator::AssemblePrepareTailCall() {
+@@ -1041,6 +1041,28 @@ void CodeGenerator::AssemblePrepareTailCall() {
    frame_access_state()->SetFrameAccessToSP();
  }
  
@@ -2464,7 +2720,7 @@ index 60a40fb489..8f0cec5b0c 100644
  namespace {
  
  void AdjustStackPointerForTailCall(Instruction* instr,
-@@ -1120,6 +1142,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
+@@ -1223,6 +1245,13 @@ CodeGenerator::CodeGenResult CodeGenerator::AssembleArchInstruction(
        break;
      }
  #endif  // V8_ENABLE_WEBASSEMBLY
@@ -2478,7 +2734,7 @@ index 60a40fb489..8f0cec5b0c 100644
      case kArchTailCallCodeObject: {
        if (HasImmediateInput(instr, 0)) {
          Handle<Code> code = i.InputCode(0);
-@@ -4843,13 +4872,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
+@@ -4729,13 +4758,7 @@ void CodeGenerator::AssembleReturn(InstructionOperand* additional_pop_count) {
    }
  
    Register argc_reg = rcx;
@@ -2494,10 +2750,10 @@ index 60a40fb489..8f0cec5b0c 100644
      AssembleDeconstructFrame();
    } else if (frame_access_state()->has_frame()) {
 diff --git a/src/compiler/backend/x64/instruction-selector-x64.cc b/src/compiler/backend/x64/instruction-selector-x64.cc
-index 53ee75064b..111bf172cc 100644
+index 2f44f0dee5..5b713681fa 100644
 --- a/src/compiler/backend/x64/instruction-selector-x64.cc
 +++ b/src/compiler/backend/x64/instruction-selector-x64.cc
-@@ -1928,6 +1928,8 @@ void InstructionSelector::EmitPrepareResults(
+@@ -1995,6 +1995,8 @@ void InstructionSelector::EmitPrepareResults(
  
  bool InstructionSelector::IsTailCallAddressImmediate() { return true; }
  
@@ -2507,10 +2763,10 @@ index 53ee75064b..111bf172cc 100644
  
  void VisitCompareWithMemoryOperand(InstructionSelector* selector,
 diff --git a/src/compiler/effect-control-linearizer.cc b/src/compiler/effect-control-linearizer.cc
-index d7a0ca62dd..758ba0ea17 100644
+index 83eb6c215c..427475a801 100644
 --- a/src/compiler/effect-control-linearizer.cc
 +++ b/src/compiler/effect-control-linearizer.cc
-@@ -152,6 +152,7 @@ class EffectControlLinearizer {
+@@ -148,6 +148,7 @@ class EffectControlLinearizer {
    Node* LowerObjectIsInteger(Node* node);
    Node* LowerNumberIsSafeInteger(Node* node);
    Node* LowerObjectIsSafeInteger(Node* node);
@@ -2518,7 +2774,7 @@ index d7a0ca62dd..758ba0ea17 100644
    Node* LowerArgumentsLength(Node* node);
    Node* LowerRestLength(Node* node);
    Node* LowerNewDoubleElements(Node* node);
-@@ -1147,6 +1148,9 @@ bool EffectControlLinearizer::TryWireInStateEffect(Node* node,
+@@ -1139,6 +1140,9 @@ bool EffectControlLinearizer::TryWireInStateEffect(Node* node,
      case IrOpcode::kObjectIsUndetectable:
        result = LowerObjectIsUndetectable(node);
        break;
@@ -2528,13 +2784,18 @@ index d7a0ca62dd..758ba0ea17 100644
      case IrOpcode::kArgumentsLength:
        result = LowerArgumentsLength(node);
        break;
-@@ -3696,9 +3700,28 @@ Node* EffectControlLinearizer::LowerToBoolean(Node* node) {
+@@ -3679,14 +3683,28 @@ Node* EffectControlLinearizer::LowerToBoolean(Node* node) {
  }
  
  Node* EffectControlLinearizer::LowerArgumentsLength(Node* node) {
--  return ChangeIntPtrToSmi(
+-  Node* arguments_length = ChangeIntPtrToSmi(
 -      __ Load(MachineType::Pointer(), __ LoadFramePointer(),
 -              __ IntPtrConstant(StandardFrameConstants::kArgCOffset)));
+-  if (kJSArgcIncludesReceiver) {
+-    arguments_length =
+-        __ SmiSub(arguments_length, __ SmiConstant(kJSArgcReceiverSlots));
+-  }
+-  return arguments_length;
 +  auto done = __ MakeLabel(MachineRepresentation::kTaggedSigned);
 +  Node* frame = __ LoadFramePointer();
 +
@@ -2560,13 +2821,17 @@ index d7a0ca62dd..758ba0ea17 100644
  }
  
  Node* EffectControlLinearizer::LowerRestLength(Node* node) {
-@@ -3708,9 +3731,20 @@ Node* EffectControlLinearizer::LowerRestLength(Node* node) {
+@@ -3696,13 +3714,20 @@ Node* EffectControlLinearizer::LowerRestLength(Node* node) {
    auto done = __ MakeLabel(MachineRepresentation::kTaggedSigned);
    Node* frame = __ LoadFramePointer();
  
 -  Node* arguments_length = ChangeIntPtrToSmi(
 -      __ Load(MachineType::Pointer(), frame,
 -              __ IntPtrConstant(StandardFrameConstants::kArgCOffset)));
+-  if (kJSArgcIncludesReceiver) {
+-    arguments_length =
+-        __ SmiSub(arguments_length, __ SmiConstant(kJSArgcReceiverSlots));
+-  }
 +  Node* arguments_frame = NodeProperties::GetValueInput(node, 0);
 +
 +  // The RestLength node is computing the number of rest parameters,
@@ -2584,7 +2849,7 @@ index d7a0ca62dd..758ba0ea17 100644
    Node* rest_length =
        __ SmiSub(arguments_length, __ SmiConstant(formal_parameter_count));
    __ GotoIf(__ SmiLessThan(rest_length, __ SmiConstant(0)), &done,
-@@ -3721,6 +3755,27 @@ Node* EffectControlLinearizer::LowerRestLength(Node* node) {
+@@ -3713,6 +3738,27 @@ Node* EffectControlLinearizer::LowerRestLength(Node* node) {
    return done.PhiAt(0);
  }
  
@@ -2612,7 +2877,7 @@ index d7a0ca62dd..758ba0ea17 100644
  Node* EffectControlLinearizer::LowerNewDoubleElements(Node* node) {
    AllocationType const allocation = AllocationTypeOf(node->op());
    Node* length = node->InputAt(0);
-@@ -3820,8 +3875,11 @@ Node* EffectControlLinearizer::LowerNewArgumentsElements(Node* node) {
+@@ -3812,8 +3858,11 @@ Node* EffectControlLinearizer::LowerNewArgumentsElements(Node* node) {
    CreateArgumentsType type = parameters.arguments_type();
    Operator::Properties const properties = node->op()->properties();
    CallDescriptor::Flags const flags = CallDescriptor::kNoFlags;
@@ -2664,7 +2929,7 @@ index 7b1de32a3f..fa9adce9bc 100644
              break;
            }
 diff --git a/src/compiler/js-create-lowering.cc b/src/compiler/js-create-lowering.cc
-index 414977eb7d..b0dcf7b077 100644
+index 60c9017fc2..f3d274c0eb 100644
 --- a/src/compiler/js-create-lowering.cc
 +++ b/src/compiler/js-create-lowering.cc
 @@ -164,15 +164,18 @@ Reduction JSCreateLowering::ReduceJSCreateArguments(Node* node) {
@@ -2676,7 +2941,7 @@ index 414977eb7d..b0dcf7b077 100644
          Node* const arguments_length =
 -            graph()->NewNode(simplified()->ArgumentsLength());
 +            graph()->NewNode(simplified()->ArgumentsLength(
-+                                 shared.internal_formal_parameter_count()),
++                                 shared.internal_formal_parameter_count_without_receiver()),
 +                             arguments_frame);
          // Allocate the elements backing store.
          bool has_aliased_arguments = false;
@@ -2699,14 +2964,18 @@ index 414977eb7d..b0dcf7b077 100644
          Node* const arguments_length =
 -            graph()->NewNode(simplified()->ArgumentsLength());
 +            graph()->NewNode(simplified()->ArgumentsLength(
-+                                 shared.internal_formal_parameter_count()),
++                                 shared.internal_formal_parameter_count_without_receiver()),
 +                             arguments_frame);
          // Allocate the elements backing store.
-         Node* const elements = effect =
-             graph()->NewNode(simplified()->NewArgumentsElements(
-                                  CreateArgumentsType::kUnmappedArguments,
-                                  shared.internal_formal_parameter_count()),
--                             arguments_length, effect);
+-        Node* const elements = effect = graph()->NewNode(
+-            simplified()->NewArgumentsElements(
+-                CreateArgumentsType::kUnmappedArguments,
+-                shared.internal_formal_parameter_count_without_receiver()),
+-            arguments_length, effect);
++        Node* const elements = effect =
++            graph()->NewNode(simplified()->NewArgumentsElements(
++                                 CreateArgumentsType::kUnmappedArguments,
++                                 shared.internal_formal_parameter_count_without_receiver()),
 +                             arguments_frame, arguments_length, effect);
          // Load the arguments object map.
          Node* const arguments_map =
@@ -2719,24 +2988,29 @@ index 414977eb7d..b0dcf7b077 100644
 +            graph()->NewNode(simplified()->ArgumentsFrame());
          Node* const arguments_length =
 -            graph()->NewNode(simplified()->ArgumentsLength());
+-        Node* const rest_length = graph()->NewNode(simplified()->RestLength(
+-            shared.internal_formal_parameter_count_without_receiver()));
 +            graph()->NewNode(simplified()->ArgumentsLength(
-+                                 shared.internal_formal_parameter_count()),
++                                 shared.internal_formal_parameter_count_without_receiver()),
 +                             arguments_frame);
-         Node* const rest_length = graph()->NewNode(
--            simplified()->RestLength(shared.internal_formal_parameter_count()));
-+            simplified()->RestLength(shared.internal_formal_parameter_count()),
++        Node* const rest_length = graph()->NewNode(
++            simplified()->RestLength(shared.internal_formal_parameter_count_without_receiver()),
 +            arguments_frame);
          // Allocate the elements backing store.
-         Node* const elements = effect =
-             graph()->NewNode(simplified()->NewArgumentsElements(
-                                  CreateArgumentsType::kRestParameter,
-                                  shared.internal_formal_parameter_count()),
--                             arguments_length, effect);
+-        Node* const elements = effect = graph()->NewNode(
+-            simplified()->NewArgumentsElements(
+-                CreateArgumentsType::kRestParameter,
+-                shared.internal_formal_parameter_count_without_receiver()),
+-            arguments_length, effect);
++        Node* const elements = effect =
++            graph()->NewNode(simplified()->NewArgumentsElements(
++                                 CreateArgumentsType::kRestParameter,
++                                 shared.internal_formal_parameter_count_without_receiver()),
 +                             arguments_frame, arguments_length, effect);
          // Load the JSArray object map.
          Node* const jsarray_map = jsgraph()->Constant(
              native_context().js_array_packed_elements_map());
-@@ -1541,8 +1553,9 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+@@ -1552,8 +1564,9 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
  // values can only be determined dynamically at run-time and are provided.
  // Serves as backing store for JSCreateArguments nodes.
  Node* JSCreateLowering::TryAllocateAliasedArguments(
@@ -2747,8 +3021,8 @@ index 414977eb7d..b0dcf7b077 100644
 +    bool* has_aliased_arguments) {
    // If there is no aliasing, the arguments object elements are not
    // special in any way, we can just return an unmapped backing store.
-   int parameter_count = shared.internal_formal_parameter_count();
-@@ -1550,7 +1563,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+   int parameter_count =
+@@ -1562,7 +1575,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
      return graph()->NewNode(
          simplified()->NewArgumentsElements(
              CreateArgumentsType::kUnmappedArguments, parameter_count),
@@ -2757,7 +3031,7 @@ index 414977eb7d..b0dcf7b077 100644
    }
  
    int mapped_count = parameter_count;
-@@ -1577,7 +1590,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
+@@ -1589,7 +1602,7 @@ Node* JSCreateLowering::TryAllocateAliasedArguments(
    Node* arguments = effect =
        graph()->NewNode(simplified()->NewArgumentsElements(
                             CreateArgumentsType::kMappedArguments, mapped_count),
@@ -2779,7 +3053,7 @@ index 85a9a7bb58..55c09272cc 100644
                                      const SharedFunctionInfoRef& shared,
                                      bool* has_aliased_arguments);
 diff --git a/src/compiler/js-typed-lowering.cc b/src/compiler/js-typed-lowering.cc
-index 82b5d345e4..76a16104cf 100644
+index 1b4acaec65..3fa610c43f 100644
 --- a/src/compiler/js-typed-lowering.cc
 +++ b/src/compiler/js-typed-lowering.cc
 @@ -1573,6 +1573,13 @@ void ReduceBuiltin(JSGraph* jsgraph, Node* node, Builtin builtin, int arity,
@@ -2789,19 +3063,22 @@ index 82b5d345e4..76a16104cf 100644
 +
 +bool NeedsArgumentAdaptorFrame(SharedFunctionInfoRef shared, int arity) {
 +  static const int sentinel = kDontAdaptArgumentsSentinel;
-+  const int num_decl_parms = shared.internal_formal_parameter_count();
++  const int num_decl_parms = shared.internal_formal_parameter_count_without_receiver();
 +  return (num_decl_parms != arity && num_decl_parms != sentinel);
 +}
 +
  }  // namespace
  
  Reduction JSTypedLowering::ReduceJSConstructForwardVarargs(Node* node) {
-@@ -1750,24 +1757,53 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
+@@ -1753,27 +1760,53 @@ Reduction JSTypedLowering::ReduceJSCall(Node* node) {
      CallDescriptor::Flags flags = CallDescriptor::kNeedsFrameState;
      Node* new_target = jsgraph()->UndefinedConstant();
  
--    int formal_count = shared->internal_formal_parameter_count();
--    if (formal_count != kDontAdaptArgumentsSentinel && formal_count > arity) {
+-    int formal_count =
+-        shared->internal_formal_parameter_count_without_receiver();
+-    // TODO(v8:11112): Once the sentinel is always 0, the check against
+-    // IsDontAdaptArguments() can be removed.
+-    if (!shared->IsDontAdaptArguments() && formal_count > arity) {
 +    if (NeedsArgumentAdaptorFrame(*shared, arity)) {
        node->RemoveInput(n.FeedbackVectorIndex());
 -      // Underapplication. Massage the arguments to match the expected number of
@@ -2814,7 +3091,7 @@ index 82b5d345e4..76a16104cf 100644
 -      // Patch {node} to a direct call.
 -      node->InsertInput(graph()->zone(), formal_count + 2, new_target);
 -      node->InsertInput(graph()->zone(), formal_count + 3,
--                        jsgraph()->Constant(arity));
+-                        jsgraph()->Constant(JSParameterCount(arity)));
 -      NodeProperties::ChangeOp(node,
 -                               common()->Call(Linkage::GetJSCallDescriptor(
 -                                   graph()->zone(), false, 1 + formal_count,
@@ -2831,7 +3108,7 @@ index 82b5d345e4..76a16104cf 100644
 +        DCHECK_EQ(LanguageMode::kStrict, shared->language_mode());
 +
 +        // Massage the arguments to match the expected number of arguments.
-+        int expected_argument_count = shared->internal_formal_parameter_count();
++        int expected_argument_count = shared->internal_formal_parameter_count_without_receiver();
 +        for (; arity > expected_argument_count; --arity) {
 +          node->RemoveInput(arity + 1);
 +        }
@@ -2857,7 +3134,7 @@ index 82b5d345e4..76a16104cf 100644
 +        node->InsertInput(graph()->zone(), 3, jsgraph()->Constant(arity));
 +        node->InsertInput(
 +            graph()->zone(), 4,
-+            jsgraph()->Constant(shared->internal_formal_parameter_count()));
++            jsgraph()->Constant(shared->internal_formal_parameter_count_without_receiver()));
 +        NodeProperties::ChangeOp(
 +            node,
 +            common()->Call(Linkage::GetStubCallDescriptor(
@@ -2867,7 +3144,7 @@ index 82b5d345e4..76a16104cf 100644
                 Builtins::IsCpp(shared->builtin_id())) {
        // Patch {node} to a direct CEntry call.
 diff --git a/src/compiler/opcodes.h b/src/compiler/opcodes.h
-index 912bd7b5ce..ac33fde957 100644
+index b956f148cc..be96cd2fc5 100644
 --- a/src/compiler/opcodes.h
 +++ b/src/compiler/opcodes.h
 @@ -395,6 +395,7 @@
@@ -2879,10 +3156,10 @@ index 912bd7b5ce..ac33fde957 100644
    V(AssertType)                         \
    V(BooleanNot)                         \
 diff --git a/src/compiler/simplified-lowering.cc b/src/compiler/simplified-lowering.cc
-index 1c07a23dde..881b23fbe9 100644
+index 6416eed376..8d55b60761 100644
 --- a/src/compiler/simplified-lowering.cc
 +++ b/src/compiler/simplified-lowering.cc
-@@ -3717,9 +3717,15 @@ class RepresentationSelector {
+@@ -3710,9 +3710,15 @@ class RepresentationSelector {
          VisitObjectIs<T>(node, Type::Undetectable(), lowering);
          return;
        }
@@ -2899,7 +3176,7 @@ index 1c07a23dde..881b23fbe9 100644
          return;
        }
        case IrOpcode::kNewDoubleElements:
-@@ -3729,8 +3735,9 @@ class RepresentationSelector {
+@@ -3722,8 +3728,9 @@ class RepresentationSelector {
          return;
        }
        case IrOpcode::kNewArgumentsElements: {
@@ -2912,10 +3189,10 @@ index 1c07a23dde..881b23fbe9 100644
        }
        case IrOpcode::kCheckFloat64Hole: {
 diff --git a/src/compiler/simplified-operator.cc b/src/compiler/simplified-operator.cc
-index 9c4f8f083a..b720d2e49d 100644
+index 9461194b55..bdce7a52e4 100644
 --- a/src/compiler/simplified-operator.cc
 +++ b/src/compiler/simplified-operator.cc
-@@ -1005,6 +1005,13 @@ struct SimplifiedOperatorGlobalCache final {
+@@ -982,6 +982,13 @@ struct SimplifiedOperatorGlobalCache final {
    ChangeFloat64ToTaggedOperator<CheckForMinusZeroMode::kDontCheckForMinusZero>
        kChangeFloat64ToTaggedDontCheckForMinusZeroOperator;
  
@@ -2929,7 +3206,7 @@ index 9c4f8f083a..b720d2e49d 100644
    template <CheckForMinusZeroMode kMode>
    struct CheckedInt32MulOperator final
        : public Operator1<CheckForMinusZeroMode> {
-@@ -1238,6 +1245,7 @@ SimplifiedOperatorBuilder::SimplifiedOperatorBuilder(Zone* zone)
+@@ -1215,6 +1222,7 @@ SimplifiedOperatorBuilder::SimplifiedOperatorBuilder(Zone* zone)
  PURE_OP_LIST(GET_FROM_CACHE)
  EFFECT_DEPENDENT_OP_LIST(GET_FROM_CACHE)
  CHECKED_OP_LIST(GET_FROM_CACHE)
@@ -2937,7 +3214,7 @@ index 9c4f8f083a..b720d2e49d 100644
  GET_FROM_CACHE(FindOrderedHashMapEntry)
  GET_FROM_CACHE(FindOrderedHashMapEntryForInt32Key)
  GET_FROM_CACHE(LoadFieldByIndex)
-@@ -1657,12 +1665,14 @@ const Operator* SimplifiedOperatorBuilder::TransitionElementsKind(
+@@ -1634,12 +1642,14 @@ const Operator* SimplifiedOperatorBuilder::TransitionElementsKind(
        transition);                                    // parameter
  }
  
@@ -2958,7 +3235,7 @@ index 9c4f8f083a..b720d2e49d 100644
  }
  
  const Operator* SimplifiedOperatorBuilder::RestLength(
-@@ -1671,7 +1681,7 @@ const Operator* SimplifiedOperatorBuilder::RestLength(
+@@ -1648,7 +1658,7 @@ const Operator* SimplifiedOperatorBuilder::RestLength(
        IrOpcode::kRestLength,           // opcode
        Operator::kPure,                 // flags
        "RestLength",                    // name
@@ -2967,7 +3244,7 @@ index 9c4f8f083a..b720d2e49d 100644
        formal_parameter_count);         // parameter
  }
  
-@@ -1802,7 +1812,7 @@ const Operator* SimplifiedOperatorBuilder::NewArgumentsElements(
+@@ -1779,7 +1789,7 @@ const Operator* SimplifiedOperatorBuilder::NewArgumentsElements(
        IrOpcode::kNewArgumentsElements,                            // opcode
        Operator::kEliminatable,                                    // flags
        "NewArgumentsElements",                                     // name
@@ -2977,10 +3254,10 @@ index 9c4f8f083a..b720d2e49d 100644
                                       formal_parameter_count));  // parameter
  }
 diff --git a/src/compiler/simplified-operator.h b/src/compiler/simplified-operator.h
-index d7a5901448..3171f0d714 100644
+index 0602b795a9..0ac8e87347 100644
 --- a/src/compiler/simplified-operator.h
 +++ b/src/compiler/simplified-operator.h
-@@ -1019,7 +1019,8 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
+@@ -1006,7 +1006,8 @@ class V8_EXPORT_PRIVATE SimplifiedOperatorBuilder final
    const Operator* NumberIsSafeInteger();
    const Operator* ObjectIsInteger();
  
@@ -2991,10 +3268,10 @@ index d7a5901448..3171f0d714 100644
  
    const Operator* NewDoubleElements(AllocationType);
 diff --git a/src/compiler/typer.cc b/src/compiler/typer.cc
-index 529f1cc7bb..17089dd25c 100644
+index a96d1ea981..a1941e1e61 100644
 --- a/src/compiler/typer.cc
 +++ b/src/compiler/typer.cc
-@@ -2314,6 +2314,10 @@ Type Typer::Visitor::TypeRestLength(Node* node) {
+@@ -2315,6 +2315,10 @@ Type Typer::Visitor::TypeRestLength(Node* node) {
    return TypeCache::Get()->kArgumentsLengthType;
  }
  
@@ -3006,7 +3283,7 @@ index 529f1cc7bb..17089dd25c 100644
    return Type::OtherInternal();
  }
 diff --git a/src/compiler/verifier.cc b/src/compiler/verifier.cc
-index f33edaa6c0..5d977a50e5 100644
+index a0f2aa569d..41ea534727 100644
 --- a/src/compiler/verifier.cc
 +++ b/src/compiler/verifier.cc
 @@ -1239,8 +1239,12 @@ void Verifier::Visitor::Check(Node* node, const AllNodes& all) {
@@ -3033,10 +3310,10 @@ index f33edaa6c0..5d977a50e5 100644
        CheckTypeIs(node, Type::OtherInternal());
        break;
 diff --git a/src/compiler/wasm-compiler.cc b/src/compiler/wasm-compiler.cc
-index 88ca600271..457609843d 100644
+index eb5b7ea72b..dce5953e00 100644
 --- a/src/compiler/wasm-compiler.cc
 +++ b/src/compiler/wasm-compiler.cc
-@@ -6943,33 +6943,43 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
+@@ -6903,34 +6903,43 @@ class WasmWrapperGraphBuilder : public WasmGraphBuilder {
        // === JS Functions with mismatching arity ===============================
        // =======================================================================
        case WasmImportCallKind::kJSFunctionArityMismatch: {
@@ -3071,8 +3348,9 @@ index 88ca600271..457609843d 100644
 -        for (int i = wasm_count; i < expected_arity; ++i) {
 -          args[pos++] = undefined_node;
 -        }
--        args[pos++] = undefined_node;                        // new target
--        args[pos++] = Int32Constant(wasm_count);             // argument count
+-        args[pos++] = undefined_node;  // new target
+-        args[pos++] =
+-            Int32Constant(JSParameterCount(wasm_count));  // argument count
 +        auto call_descriptor = Linkage::GetStubCallDescriptor(
 +            mcgraph()->zone(), ArgumentsAdaptorDescriptor{}, 1 + wasm_count,
 +            CallDescriptor::kNoFlags, Operator::kNoProperties,
@@ -3151,12 +3429,12 @@ index 92bce90095..4bbd68aa6b 100644
      &construct_stub_invoke_deopt_addr,
      &Builtins_BaselineOrInterpreterEnterAtBytecode,
 diff --git a/src/deoptimizer/deoptimizer.cc b/src/deoptimizer/deoptimizer.cc
-index 296c946e4d..ee99509eb3 100644
+index d8262c8c62..add1abfbfe 100644
 --- a/src/deoptimizer/deoptimizer.cc
 +++ b/src/deoptimizer/deoptimizer.cc
-@@ -1023,13 +1023,7 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
- 
-   const int parameters_count = InternalFormalParameterCountWithReceiver(shared);
+@@ -1016,13 +1016,7 @@ void Deoptimizer::DoComputeUnoptimizedFrame(TranslatedFrame* translated_frame,
+   const int parameters_count =
+       shared.internal_formal_parameter_count_with_receiver();
  
 -  // If this is the bottom most frame or the previous frame was the arguments
 -  // adaptor fake frame, then we already have extra arguments in the stack
@@ -3169,7 +3447,7 @@ index 296c946e4d..ee99509eb3 100644
  
    const int locals_count = translated_frame->height();
    UnoptimizedFrameInfo frame_info = UnoptimizedFrameInfo::Precise(
-@@ -1319,60 +1313,101 @@ void Deoptimizer::DoComputeArgumentsAdaptorFrame(
+@@ -1314,61 +1308,101 @@ void Deoptimizer::DoComputeArgumentsAdaptorFrame(
    CHECK_GT(frame_index, 0);
    CHECK_NULL(output_[frame_index]);
  
@@ -3183,7 +3461,8 @@ index 296c946e4d..ee99509eb3 100644
    TranslatedFrame::iterator value_iterator = translated_frame->begin();
 -  const int argument_count_without_receiver = translated_frame->height() - 1;
 -  const int formal_parameter_count =
--      translated_frame->raw_shared_info().internal_formal_parameter_count();
+-      translated_frame->raw_shared_info()
+-          .internal_formal_parameter_count_without_receiver();
 -  const int extra_argument_count =
 -      argument_count_without_receiver - formal_parameter_count;
 -  // The number of pushed arguments is the maximum of the actual argument count
@@ -3211,8 +3490,9 @@ index 296c946e4d..ee99509eb3 100644
    }
  
    // Allocate and store the output frame description.
-   FrameDescription* output_frame = new (output_frame_size)
--      FrameDescription(output_frame_size, argument_count_without_receiver);
+-  FrameDescription* output_frame = new (output_frame_size) FrameDescription(
+-      output_frame_size, JSParameterCount(argument_count_without_receiver));
++  FrameDescription* output_frame = new (output_frame_size)
 +      FrameDescription(output_frame_size, parameters_count);
 +  FrameWriter frame_writer(this, output_frame, verbose_trace_scope());
 +
@@ -3310,10 +3590,10 @@ index 296c946e4d..ee99509eb3 100644
    }
  }
  
-@@ -2044,6 +2079,7 @@ unsigned Deoptimizer::ComputeInputFrameSize() const {
+@@ -2039,6 +2073,7 @@ unsigned Deoptimizer::ComputeInputFrameSize() const {
  // static
  unsigned Deoptimizer::ComputeIncomingArgumentSize(SharedFunctionInfo shared) {
-   int parameter_slots = InternalFormalParameterCountWithReceiver(shared);
+   int parameter_slots = shared.internal_formal_parameter_count_with_receiver();
 +  if (ShouldPadArguments(parameter_slots)) parameter_slots++;
    return parameter_slots * kSystemPointerSize;
  }
@@ -3335,10 +3615,10 @@ index f7e79aec6c..8691d7d9d7 100644
                      StandardFrameConstants::kCallerSPOffset;
      return reinterpret_cast<Address>(GetFrameSlotPointer(fp_offset));
 diff --git a/src/deoptimizer/translated-state.cc b/src/deoptimizer/translated-state.cc
-index b51658f8e6..e9aa1fe13b 100644
+index b34b84155b..0ac6f7c42a 100644
 --- a/src/deoptimizer/translated-state.cc
 +++ b/src/deoptimizer/translated-state.cc
-@@ -900,6 +900,30 @@ void TranslatedFrame::AdvanceIterator(
+@@ -892,6 +892,30 @@ void TranslatedFrame::AdvanceIterator(
    }
  }
  
@@ -3369,7 +3649,7 @@ index b51658f8e6..e9aa1fe13b 100644
  // Creates translated values for an arguments backing store, or the backing
  // store for rest parameters depending on the given {type}. The TranslatedValue
  // objects for the fields are not read from the TranslationArrayIterator, but
-@@ -909,10 +933,12 @@ void TranslatedState::CreateArgumentsElementsTranslatedValues(
+@@ -901,10 +925,12 @@ void TranslatedState::CreateArgumentsElementsTranslatedValues(
      int frame_index, Address input_frame_pointer, CreateArgumentsType type,
      FILE* trace_file) {
    TranslatedFrame& frame = frames_[frame_index];
@@ -3386,7 +3666,7 @@ index b51658f8e6..e9aa1fe13b 100644
    int object_index = static_cast<int>(object_positions_.size());
    int value_index = static_cast<int>(frame.values_.size());
    if (trace_file != nullptr) {
-@@ -945,9 +971,6 @@ void TranslatedState::CreateArgumentsElementsTranslatedValues(
+@@ -937,9 +963,6 @@ void TranslatedState::CreateArgumentsElementsTranslatedValues(
    for (int i = 0; i < argc; i++) {
      // Skip the receiver.
      int offset = argc - i - 1;
@@ -3396,7 +3676,7 @@ index b51658f8e6..e9aa1fe13b 100644
      Address argument_slot = arguments_frame +
                              CommonFrameConstants::kFixedFrameSizeAboveFp +
                              offset * kSystemPointerSize;
-@@ -1011,11 +1034,13 @@ int TranslatedState::CreateNextTranslatedValue(
+@@ -1003,11 +1026,13 @@ int TranslatedState::CreateNextTranslatedValue(
      }
  
      case TranslationOpcode::ARGUMENTS_LENGTH: {
@@ -3412,7 +3692,7 @@ index b51658f8e6..e9aa1fe13b 100644
        return 0;
      }
  
-@@ -1295,7 +1320,7 @@ TranslatedState::TranslatedState(const JavaScriptFrame* frame)
+@@ -1287,7 +1312,7 @@ TranslatedState::TranslatedState(const JavaScriptFrame* frame)
    DCHECK(!data.is_null() && deopt_index != Safepoint::kNoDeoptimizationIndex);
    TranslationArrayIterator it(data.TranslationByteArray(),
                                data.TranslationIndex(deopt_index).value());
@@ -3420,7 +3700,7 @@ index b51658f8e6..e9aa1fe13b 100644
 +  int actual_argc = 0;
    Init(frame->isolate(), frame->fp(), frame->fp(), &it, data.LiteralArray(),
         nullptr /* registers */, nullptr /* trace file */,
-        frame->function().shared().internal_formal_parameter_count(),
+        frame->function()
 diff --git a/src/deoptimizer/translated-state.h b/src/deoptimizer/translated-state.h
 index 799cb5b18c..28773054c9 100644
 --- a/src/deoptimizer/translated-state.h
@@ -3434,7 +3714,7 @@ index 799cb5b18c..28773054c9 100644
                                                 Address input_frame_pointer,
                                                 CreateArgumentsType type,
 diff --git a/src/execution/frame-constants.h b/src/execution/frame-constants.h
-index a6aed32ee9..9a47b5a68c 100644
+index d443e7566a..435fe2d42b 100644
 --- a/src/execution/frame-constants.h
 +++ b/src/execution/frame-constants.h
 @@ -196,6 +196,15 @@ class TypedFrameConstants : public CommonFrameConstants {
@@ -3530,10 +3810,10 @@ index 6f538c7346..1dd96214fd 100644
    return static_cast<CommonFrame*>(frame);
  }
 diff --git a/src/execution/frames.cc b/src/execution/frames.cc
-index fb56e34425..1661049358 100644
+index 6c6a54ae57..7a6042ccb5 100644
 --- a/src/execution/frames.cc
 +++ b/src/execution/frames.cc
-@@ -443,6 +443,15 @@ bool SafeStackFrameIterator::IsValidCaller(StackFrame* frame) {
+@@ -466,6 +466,15 @@ bool SafeStackFrameIterator::IsValidCaller(StackFrame* frame) {
      Address caller_fp =
          Memory<Address>(frame->fp() + EntryFrameConstants::kCallerFPOffset);
      if (!IsValidExitFrame(caller_fp)) return false;
@@ -3549,7 +3829,7 @@ index fb56e34425..1661049358 100644
    }
    frame->ComputeCallerState(&state);
    return IsValidStackAddress(state.sp) && IsValidStackAddress(state.fp) &&
-@@ -648,6 +657,7 @@ StackFrame::Type StackFrame::ComputeType(const StackFrameIteratorBase* iterator,
+@@ -671,6 +680,7 @@ StackFrame::Type StackFrame::ComputeType(const StackFrameIteratorBase* iterator,
      case STUB:
      case INTERNAL:
      case CONSTRUCT:
@@ -3557,7 +3837,7 @@ index fb56e34425..1661049358 100644
  #if V8_ENABLE_WEBASSEMBLY
      case WASM_TO_JS:
      case WASM:
-@@ -1002,6 +1012,7 @@ void CommonFrame::IterateCompiledFrame(RootVisitor* v) const {
+@@ -1025,6 +1035,7 @@ void CommonFrame::IterateCompiledFrame(RootVisitor* v) const {
        case JAVA_SCRIPT_BUILTIN_CONTINUATION:
        case JAVA_SCRIPT_BUILTIN_CONTINUATION_WITH_CATCH:
        case BUILTIN_EXIT:
@@ -3565,7 +3845,7 @@ index fb56e34425..1661049358 100644
        case STUB:
        case INTERNAL:
        case CONSTRUCT:
-@@ -1137,7 +1148,12 @@ void JavaScriptFrame::SetParameterValue(int index, Object value) const {
+@@ -1160,7 +1171,12 @@ void JavaScriptFrame::SetParameterValue(int index, Object value) const {
  }
  
  bool JavaScriptFrame::IsConstructor() const {
@@ -3579,19 +3859,20 @@ index fb56e34425..1661049358 100644
  }
  
  bool JavaScriptFrame::HasInlinedFrames() const {
-@@ -1330,11 +1346,6 @@ int CommonFrameWithJSLinkage::ComputeParametersCount() const {
-   return function().shared().internal_formal_parameter_count();
+@@ -1354,12 +1370,6 @@ int CommonFrameWithJSLinkage::ComputeParametersCount() const {
+   return function().shared().internal_formal_parameter_count_without_receiver();
  }
  
 -int JavaScriptFrame::GetActualArgumentCount() const {
 -  return static_cast<int>(
--      Memory<intptr_t>(fp() + StandardFrameConstants::kArgCOffset));
+-             Memory<intptr_t>(fp() + StandardFrameConstants::kArgCOffset)) -
+-         kJSArgcReceiverSlots;
 -}
 -
  Handle<FixedArray> CommonFrameWithJSLinkage::GetParameters() const {
    if (V8_LIKELY(!FLAG_detailed_error_stack_trace)) {
      return isolate()->factory()->empty_fixed_array();
-@@ -1850,6 +1861,15 @@ void BaselineFrame::PatchContext(Context value) {
+@@ -1875,6 +1885,15 @@ void BaselineFrame::PatchContext(Context value) {
        value.ptr();
  }
  
@@ -3607,7 +3888,7 @@ index fb56e34425..1661049358 100644
  JSFunction BuiltinFrame::function() const {
    const int offset = BuiltinFrameConstants::kFunctionOffset;
    return JSFunction::cast(Object(base::Memory<Address>(fp() + offset)));
-@@ -2184,6 +2204,34 @@ void JavaScriptFrame::Print(StringStream* accumulator, PrintMode mode,
+@@ -2209,6 +2228,34 @@ void JavaScriptFrame::Print(StringStream* accumulator, PrintMode mode,
    accumulator->Add("}\n\n");
  }
  
@@ -3616,7 +3897,7 @@ index fb56e34425..1661049358 100644
 +  int actual = ComputeParametersCount();
 +  int expected = -1;
 +  JSFunction function = this->function();
-+  expected = function.shared().internal_formal_parameter_count();
++  expected = function.shared().internal_formal_parameter_count_without_receiver();
 +
 +  PrintIndex(accumulator, mode, index);
 +  accumulator->Add("arguments adaptor frame: %d->%d", actual, expected);
@@ -3642,7 +3923,7 @@ index fb56e34425..1661049358 100644
  void EntryFrame::Iterate(RootVisitor* v) const {
    IteratePc(v, pc_address(), constant_pool_address(), LookupCode());
  }
-@@ -2328,6 +2376,17 @@ uint32_t UnoptimizedFrameInfo::GetStackSizeForAdditionalArguments(
+@@ -2353,6 +2400,17 @@ uint32_t UnoptimizedFrameInfo::GetStackSizeForAdditionalArguments(
           kSystemPointerSize;
  }
  
@@ -3661,10 +3942,10 @@ index fb56e34425..1661049358 100644
                                                 bool is_topmost,
                                                 FrameInfoKind frame_info_kind) {
 diff --git a/src/execution/frames.h b/src/execution/frames.h
-index 53d6a149e2..b70991c7b3 100644
+index f805a2ede1..c5c5957660 100644
 --- a/src/execution/frames.h
 +++ b/src/execution/frames.h
-@@ -113,6 +113,7 @@ class StackHandler {
+@@ -114,6 +114,7 @@ class StackHandler {
      JavaScriptBuiltinContinuationWithCatchFrame)                          \
    V(INTERNAL, InternalFrame)                                              \
    V(CONSTRUCT, ConstructFrame)                                            \
@@ -3672,7 +3953,7 @@ index 53d6a149e2..b70991c7b3 100644
    V(BUILTIN, BuiltinFrame)                                                \
    V(BUILTIN_EXIT, BuiltinExitFrame)                                       \
    V(NATIVE, NativeFrame)
-@@ -214,6 +215,7 @@ class StackFrame {
+@@ -217,6 +218,7 @@ class StackFrame {
    }
    bool is_interpreted() const { return type() == INTERPRETED; }
    bool is_baseline() const { return type() == BASELINE; }
@@ -3680,7 +3961,7 @@ index 53d6a149e2..b70991c7b3 100644
  #if V8_ENABLE_WEBASSEMBLY
    bool is_wasm() const { return this->type() == WASM; }
    bool is_c_wasm_entry() const { return type() == C_WASM_ENTRY; }
-@@ -517,6 +519,10 @@ class CommonFrame : public StackFrame {
+@@ -520,6 +522,10 @@ class CommonFrame : public StackFrame {
    // Returns the address of the n'th expression stack element.
    virtual Address GetExpressionAddress(int n) const;
  
@@ -3691,7 +3972,7 @@ index 53d6a149e2..b70991c7b3 100644
    // Used by OptimizedFrames and StubFrames.
    void IterateCompiledFrame(RootVisitor* v) const;
  
-@@ -544,7 +550,6 @@ class CommonFrameWithJSLinkage : public CommonFrame {
+@@ -547,7 +553,6 @@ class CommonFrameWithJSLinkage : public CommonFrame {
    virtual Object GetParameter(int index) const;
    virtual int ComputeParametersCount() const;
    Handle<FixedArray> GetParameters() const;
@@ -3699,7 +3980,7 @@ index 53d6a149e2..b70991c7b3 100644
  
    // Determine the code for the frame.
    Code unchecked_code() const override;
-@@ -588,7 +593,6 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
+@@ -591,7 +596,6 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
    Object unchecked_function() const;
    Script script() const;
    Object context() const override;
@@ -3707,7 +3988,7 @@ index 53d6a149e2..b70991c7b3 100644
  
    inline void set_receiver(Object value);
  
-@@ -602,6 +606,11 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
+@@ -605,6 +609,11 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
    // about the inlined frames use {GetFunctions} and {Summarize}.
    bool HasInlinedFrames() const;
  
@@ -3719,7 +4000,7 @@ index 53d6a149e2..b70991c7b3 100644
    // Garbage collection support.
    void Iterate(RootVisitor* v) const override;
  
-@@ -648,6 +657,38 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
+@@ -651,6 +660,38 @@ class JavaScriptFrame : public CommonFrameWithJSLinkage {
    friend class StackFrameIteratorBase;
  };
  
@@ -3758,7 +4039,7 @@ index 53d6a149e2..b70991c7b3 100644
  class NativeFrame : public TypedFrame {
   public:
    Type type() const override { return NATIVE; }
-@@ -1382,6 +1423,28 @@ class UnoptimizedFrameInfo {
+@@ -1390,6 +1431,28 @@ class UnoptimizedFrameInfo {
    uint32_t frame_size_in_bytes_;
  };
  
@@ -3788,10 +4069,10 @@ index 53d6a149e2..b70991c7b3 100644
   public:
    static ConstructStubFrameInfo Precise(int translation_height,
 diff --git a/src/execution/isolate.cc b/src/execution/isolate.cc
-index 8363c52c49..1fd0729df3 100644
+index c630cb73fa..7c5d04871f 100644
 --- a/src/execution/isolate.cc
 +++ b/src/execution/isolate.cc
-@@ -4513,7 +4513,8 @@ void Isolate::PrepareBuiltinLabelInfoMap() {
+@@ -4476,7 +4476,8 @@ void Isolate::PrepareBuiltinLabelInfoMap() {
    if (embedded_file_writer_ != nullptr) {
      embedded_file_writer_->PrepareBuiltinLabelInfoMap(
          heap()->construct_stub_create_deopt_pc_offset().value(),
@@ -3802,7 +4083,7 @@ index 8363c52c49..1fd0729df3 100644
  }
  
 diff --git a/src/heap/heap.cc b/src/heap/heap.cc
-index 982b80bb89..da54f275e0 100644
+index 0d0c4935a3..5b50d012ce 100644
 --- a/src/heap/heap.cc
 +++ b/src/heap/heap.cc
 @@ -159,6 +159,11 @@ void Heap_GenerationalEphemeronKeyBarrierSlow(Heap* heap,
@@ -3818,7 +4099,7 @@ index 982b80bb89..da54f275e0 100644
    DCHECK_EQ(Smi::zero(), construct_stub_create_deopt_pc_offset());
    set_construct_stub_create_deopt_pc_offset(Smi::FromInt(pc_offset));
 diff --git a/src/heap/heap.h b/src/heap/heap.h
-index 61dea819f0..fdc33ac053 100644
+index e2e6316ef5..887c211ae3 100644
 --- a/src/heap/heap.h
 +++ b/src/heap/heap.h
 @@ -1180,6 +1180,7 @@ class Heap {
@@ -3842,7 +4123,7 @@ index e7ec614c63..cc8faec75d 100644
      ConstructStubCreateDeoptPCOffset)                                          \
    V(Smi, construct_stub_invoke_deopt_pc_offset,                                \
 diff --git a/src/runtime/runtime-scopes.cc b/src/runtime/runtime-scopes.cc
-index f49689c292..c0ddf4eec6 100644
+index 8b65ffb7cc..7fb67704be 100644
 --- a/src/runtime/runtime-scopes.cc
 +++ b/src/runtime/runtime-scopes.cc
 @@ -380,7 +380,12 @@ std::unique_ptr<Handle<Object>[]> GetCallerArguments(Isolate* isolate,
@@ -3911,7 +4192,7 @@ index 4845be036c..af8be5c396 100644
  #if defined(V8_OS_WIN64)
    void SetBuiltinUnwindData(
 diff --git a/src/wasm/wasm-code-manager.h b/src/wasm/wasm-code-manager.h
-index 2baf46e888..63e9b35665 100644
+index 70ef6d75a9..283164efda 100644
 --- a/src/wasm/wasm-code-manager.h
 +++ b/src/wasm/wasm-code-manager.h
 @@ -84,6 +84,7 @@ struct WasmModule;
@@ -3922,6 +4203,20 @@ index 2baf46e888..63e9b35665 100644
    V(BigIntToI32Pair)                      \
    V(BigIntToI64)                          \
    V(DoubleToI)                            \
+diff --git a/test/mjsunit/mjsunit.status b/test/mjsunit/mjsunit.status
+index 0a19067cc6..b2512cb24a 100644
+--- a/test/mjsunit/mjsunit.status
++++ b/test/mjsunit/mjsunit.status
+@@ -52,9 +52,6 @@
+   ##############################################################################
+   # Open bugs.
+ 
+-  # BUG(v8:2989).
+-  'regress/regress-2989': [FAIL, NO_VARIANTS, ['lite_mode == True', SKIP]],
+-
+   # Issue 3784: setters-on-elements is flaky
+   'setters-on-elements': [PASS, FAIL],
+ 
 diff --git a/test/torque/test-torque.tq b/test/torque/test-torque.tq
 index 1e11465f5a..07096b752d 100644
 --- a/test/torque/test-torque.tq
@@ -3937,10 +4232,10 @@ index 1e11465f5a..07096b752d 100644
      }
    }
 diff --git a/tools/v8heapconst.py b/tools/v8heapconst.py
-index 097b6a7267..cd4545a0e0 100644
+index 5693bf147b..aecd1d713a 100644
 --- a/tools/v8heapconst.py
 +++ b/tools/v8heapconst.py
-@@ -527,6 +527,7 @@ FRAME_MARKERS = (
+@@ -525,6 +525,7 @@ FRAME_MARKERS = (
    "JAVA_SCRIPT_BUILTIN_CONTINUATION_WITH_CATCH",
    "INTERNAL",
    "CONSTRUCT",

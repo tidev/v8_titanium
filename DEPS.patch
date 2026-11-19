@@ -1,5 +1,5 @@
 diff --git a/DEPS b/DEPS
-index 439f45ca58..b9908c640e 100644
+index 8059e3b8c3..102e625019 100644
 --- a/DEPS
 +++ b/DEPS
 @@ -171,56 +171,6 @@ deps = {
@@ -11,7 +11,7 @@ index 439f45ca58..b9908c640e 100644
 -    'condition': 'checkout_android',
 -  },
 -  'third_party/android_platform': {
--    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + 'e98c753917587d320f4e7a24f1c7474535adac3f',
+-    'url': Var('chromium_url') + '/chromium/src/third_party/android_platform.git' + '@' + '6e5dc9acd241c308385f970c384d9e083b2b6e56',
 -    'condition': 'checkout_android',
 -  },
 -  'third_party/android_sdk/public': {
@@ -53,7 +53,7 @@ index 439f45ca58..b9908c640e 100644
 -      'dep_type': 'cipd',
 -  },
 -  'third_party/catapult': {
--    'url': Var('chromium_url') + '/catapult.git' + '@' + 'abc7ba7d871fe3c25b0a1bec7fc84fb309034cb7',
+-    'url': Var('chromium_url') + '/catapult.git' + '@' + '2331f088546de8f58dcc02daf8212254aaeb2d4c',
 -    'condition': 'checkout_android',
 -  },
    'third_party/colorama/src': {

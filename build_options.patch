@@ -1,8 +1,8 @@
 diff --git a/gni/v8.gni b/gni/v8.gni
-index a334651797..410e7d41d3 100644
+index fe445307f9..574123e2f4 100644
 --- a/gni/v8.gni
 +++ b/gni/v8.gni
-@@ -147,13 +147,7 @@ if (is_debug && !v8_optimized_debug) {
+@@ -137,13 +137,7 @@ if (is_debug && !v8_optimized_debug) {
  } else {
    v8_remove_configs += [ "//build/config/compiler:default_optimization" ]
  
@@ -15,5 +15,5 @@ index a334651797..410e7d41d3 100644
 -  }
 +  v8_add_configs += [ "//build/config/compiler:optimize_speed" ]
  }
-
+ 
  if (!is_debug) {

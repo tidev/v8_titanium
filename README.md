@@ -40,6 +40,7 @@ patch -p1 < ../compat_adaptor.patch
 patch -p1 < ../python3_fixes.patch
 patch -p1 < ../build_options.patch
 patch -p1 < ../bit-field-fix.patch
+patch -p1 < ../regexp_flags_order.patch
 ```
 
 ### 4. Sync V8 dependencies
@@ -115,6 +116,7 @@ with `sudo apt-get install gcc-multilib g++-multilib` on Debian/Ubuntu.
 | `compat_adaptor.patch` | Restore the arguments adaptor frame, required by `compat_jsargs.patch` |
 | `build_options.patch` | Simplify build optimization config |
 | `bit-field-fix.patch` | Fix clang enum-constexpr-conversion warning |
+| `regexp_flags_order.patch` | Read `hasIndices` first in the `RegExp.prototype.flags` getter, as the specification requires. Without it, core-js replaces the getter and V8 uses the slow path for `split`, `replace` and `match` with a regex |
 | `python3_fixes.patch` | Python 3.10+ compatibility for build tools |
 
 ## GitHub Actions
