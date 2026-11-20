@@ -1,0 +1,151 @@
+diff --git a/src/builtins/arm/builtins-arm.cc b/src/builtins/arm/builtins-arm.cc
+index 1ef63e1096..a7dd1b9f1b 100644
+--- a/src/builtins/arm/builtins-arm.cc
++++ b/src/builtins/arm/builtins-arm.cc
+@@ -1092,6 +1092,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
+ }
+ 
+ // static
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   UseScratchRegisterScope temps(masm);
+   // Need a few extra registers
+@@ -1244,6 +1245,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   __ LoadRoot(kInterpreterAccumulatorRegister, RootIndex::kUndefinedValue);
+   __ Ret();
+ }
++#endif
+ 
+ // Generate code for entering a JS function with the interpreter.
+ // On entry to the function the receiver and arguments have been pushed on the
+@@ -1898,11 +1900,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+   return OnStackReplacement(masm, true);
+ }
+ 
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOnStackReplacement(MacroAssembler* masm) {
+   __ ldr(kContextRegister,
+          MemOperand(fp, BaselineFrameConstants::kContextOffset));
+   return OnStackReplacement(masm, false);
+ }
++#endif
+ 
+ // static
+ void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
+diff --git a/src/builtins/arm64/builtins-arm64.cc b/src/builtins/arm64/builtins-arm64.cc
+index ac34e17354..a5817d5538 100644
+--- a/src/builtins/arm64/builtins-arm64.cc
++++ b/src/builtins/arm64/builtins-arm64.cc
+@@ -1293,6 +1293,7 @@ static void MaybeOptimizeCodeOrTailCallOptimizedCodeSlot(
+ }
+ 
+ // static
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   UseScratchRegisterScope temps(masm);
+   // Need a few extra registers
+@@ -1434,6 +1435,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   __ LoadRoot(kInterpreterAccumulatorRegister, RootIndex::kUndefinedValue);
+   __ Ret();
+ }
++#endif
+ 
+ // Generate code for entering a JS function with the interpreter.
+ // On entry to the function the receiver and arguments have been pushed on the
+@@ -2159,11 +2161,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+   return OnStackReplacement(masm, true);
+ }
+ 
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOnStackReplacement(MacroAssembler* masm) {
+   __ ldr(kContextRegister,
+          MemOperand(fp, BaselineFrameConstants::kContextOffset));
+   return OnStackReplacement(masm, false);
+ }
++#endif
+ 
+ // static
+ void Builtins::Generate_FunctionPrototypeApply(MacroAssembler* masm) {
+diff --git a/src/builtins/ia32/builtins-ia32.cc b/src/builtins/ia32/builtins-ia32.cc
+index 63aba94fe9..3032ca5c03 100644
+--- a/src/builtins/ia32/builtins-ia32.cc
++++ b/src/builtins/ia32/builtins-ia32.cc
+@@ -1709,7 +1709,9 @@ void Builtins::Generate_InterpreterEnterAtNextBytecode(MacroAssembler* masm) {
+ void Builtins::Generate_InterpreterEnterAtBytecode(MacroAssembler* masm) {
+   Generate_InterpreterEnterBytecode(masm);
+ }
++
+ // static
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   auto descriptor =
+       Builtins::CallInterfaceDescriptorFor(Builtin::kBaselineOutOfLinePrologue);
+@@ -1854,6 +1856,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+     __ Ret();
+   }
+ }
++#endif
+ 
+ namespace {
+ void Generate_ContinueToBuiltinHelper(MacroAssembler* masm,
+@@ -2880,11 +2883,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+   return OnStackReplacement(masm, true);
+ }
+ 
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOnStackReplacement(MacroAssembler* masm) {
+   __ mov(kContextRegister,
+          MemOperand(ebp, BaselineFrameConstants::kContextOffset));
+   return OnStackReplacement(masm, false);
+ }
++#endif
+ 
+ #if V8_ENABLE_WEBASSEMBLY
+ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
+diff --git a/src/builtins/x64/builtins-x64.cc b/src/builtins/x64/builtins-x64.cc
+index f5ef0877bc..ab6cd7675b 100644
+--- a/src/builtins/x64/builtins-x64.cc
++++ b/src/builtins/x64/builtins-x64.cc
+@@ -1700,6 +1700,7 @@ void Builtins::Generate_InterpreterEnterAtBytecode(MacroAssembler* masm) {
+ }
+ 
+ // static
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+   Register feedback_vector = r8;
+   Register optimization_state = rcx;
+@@ -1842,6 +1843,7 @@ void Builtins::Generate_BaselineOutOfLinePrologue(MacroAssembler* masm) {
+     __ Ret();
+   }
+ }
++#endif
+ 
+ namespace {
+ void Generate_ContinueToBuiltinHelper(MacroAssembler* masm,
+@@ -2791,11 +2793,13 @@ void Builtins::Generate_InterpreterOnStackReplacement(MacroAssembler* masm) {
+   return OnStackReplacement(masm, true);
+ }
+ 
++#if ENABLE_SPARKPLUG
+ void Builtins::Generate_BaselineOnStackReplacement(MacroAssembler* masm) {
+   __ movq(kContextRegister,
+           MemOperand(rbp, BaselineFrameConstants::kContextOffset));
+   return OnStackReplacement(masm, false);
+ }
++#endif
+ 
+ #if V8_ENABLE_WEBASSEMBLY
+ void Builtins::Generate_WasmCompileLazy(MacroAssembler* masm) {
+diff --git a/src/flags/flag-definitions.h b/src/flags/flag-definitions.h
+index ca8ed311a8..9177121449 100644
+--- a/src/flags/flag-definitions.h
++++ b/src/flags/flag-definitions.h
+@@ -198,7 +198,7 @@ struct MaybeBoolFlag {
+ #if V8_TARGET_ARCH_IA32 || V8_TARGET_ARCH_X64 || V8_TARGET_ARCH_ARM64 ||     \
+     V8_TARGET_ARCH_ARM || V8_TARGET_ARCH_RISCV64 || V8_TARGET_ARCH_MIPS64 || \
+     V8_TARGET_ARCH_MIPS || V8_TARGET_ARCH_LOONG64
+-#define ENABLE_SPARKPLUG true
++#define ENABLE_SPARKPLUG false
+ #else
+ // TODO(v8:11421): Enable Sparkplug for other architectures
+ #define ENABLE_SPARKPLUG false
