@@ -14,7 +14,10 @@ jobs:
     strategy:
       matrix:
         arch: ['arm64', 'x64', 'arm', 'ia32']
-    runs-on: ubuntu-latest
+    # Pinned: the build uses the system clang of the runner. Ubuntu 24.04 has
+    # clang 18. Clang 20 and newer (Ubuntu 26.04) reject the out-of-range enum
+    # cast in src/base/bit-field.h as a hard error.
+    runs-on: ubuntu-24.04
     name: ${{ matrix.arch }}
     env:
       CCACHE_DIR: ${{ github.workspace }}/.ccache
@@ -190,6 +193,7 @@ jobs:
       uses: actions/upload-artifact@v7
       with:
         name: libv8-release-${{ matrix.arch }}
+        if-no-files-found: error
         path: |
           build/release/**
 

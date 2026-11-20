@@ -238,16 +238,16 @@ EOF
 
 	# Build using ninja
 	if [ ! -z "$NUM_CPUS" ]; then
-		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET
+		ninja -v -C out.gn/$MAKE_TARGET -j $NUM_CPUS $TARGET || { echo "ERROR: ninja build of $TARGET failed!"; exit 1; }
 	else
-		ninja -v -C out.gn/$MAKE_TARGET $TARGET
+		ninja -v -C out.gn/$MAKE_TARGET $TARGET || { echo "ERROR: ninja build of $TARGET failed!"; exit 1; }
 	fi
 
 	# Copy the static libraries to our staging area.
 	DEST_DIR="$BUILD_DIR/$BUILD_MODE"
 	mkdir -p "$DEST_DIR/libs/$ARCH" 2>/dev/null || echo
 	if [ "$TARGET" = "v8_monolith" ]; then
-		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a"
+		cp "$V8_DIR/out.gn/$MAKE_TARGET/obj/libv8_monolith.a"  "$DEST_DIR/libs/$ARCH/libv8_monolith.a" || { echo "ERROR: libv8_monolith.a was not built!"; exit 1; }
 	fi
 
 	# Strip debug symbols from mksnapshot binaries to reduce size
